@@ -1,6 +1,9 @@
+from dotenv.main import logger
 import os
+import logging
+logger = logging.getLogger(__name__)
 from datetime import datetime, timezone
-from typing import Dict, List
+from typing import Dict, List, Optional 
 
 from models.schemas import ContentDraft, Platform, PublishLog, PublishStatus, PublishTask
 from tools.meta_api import MetaAPIClient
