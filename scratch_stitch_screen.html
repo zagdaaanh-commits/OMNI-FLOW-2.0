@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>OmniFlow AI — Autonomous Marketing Suite</title>
+<!-- Fonts & Material Symbols -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            obsidian: {
+              DEFAULT: "#0B0D12",
+              surface: "rgba(255, 255, 255, 0.03)",
+              border: "rgba(255, 255, 255, 0.08)"
+            },
+            appleIndigo: {
+              DEFAULT: "#6366F1",
+              glow: "rgba(99, 102, 241, 0.25)"
+            },
+            appleEmerald: {
+              DEFAULT: "#10B981",
+              glow: "rgba(16, 185, 129, 0.2)"
+            }
+          },
+          borderRadius: {
+            "DEFAULT": "0.5rem",
+            "lg": "1rem",
+            "xl": "1.5rem",
+            "full": "9999px"
+          },
+          fontFamily: {
+            headline: ["Inter", "sans-serif"],
+            display: ["Inter", "sans-serif"],
+            body: ["Inter", "sans-serif"],
+            label: ["Inter", "sans-serif"]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    body {
+      background-color: #0B0D12;
+      color: #F3F4F6;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      overflow-x: hidden;
+      selection-background-color: rgba(99, 102, 241, 0.3);
+    }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+    }
+    .vision-glass {
+      background: rgba(255, 255, 255, 0.028);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      border: 1px solid rgba(255, 255, 255, 0.075);
+    }
+    .vision-pill {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      backdrop-filter: blur(16px);
+    }
+    .vision-glow-indigo {
+      box-shadow: 0 0 35px -5px rgba(99, 102, 241, 0.3);
+    }
+    .vision-glow-emerald {
+      box-shadow: 0 0 25px -4px rgba(16, 185, 129, 0.25);
+    }
+    /* Custom subtle scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(11, 13, 18, 0.5);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-[#0B0D12] text-neutral-100 flex flex-col relative antialiased selection:bg-indigo-500/30">
+<!-- Ambient VisionOS Radial Light Fields -->
+<div class="fixed top-[-10%] left-[20%] w-[600px] h-[500px] bg-indigo-600/10 rounded-full blur-[140px] pointer-events-none -z-10"></div>
+<div class="fixed top-[45%] right-[-5%] w-[500px] h-[550px] bg-emerald-500/8 rounded-full blur-[160px] pointer-events-none -z-10"></div>
+<div class="fixed bottom-[-10%] left-[-5%] w-[450px] h-[450px] bg-indigo-500/8 rounded-full blur-[150px] pointer-events-none -z-10"></div>
+<!-- Shared Component: TopNavBar (Strictly Aligned with JSON Specifications) -->
+<header class="sticky top-0 z-50 w-full bg-transparent backdrop-blur-xl border-b border-white/10 shadow-lg shadow-black/20">
+<div class="flex justify-between items-center w-full px-6 py-3 max-w-7xl mx-auto">
+<!-- Left Anchor: Brand & Search -->
+<div class="flex items-center gap-6">
+<div class="font-display font-bold text-lg tracking-tight text-white flex items-center gap-2.5">
+<div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-500 via-indigo-400 to-emerald-400 flex items-center justify-center shadow-lg shadow-indigo-500/30 border border-white/20">
+<span class="material-symbols-outlined text-white text-lg" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+</div>
+<span>OmniFlow AI</span>
+</div>
+<!-- Global Workspace Segment Selector -->
+<div class="hidden lg:flex items-center gap-2 pl-4 border-l border-white/10">
+<button class="vision-pill text-xs font-label text-neutral-300 px-3 py-1.5 rounded-full flex items-center gap-1.5 hover:bg-white/10 transition-colors">
+<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+<span class="font-medium">Global Brand HQ</span>
+<span class="text-neutral-500 text-[11px] font-normal">| APAC Growth</span>
+<span class="material-symbols-outlined text-sm text-neutral-400">expand_more</span>
+</button>
+</div>
+</div>
+<!-- Navigation Links (Dynamic Active Determination: Analytics/Dashboard Active) -->
+<nav class="hidden md:flex items-center gap-1 p-1 vision-pill rounded-full border border-white/10">
+<a class="text-neutral-400 hover:text-white px-3 py-1.5 transition-colors font-label text-sm tracking-tight" href="#campaigns">Campaigns</a>
+<a class="text-neutral-400 hover:text-white px-3 py-1.5 transition-colors font-label text-sm tracking-tight" href="#creative-studio">Creative Studio</a>
+<a class="text-neutral-400 hover:text-white px-3 py-1.5 transition-colors font-label text-sm tracking-tight" href="#autonomous-hub">Autonomous Hub</a>
+<a class="text-neutral-400 hover:text-white px-3 py-1.5 transition-colors font-label text-sm tracking-tight" href="#audiences">Audiences</a>
+<a class="text-white font-medium bg-white/10 rounded-full px-3 py-1.5 shadow-sm font-label text-sm tracking-tight" href="#analytics">Analytics</a>
+</nav>
+<!-- Trailing Controls & User Profile -->
+<div class="flex items-center gap-3">
+<!-- Action Buttons -->
+<button class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-neutral-300 hover:bg-white/5 border border-white/10 transition-all duration-200">
+<span class="material-symbols-outlined text-sm text-indigo-400">tune</span>
+<span>Dispatch Queue</span>
+</button>
+<button class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 vision-glow-indigo transition-all duration-150 active:scale-95 shadow-sm">
+<span class="material-symbols-outlined text-sm">add</span>
+<span>New Campaign</span>
+</button>
+<!-- Profile Frame -->
+<div class="relative flex items-center pl-2 border-l border-white/10">
+<div class="w-8 h-8 rounded-full p-0.5 bg-gradient-to-tr from-white/20 to-white/5 border border-white/20 overflow-hidden shadow-inner">
+<img class="w-full h-full rounded-full object-cover" data-alt="Close up portrait photograph of an Asian tech creative director smiling confidently against a soft dark studio background with subtle cool purple rim lighting, visionOS aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCKbzLmuC3tmvB2m3hEXDy_2_nYUvOqs7pvCB51ytkmi6q8qfXHLHLYHusodsMu3pJLDO-q23_PEUneBYOhsfH_xqAGHsrf2XvWEi5kdOLPnHUT1NeKS71260yM97TYggU79lll4mvGkKbuA-eNuNlgUZn9zKY7xCjEQ22hDLWAERAIXSNST8j4V6YoydUMPMkjSRU-IRfj3cw4JOqPR5lUFxR8gB5EcqZ3dHnzEWRDIBLwtYRI02MsqWX-p7HHrtPYWw-77pcnWCLX"/>
+</div>
+<span class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-[#0B0D12] rounded-full"></span>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Canvas -->
+<main class="flex-1 max-w-7xl w-full mx-auto px-6 py-8 space-y-8">
+<!-- Hero / Workspace Status Row -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-2 border-b border-white/5">
+<div>
+<div class="flex items-center gap-2 text-xs font-medium text-indigo-400 mb-1 tracking-wide uppercase">
+<span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+          Autonomous Matrix Active • Cycle 48-H
+        </div>
+<h1 class="text-2xl md:text-3xl font-bold font-headline tracking-tight text-white flex items-center gap-3">
+          Cross-Border Growth Intelligence
+          <span class="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">Syncing 7 Regional Hubs</span>
+</h1>
+</div>
+<!-- Quick Control Pills -->
+<div class="flex items-center gap-2">
+<div class="vision-pill px-3 py-1.5 rounded-xl flex items-center gap-2 text-xs text-neutral-300">
+<span class="material-symbols-outlined text-neutral-400 text-sm">public</span>
+<span>Target: <strong class="text-white font-medium">APAC &amp; North America</strong></span>
+</div>
+<div class="vision-pill px-3 py-1.5 rounded-xl flex items-center gap-2 text-xs text-neutral-300">
+<span class="material-symbols-outlined text-neutral-400 text-sm">currency_exchange</span>
+<span>Currency: <strong class="text-white font-medium">USD ($) / Multicurrency</strong></span>
+</div>
+</div>
+</div>
+<!-- 2. Bento-Grid Key Metrics (4 VisionOS Cards) -->
+<section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+<!-- Card 1: Total Impressions -->
+<div class="vision-glass rounded-xl p-5 relative overflow-hidden flex flex-col justify-between hover:border-white/20 transition-all duration-300 group">
+<div class="absolute -right-8 -top-8 w-28 h-28 bg-indigo-500/10 rounded-full blur-2xl group-hover:bg-indigo-500/20 transition-all"></div>
+<div class="flex items-center justify-between">
+<span class="text-xs font-medium tracking-tight text-neutral-400">Total Impressions</span>
+<span class="flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+<span class="material-symbols-outlined text-xs">trending_up</span>
+            +18.4%
+          </span>
+</div>
+<div class="my-4">
+<div class="text-3xl font-extrabold font-headline tracking-tight text-white">347,200</div>
+<div class="text-[11px] text-neutral-400 mt-1">vs 293,120 previous cycle</div>
+</div>
+<!-- Trend Sparkline SVG Graphic -->
+<div class="h-10 w-full pt-2 flex items-end">
+<svg class="w-full h-8 stroke-indigo-400 fill-none" preserveaspectratio="none" viewbox="0 0 100 30">
+<path d="M0 26 Q 18 20, 35 22 T 65 14 T 85 8 T 100 2" stroke-linecap="round" stroke-width="2.5"></path>
+<path d="M0 26 Q 18 20, 35 22 T 65 14 T 85 8 T 100 2 L 100 30 L 0 30 Z" fill="url(#sparkGrad)" opacity="0.15"></path>
+<defs>
+<lineargradient id="sparkGrad" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#6366F1"></stop>
+<stop offset="100%" stop-color="#6366F1" stop-opacity="0"></stop>
+</lineargradient>
+</defs>
+</svg>
+</div>
+</div>
+<!-- Card 2: Return on Ad Spend (ROAS) -->
+<div class="vision-glass rounded-xl p-5 relative overflow-hidden flex flex-col justify-between hover:border-white/20 transition-all duration-300 group">
+<div class="absolute -right-8 -top-8 w-28 h-28 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition-all"></div>
+<div class="flex items-center justify-between">
+<span class="text-xs font-medium tracking-tight text-neutral-400">Return on Ad Spend</span>
+<span class="text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+            +240% ROAS
+          </span>
+</div>
+<div class="my-4">
+<div class="text-3xl font-extrabold font-headline tracking-tight text-white flex items-baseline gap-2">
+            3.4x
+            <span class="text-xs font-normal text-emerald-400 flex items-center">
+<span class="material-symbols-outlined text-xs">verified</span> Healthy
+            </span>
+</div>
+<div class="text-[11px] text-neutral-400 mt-1">Yielding high cross-border margin</div>
+</div>
+<div class="vision-pill px-2.5 py-1.5 rounded-lg flex items-center justify-between text-[11px]">
+<span class="text-neutral-400">Spend: <span class="text-neutral-200 font-medium">$1,960</span></span>
+<span class="text-neutral-500">|</span>
+<span class="text-emerald-400">Revenue: <span class="text-white font-medium">$6,272</span></span>
+</div>
+</div>
+<!-- Card 3: Active Channels Ecosystem -->
+<div class="vision-glass rounded-xl p-5 relative overflow-hidden flex flex-col justify-between hover:border-white/20 transition-all duration-300">
+<div class="flex items-center justify-between">
+<span class="text-xs font-medium tracking-tight text-neutral-400">Active Ecosystems</span>
+<span class="flex items-center gap-1.5 text-[11px] text-emerald-400 font-medium">
+<span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> Live Broadcast
+          </span>
+</div>
+<div class="my-4">
+<div class="text-3xl font-extrabold font-headline tracking-tight text-white">7 Channels</div>
+<div class="text-[11px] text-neutral-400 mt-1">Dual-hemisphere simultaneous reach</div>
+</div>
+<div class="flex items-center gap-1.5 flex-wrap pt-1">
+<span class="px-2 py-0.5 rounded-md text-[10px] font-medium bg-blue-500/15 text-blue-300 border border-blue-500/20">Meta</span>
+<span class="px-2 py-0.5 rounded-md text-[10px] font-medium bg-pink-500/15 text-pink-300 border border-pink-500/20">TikTok</span>
+<span class="px-2 py-0.5 rounded-md text-[10px] font-medium bg-neutral-800 text-neutral-300 border border-white/10">X</span>
+<span class="px-2 py-0.5 rounded-md text-[10px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/20">WeChat</span>
+<span class="px-2 py-0.5 rounded-md text-[10px] font-medium bg-red-500/15 text-red-300 border border-red-500/20">RED</span>
+<span class="px-2 py-0.5 rounded-md text-[10px] font-medium bg-indigo-500/15 text-indigo-300 border border-indigo-500/20">Douyin</span>
+</div>
+</div>
+<!-- Card 4: Conversion Rate -->
+<div class="vision-glass rounded-xl p-5 relative overflow-hidden flex flex-col justify-between hover:border-white/20 transition-all duration-300">
+<div class="flex items-center justify-between">
+<span class="text-xs font-medium tracking-tight text-neutral-400">Cross-Platform CTR</span>
+<span class="text-[11px] font-semibold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-full">
+            +0.62% Benchmark
+          </span>
+</div>
+<div class="my-4">
+<div class="text-3xl font-extrabold font-headline tracking-tight text-white flex items-baseline gap-2">
+            3.87%
+            <span class="text-xs font-normal text-neutral-400">13,440 clicks</span>
+</div>
+<div class="text-[11px] text-neutral-400 mt-1">Autonomous A/B dynamic testing</div>
+</div>
+<div>
+<div class="flex justify-between text-[11px] text-neutral-400 mb-1">
+<span>Optimization Goal</span>
+<span class="text-white font-medium">78% Complete</span>
+</div>
+<div class="w-full bg-neutral-800/80 rounded-full h-2 overflow-hidden p-0.5 border border-white/5">
+<div class="bg-gradient-to-r from-indigo-500 to-emerald-400 h-full rounded-full w-[78%]"></div>
+</div>
+</div>
+</div>
+</section>
+<!-- 3. Platform Creative Preview Switcher & Autonomous Content Synthesizer -->
+<section class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+<!-- Left 7 Cols: Multi-Platform Native Preview Frame -->
+<div class="lg:col-span-7 vision-glass rounded-xl p-6 relative flex flex-col space-y-5">
+<!-- Header & Segmented Channel Controls -->
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
+<div>
+<h2 class="text-base font-semibold font-headline text-white flex items-center gap-2">
+<span class="material-symbols-outlined text-indigo-400 text-lg">devices</span>
+              Omnichannel Localized Creative
+            </h2>
+<p class="text-xs text-neutral-400 mt-0.5">Real-time rendering across target market feed environments</p>
+</div>
+<!-- Channel Selector Pills -->
+<div class="flex items-center gap-1 p-1 bg-white/5 rounded-full border border-white/10 overflow-x-auto">
+<button class="px-3 py-1 rounded-full text-xs font-medium bg-white/15 text-white shadow-sm transition-all whitespace-nowrap">Meta Feed</button>
+<button class="px-3 py-1 rounded-full text-xs font-medium text-neutral-400 hover:text-neutral-200 transition-all whitespace-nowrap">TikTok Video</button>
+<button class="px-3 py-1 rounded-full text-xs font-medium text-neutral-400 hover:text-neutral-200 transition-all whitespace-nowrap">Xiaohongshu (RED)</button>
+<button class="px-3 py-1 rounded-full text-xs font-medium text-neutral-400 hover:text-neutral-200 transition-all whitespace-nowrap">WeChat</button>
+</div>
+</div>
+<!-- Dynamic Mobile Feed Mockup Container -->
+<div class="max-w-md mx-auto w-full bg-[#11141C] border border-white/15 rounded-xl p-4 shadow-2xl space-y-3.5 relative overflow-hidden">
+<!-- Mock Platform Header -->
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2.5">
+<div class="w-9 h-9 rounded-full bg-gradient-to-tr from-indigo-500 to-emerald-400 p-0.5">
+<div class="w-full h-full bg-[#0B0D12] rounded-full flex items-center justify-center text-[10px] font-bold tracking-wider text-white">LUMEN</div>
+</div>
+<div>
+<div class="flex items-center gap-1">
+<span class="text-xs font-semibold text-white">Lumen Home Living</span>
+<span class="material-symbols-outlined text-[14px] text-blue-400" style="font-variation-settings: 'FILL' 1;">verified</span>
+</div>
+<div class="text-[10px] text-neutral-400 flex items-center gap-1">
+<span>Sponsored</span> • <span>Tokyo &amp; Singapore</span> • <span class="material-symbols-outlined text-[10px]">public</span>
+</div>
+</div>
+</div>
+<button class="text-neutral-400 hover:text-white">
+<span class="material-symbols-outlined text-sm">more_horiz</span>
+</button>
+</div>
+<!-- Localized Marketing Copy -->
+<p class="text-xs leading-relaxed text-neutral-200">
+            Elevate your minimalist sanctuary. Introducing the Nordic Acoustic Ambient Light, engineered with zero-flicker natural circadian rhythms for urban creators. 🌿✨ 
+            <span class="text-indigo-400 font-medium">#SmartLiving #CrossBorder #AestheticTech #TokyoHomes</span>
+</p>
+<!-- Visual Placeholder Frame -->
+<div class="relative rounded-xl overflow-hidden aspect-[4/3] bg-neutral-900 border border-white/10 group">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" data-alt="Sophisticated modern minimalist wooden ambient smart lamp resting on a matte black desk next to a sleek ceramic cup and notebook in an architect studio at twilight, soft atmospheric lighting, visionOS aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC1z3KOTcYJau0OSPxr_UxlYGacZ2pljxSRTsHaUxB4BXk_T4v9gUgykXUgC6VeryFwLeYEPUhbW5JY24eEtq54qwkDaaQlSwSBqwkEELfN6BxLefHhEblxP0-H6CiTyylzhSbJ0BEo3txF9ZeXIBJsif16d6FNWnZpMBmxEL5wNvp9ytSSegik8YUdQQXuWkuBpmU1wGcCGyXMw8DH5rSB_UGLHLsxi5l1PFmJpB_GTpxw7Vct1dOvbZHy-QD5tIrz5mO-hOVcvlz-"/>
+<div class="absolute top-3 right-3 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] font-medium text-white border border-white/10 flex items-center gap-1">
+<span class="material-symbols-outlined text-xs text-emerald-400">bolt</span>
+              Autonomous Variant B
+            </div>
+</div>
+<!-- Feed CTA Bar -->
+<div class="vision-pill p-2.5 rounded-lg flex items-center justify-between">
+<div>
+<div class="text-[10px] text-neutral-400 uppercase tracking-wider font-medium">Limited First Edition</div>
+<div class="text-xs font-bold text-white">Worldwide Duty-Free Dispatch</div>
+</div>
+<button class="px-3 py-1.5 rounded-md bg-white text-neutral-950 font-semibold text-xs hover:bg-neutral-200 transition-colors shadow-sm">
+              Shop Now
+            </button>
+</div>
+<!-- Simulated Social Proof Bar -->
+<div class="flex items-center justify-between pt-1 text-neutral-400 text-xs px-1">
+<div class="flex items-center gap-3">
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm text-red-400">favorite</span> 2.4k</span>
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm">chat_bubble</span> 184</span>
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm">share</span> 329</span>
+</div>
+<span class="text-[11px] text-emerald-400 font-medium flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">auto_graph</span> Conv. Index 94/100
+            </span>
+</div>
+</div>
+</div>
+<!-- Right 5 Cols: Frosted AI Content Synthesizer -->
+<div class="lg:col-span-5 vision-glass rounded-xl p-6 relative flex flex-col space-y-5">
+<div>
+<div class="flex items-center justify-between">
+<h2 class="text-base font-semibold font-headline text-white flex items-center gap-2">
+<span class="material-symbols-outlined text-emerald-400 text-lg">psychology</span>
+              AI Content Synthesizer
+            </h2>
+<span class="px-2 py-0.5 rounded-full text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-medium">VisionOS Engine v4.2</span>
+</div>
+<p class="text-xs text-neutral-400 mt-1">Cross-lingual tone mapping and dynamic conversion optimizer</p>
+</div>
+<!-- Strategy Input Box -->
+<div class="space-y-2">
+<label class="text-xs font-medium text-neutral-300 flex items-center justify-between">
+<span>Adaptive Brief &amp; Angle</span>
+<span class="text-[11px] text-neutral-500">Auto-Detect Culture</span>
+</label>
+<div class="relative">
+<textarea class="w-full bg-neutral-900/70 border border-white/10 rounded-xl p-3 text-xs text-neutral-200 placeholder-neutral-500 focus:outline-none focus:border-indigo-500 transition-all resize-none" placeholder="e.g. Target APAC Gen-Z with sustainable tech lifestyle angle, emphasizing Japanese minimalist craft and fast express customs shipping..." rows="3"></textarea>
+<div class="absolute bottom-2.5 right-2.5 flex items-center gap-1.5">
+<span class="px-1.5 py-0.5 rounded text-[9px] bg-white/5 text-neutral-400 border border-white/10">Gen-Z Tone</span>
+<span class="px-1.5 py-0.5 rounded text-[9px] bg-white/5 text-neutral-400 border border-white/10">Japanese &amp; English</span>
+</div>
+</div>
+</div>
+<!-- Parameter Toggles (VisionOS Native Glass Sliders) -->
+<div class="space-y-3 pt-1">
+<div class="vision-pill p-3 rounded-xl space-y-2">
+<div class="flex justify-between text-xs">
+<span class="text-neutral-300 font-medium">Cultural Localization Depth</span>
+<span class="text-indigo-400 font-semibold">High (Native Slang &amp; Norms)</span>
+</div>
+<div class="w-full bg-neutral-800 h-1.5 rounded-full overflow-hidden">
+<div class="bg-indigo-500 h-full rounded-full w-[85%]"></div>
+</div>
+</div>
+<div class="vision-pill p-3 rounded-xl space-y-2">
+<div class="flex justify-between text-xs">
+<span class="text-neutral-300 font-medium">Compliance Guardrails</span>
+<span class="text-emerald-400 font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px]">shield</span> Certified
+              </span>
+</div>
+<div class="text-[11px] text-neutral-400 leading-snug">
+              Adhering to Meta Advertising Guidelines &amp; APAC E-Commerce Advertising Standards.
+            </div>
+</div>
+</div>
+<!-- Synthesizer Action CTA -->
+<div class="pt-2">
+<button class="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-emerald-500 text-white font-semibold text-xs vision-glow-indigo hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg">
+<span class="material-symbols-outlined text-base">auto_awesome</span>
+<span>Synthesize Copy &amp; Variations</span>
+</button>
+<div class="text-center text-[10px] text-neutral-500 mt-2">
+            Autonomous engine will dispatch to 7 regional channels upon approval
+          </div>
+</div>
+</div>
+</section>
+<!-- 4. Actionable Schedule Pipeline -->
+<section class="vision-glass rounded-xl p-6 relative">
+<!-- Section Title & Filter Bar -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-4 mb-5">
+<div>
+<h2 class="text-base font-semibold font-headline text-white flex items-center gap-2">
+<span class="material-symbols-outlined text-indigo-400 text-lg">calendar_clock</span>
+            Automated Cross-Border Dispatch Timeline
+          </h2>
+<p class="text-xs text-neutral-400 mt-0.5">Real-time scheduling across global time zones (EST, JST, SGT, CET)</p>
+</div>
+<div class="flex items-center gap-2 flex-wrap">
+<div class="vision-pill px-3 py-1 rounded-full text-xs text-neutral-300 flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm text-neutral-400">filter_list</span>
+<span>View: <strong class="text-white">Next 48 Hours</strong></span>
+</div>
+<button class="px-3 py-1 rounded-full text-xs font-medium bg-white/10 text-white hover:bg-white/15 transition-all">
+            Batch Reschedule
+          </button>
+</div>
+</div>
+<!-- Timeline Items -->
+<div class="space-y-3">
+<!-- Timeline Row 1: Published -->
+<div class="vision-pill p-4 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 hover:border-white/20 transition-all">
+<div class="flex items-center gap-3.5">
+<div class="w-10 h-10 rounded-xl bg-pink-500/15 border border-pink-500/30 flex items-center justify-center text-pink-400 font-bold text-xs">
+              TT
+            </div>
+<div>
+<div class="flex items-center gap-2">
+<span class="text-xs font-semibold text-white">TikTok APAC Creator Showcase</span>
+<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                  Published
+                </span>
+</div>
+<p class="text-xs text-neutral-400 line-clamp-1 mt-0.5">
+                "Unboxing simplicity: The Nordic Smart Ambient light engineered for zen workstations..."
+              </p>
+</div>
+</div>
+<div class="flex items-center justify-between w-full md:w-auto gap-6 text-xs text-neutral-400">
+<div>
+<div class="text-[10px] uppercase text-neutral-500 font-medium">Slot Time</div>
+<div class="text-neutral-200 font-medium">Today • 14:00 JST</div>
+</div>
+<div>
+<div class="text-[10px] uppercase text-neutral-500 font-medium">Forecast</div>
+<div class="text-emerald-400 font-medium">42k Impressions</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-300 font-medium text-xs transition-colors">
+                Analytics
+              </button>
+</div>
+</div>
+</div>
+<!-- Timeline Row 2: Scheduled -->
+<div class="vision-pill p-4 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 hover:border-white/20 transition-all">
+<div class="flex items-center gap-3.5">
+<div class="w-10 h-10 rounded-xl bg-red-500/15 border border-red-500/30 flex items-center justify-center text-red-400 font-bold text-xs">
+              RED
+            </div>
+<div>
+<div class="flex items-center gap-2">
+<span class="text-xs font-semibold text-white">Xiaohongshu (RED) Lifestyle Note</span>
+<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
+                  Scheduled
+                </span>
+</div>
+<p class="text-xs text-neutral-400 line-clamp-1 mt-0.5">
+                "沉浸式桌面好物分享：北欧极简极光氛围灯，给深夜办公写代码带来自然呼吸感..."
+              </p>
+</div>
+</div>
+<div class="flex items-center justify-between w-full md:w-auto gap-6 text-xs text-neutral-400">
+<div>
+<div class="text-[10px] uppercase text-neutral-500 font-medium">Slot Time</div>
+<div class="text-neutral-200 font-medium">Tonight • 20:30 CST</div>
+</div>
+<div>
+<div class="text-[10px] uppercase text-neutral-500 font-medium">Forecast</div>
+<div class="text-indigo-300 font-medium">28k Engagement</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs transition-colors shadow-sm">
+                Dispatch Now
+              </button>
+<button class="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-white transition-colors">
+<span class="material-symbols-outlined text-sm">schedule</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Timeline Row 3: Autonomous Optimizing -->
+<div class="vision-pill p-4 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 hover:border-white/20 transition-all">
+<div class="flex items-center gap-3.5">
+<div class="w-10 h-10 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400 font-bold text-xs">
+              FB
+            </div>
+<div>
+<div class="flex items-center gap-2">
+<span class="text-xs font-semibold text-white">Meta Global Retargeting Stream</span>
+<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                  Optimizing
+                </span>
+</div>
+<p class="text-xs text-neutral-400 line-clamp-1 mt-0.5">
+                "Autonomous Multi-Arm Bandit testing 4 headline variants across North America &amp; Oceania..."
+              </p>
+</div>
+</div>
+<div class="flex items-center justify-between w-full md:w-auto gap-6 text-xs text-neutral-400">
+<div>
+<div class="text-[10px] uppercase text-neutral-500 font-medium">Slot Time</div>
+<div class="text-neutral-200 font-medium">Tomorrow • 09:00 EST</div>
+</div>
+<div>
+<div class="text-[10px] uppercase text-neutral-500 font-medium">Forecast</div>
+<div class="text-amber-300 font-medium">4.1% Conv. Yield</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-300 font-medium text-xs transition-colors">
+                Parameters
+              </button>
+<button class="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-white transition-colors">
+<span class="material-symbols-outlined text-sm">tune</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Clean VisionOS Glass Footer -->
+<footer class="w-full border-t border-white/5 py-6 px-6 mt-12 bg-black/40 backdrop-blur-md">
+<div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-neutral-500">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+<span class="text-neutral-400 font-medium">OmniFlow AI System Core Operational</span>
+<span>• End-to-End Encrypted Growth Layer</span>
+</div>
+<div class="flex items-center gap-6">
+<a class="hover:text-neutral-300 transition-colors" href="#compliance">Compliance Shield</a>
+<a class="hover:text-neutral-300 transition-colors" href="#privacy">Cross-Border Privacy Policy</a>
+<a class="hover:text-neutral-300 transition-colors" href="#status">System Status</a>
+<span>© 2025 OmniFlow AI Inc.</span>
+</div>
+</div>
+</footer>
+</body></html>

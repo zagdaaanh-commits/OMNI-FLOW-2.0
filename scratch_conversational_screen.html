@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>OmniFlow 2.0 — Conversational AI Marketing Suite</title>
+<!-- Google Fonts: Inter -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind Play CDN -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {},
+          borderRadius: {
+            "DEFAULT": "0.5rem",
+            "lg": "1rem",
+            "xl": "1.5rem",
+            "full": "9999px"
+          },
+          spacing: {},
+          fontFamily: {
+            headline: ["Inter", "sans-serif"],
+            display: ["Inter", "sans-serif"],
+            body: ["Inter", "sans-serif"],
+            label: ["Inter", "sans-serif"]
+          },
+          fontSize: {}
+        },
+      },
+    }
+  </script>
+<style>
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #0A0B10;
+      color: #E4E4E7;
+      overflow: hidden;
+    }
+
+    /* Custom ultra-smooth frosted glass */
+    .glass-panel {
+      background: rgba(255, 255, 255, 0.03);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    
+    .glass-island {
+      background: rgba(18, 19, 28, 0.72);
+      backdrop-filter: blur(32px);
+      -webkit-backdrop-filter: blur(32px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.04);
+    }
+
+    .glass-card {
+      background: rgba(255, 255, 255, 0.025);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    /* Custom smooth scrollbar */
+    ::-webkit-scrollbar {
+      width: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    /* Ambient radial mesh */
+    .ambient-glow {
+      position: absolute;
+      width: 650px;
+      height: 650px;
+      border-radius: 50%;
+      pointer-events: none;
+      filter: blur(120px);
+      z-index: 0;
+      opacity: 0.18;
+    }
+
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 350, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+    }
+  </style>
+</head>
+<body class="h-screen w-screen flex bg-[#0A0B10] text-zinc-100 antialiased select-none relative">
+<!-- Ambient background glow elements (Apple/visionOS style depth) -->
+<div class="ambient-glow -top-40 left-1/4 bg-indigo-600"></div>
+<div class="ambient-glow -bottom-32 right-1/4 bg-emerald-600/70"></div>
+<div class="ambient-glow top-1/2 left-3/4 bg-blue-600/30"></div>
+<!-- ========================================================================= -->
+<!-- 1. LEFT NAVIGATION SIDEBAR (280px, visionOS Dark Obsidian Glass)          -->
+<!-- ========================================================================= -->
+<aside class="w-[280px] h-full flex flex-col justify-between p-4 z-20 shrink-0 bg-neutral-950/60 dark:bg-neutral-950/60 backdrop-blur-2xl border-r border-white/10 dark:border-white/10 shadow-2xl shadow-black/40">
+<!-- Top Section -->
+<div class="space-y-6">
+<!-- Brand & New Chat Pill -->
+<div class="space-y-3 pt-1">
+<div class="flex items-center justify-between px-2">
+<div class="flex items-center gap-2.5">
+<div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-500 via-indigo-600 to-emerald-400 p-[1px] shadow-lg shadow-indigo-500/20">
+<div class="w-full h-full bg-[#0A0B10] rounded-[11px] flex items-center justify-center">
+<span class="material-symbols-outlined text-indigo-400 text-lg" data-icon="auto_awesome">auto_awesome</span>
+</div>
+</div>
+<div>
+<span class="font-display font-bold text-sm tracking-tight text-white block leading-tight">OmniFlow 2.0</span>
+<span class="text-[11px] text-zinc-500 font-medium">Autonomous Engine</span>
+</div>
+</div>
+<button class="p-1.5 rounded-lg hover:bg-white/5 text-zinc-400 hover:text-white transition-colors" title="Collapse Sidebar">
+<span class="material-symbols-outlined text-sm" data-icon="left_panel_close">left_panel_close</span>
+</button>
+</div>
+<!-- + New Chat Action Button -->
+<button class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.09] hover:border-white/[0.16] text-white text-xs font-medium tracking-tight shadow-sm transition-all duration-150 active:scale-[0.98] group">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-indigo-400 text-base group-hover:rotate-90 transition-transform duration-200" data-icon="add">add</span>
+<span>New Marketing Session</span>
+</div>
+<kbd class="text-[10px] text-zinc-500 bg-white/5 px-1.5 py-0.5 rounded border border-white/5 font-mono">⌘N</kbd>
+</button>
+</div>
+<!-- Quick Tools Section -->
+<div class="space-y-1">
+<div class="px-2 pb-1.5 text-[10px] font-semibold tracking-wider text-zinc-500 uppercase">Executive Tools</div>
+<a class="flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/[0.04] transition-all" href="#">
+<span class="material-symbols-outlined text-indigo-400 text-base" data-icon="analytics">analytics</span>
+<span class="flex-1">Instant Growth Audit</span>
+<span class="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded font-mono">Live</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/[0.04] transition-all" href="#">
+<span class="material-symbols-outlined text-zinc-400 text-base" data-icon="schedule">schedule</span>
+<span class="flex-1">Scheduled Queue</span>
+<span class="text-[10px] text-zinc-500 font-mono">14</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/[0.04] transition-all" href="#">
+<span class="material-symbols-outlined text-zinc-400 text-base" data-icon="cable">cable</span>
+<span class="flex-1">Custom MCP / APIs</span>
+<span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+</a>
+</div>
+<!-- Active Projects / Campaigns Section -->
+<div class="space-y-1">
+<div class="flex items-center justify-between px-2 pb-1.5">
+<span class="text-[10px] font-semibold tracking-wider text-zinc-500 uppercase">Live Campaigns</span>
+<button class="text-zinc-500 hover:text-zinc-300 p-0.5 rounded hover:bg-white/5">
+<span class="material-symbols-outlined text-xs" data-icon="add">add</span>
+</button>
+</div>
+<a class="flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-white bg-white/[0.07] border border-white/5 shadow-sm" href="#">
+<span class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.7)] animate-pulse"></span>
+<span class="flex-1 truncate">Nordic Spring Launch</span>
+<span class="text-[10px] font-mono text-zinc-400">Gen-Z</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] transition-all" href="#">
+<span class="w-2 h-2 rounded-full bg-indigo-400"></span>
+<span class="flex-1 truncate">APAC Tech Showcase</span>
+<span class="text-[10px] font-mono text-zinc-500">B2B</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] transition-all" href="#">
+<span class="w-2 h-2 rounded-full bg-amber-400/80"></span>
+<span class="flex-1 truncate">Summer Living 2025</span>
+<span class="text-[10px] font-mono text-zinc-500">Sync</span>
+</a>
+<button class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.02] transition-colors mt-1">
+<span class="material-symbols-outlined text-sm" data-icon="add_circle">add_circle</span>
+<span>New Workspace Project</span>
+</button>
+</div>
+</div>
+<!-- Sidebar Footer -->
+<div class="pt-4 border-t border-white/[0.07] space-y-3">
+<!-- Status Health Badge -->
+<div class="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-white/[0.02] border border-white/[0.04] text-[11px] text-zinc-400 font-mono">
+<div class="flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#10B981]"></span>
+<span>Engine: 5000 v4.5</span>
+</div>
+<span class="text-zinc-500 font-sans text-[10px]">99.98% SLA</span>
+</div>
+<!-- User Profile / Switcher -->
+<div class="flex items-center justify-between p-1.5 rounded-xl hover:bg-white/[0.04] transition-colors cursor-pointer group">
+<div class="flex items-center gap-2.5">
+<div class="w-8 h-8 rounded-full ring-1 ring-white/20 p-0.5 relative">
+<img alt="Elena Rostova user profile" class="w-full h-full rounded-full object-cover" data-alt="Modern close up portrait of an elegant design and marketing director with sharp spectacles in a cinematic studio environment with soft rim lighting and minimalist dark aesthetics." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDqwyPKbk3w-hlT3J6OsH4dQHVsJ-ouUYbJR7lUSCNJy2ScMCBK-tfm4KZ_gFjGnijO0QUWBKYOxUPTFeafI0biZVqGJMz5Qt2nI-uzK_DF0SrcmWyFOaTzUAY-eNdj7QOvw4NCsXELrBNMH3P9LG9s4eWV6FMLqRCZEyMG3rgn8otTjL8Sp1ZuQGBwjTcO4FjbErlFTcv2Buav2lzPHVnuDpm96hL_Uh_YU_yAxUWChe0N-bhOHG0sFQNY0b_It1AH8eLrOA6-dRmz"/>
+<div class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-400 rounded-full ring-2 ring-[#0A0B10]"></div>
+</div>
+<div class="text-left">
+<div class="text-xs font-medium text-zinc-200 group-hover:text-white transition-colors">Elena Rostova</div>
+<div class="text-[10px] text-zinc-500 flex items-center gap-1">Omni Global Studio</div>
+</div>
+</div>
+<span class="material-symbols-outlined text-zinc-500 text-sm group-hover:text-zinc-300" data-icon="unfold_more">unfold_more</span>
+</div>
+</div>
+</aside>
+<!-- ========================================================================= -->
+<!-- 2. CENTRAL CONVERSATIONAL STAGE (Apple VisionOS / Gemini Hybrid)           -->
+<!-- ========================================================================= -->
+<main class="flex-1 h-full flex flex-col relative z-10 overflow-hidden bg-gradient-to-b from-[#0A0B10] to-[#0D0E15]">
+<!-- Floating Top Bar / Control Header -->
+<header class="h-14 px-6 flex items-center justify-between shrink-0 glass-panel border-b border-white/[0.06] z-30">
+<!-- Left: Active Model Selector Pill -->
+<div class="flex items-center gap-3">
+<div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.05] border border-white/[0.1] hover:border-white/[0.2] transition-colors cursor-pointer group">
+<span class="material-symbols-outlined text-indigo-400 text-sm group-hover:scale-110 transition-transform" data-icon="bolt">bolt</span>
+<span class="text-xs font-medium text-white tracking-tight">Omni-Marketing 4.5</span>
+<span class="text-[10px] text-zinc-400 bg-white/10 px-1.5 py-0.2 rounded-full font-mono">Ultra</span>
+<span class="material-symbols-outlined text-zinc-400 text-xs" data-icon="expand_more">expand_more</span>
+</div>
+<div class="hidden sm:flex items-center gap-2 text-zinc-400 text-xs">
+<span>/</span>
+<span class="text-zinc-300 font-medium truncate max-w-xs">Nordic Ambient Acoustic Launch (APAC Q2)</span>
+</div>
+</div>
+<!-- Right: Action Icons Cluster -->
+<div class="flex items-center gap-1">
+<button class="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors" title="Search Context">
+<span class="material-symbols-outlined text-base" data-icon="search">search</span>
+</button>
+<button class="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors" title="Share Session">
+<span class="material-symbols-outlined text-base" data-icon="share">share</span>
+</button>
+<button class="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors" title="Split Screen Inspector">
+<span class="material-symbols-outlined text-base" data-icon="vertical_split">vertical_split</span>
+</button>
+<div class="h-4 w-[1px] bg-white/10 mx-1"></div>
+<button class="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors" title="Preferences">
+<span class="material-symbols-outlined text-base" data-icon="tune">tune</span>
+</button>
+</div>
+</header>
+<!-- Scrollable Chat Stream Stage -->
+<div class="flex-1 overflow-y-auto px-4 md:px-12 py-8 space-y-8 pb-36">
+<!-- USER MESSAGE CONTAINER -->
+<div class="max-w-4xl mx-auto flex justify-end">
+<div class="max-w-2xl glass-panel bg-white/[0.04] border border-white/[0.12] rounded-3xl rounded-tr-sm p-5 shadow-xl text-zinc-100 space-y-2">
+<div class="flex items-center justify-between text-[11px] text-zinc-400 pb-1">
+<span class="font-medium text-indigo-300 flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span> Elena (Director)
+            </span>
+<span>Just now</span>
+</div>
+<p class="text-sm leading-relaxed font-normal text-zinc-100">
+            Synthesize an omnichannel launch campaign for <span class="text-white font-medium underline decoration-indigo-400/50 underline-offset-4">Nordic Acoustic Ambient Light</span> targeting Gen-Z design enthusiasts in Tokyo and Singapore. Include localized copy, cross-channel budget allocation, and projected ROAS.
+          </p>
+</div>
+</div>
+<!-- AI AGENT COMPREHENSIVE RESPONSE CONTAINER -->
+<div class="max-w-4xl mx-auto space-y-6">
+<!-- Agent Meta Header -->
+<div class="flex items-center gap-3 text-xs text-zinc-400">
+<div class="w-6 h-6 rounded-lg bg-gradient-to-tr from-indigo-500 to-emerald-400 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+<span class="material-symbols-outlined text-sm" data-icon="smart_toy">smart_toy</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-white font-medium">Omni-Marketing 4.5</span>
+<span class="text-zinc-500">•</span>
+<span class="flex items-center gap-1 text-[11px] text-emerald-400/90 font-mono">
+<span class="material-symbols-outlined text-xs" data-icon="check_circle">check_circle</span>
+              Synthesized in 1.4s (7 ad pipelines processed)
+            </span>
+</div>
+</div>
+<!-- Synthesis Narrative Card -->
+<div class="glass-panel rounded-3xl p-6 space-y-4 border border-white/[0.08] shadow-2xl relative overflow-hidden">
+<div class="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+<div class="space-y-3 relative z-10">
+<h3 class="text-base font-semibold text-white tracking-tight flex items-center gap-2">
+<span>Cross-Cultural Campaign Architecture: "Silent Scandinavian Glow"</span>
+<span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Tier-1 Launch</span>
+</h3>
+<p class="text-xs text-zinc-300 leading-relaxed">
+              I have structured an algorithmic multi-arm bandit campaign calibrated for the Tokyo (Daikanyama/Shibuya aesthetic) and Singapore (Marina Bay minimalist urban) demographics. Tokyo leans toward acoustic silence and tactile Japanese-Scandinavian minimalism (<span class="text-zinc-100 font-medium">Japandi Hygge</span>), while Singapore anchors on smart-home cooling comfort and luminous atmospheric acoustics.
+            </p>
+</div>
+<!-- MULTI-PLATFORM PREVIEW COMPONENT -->
+<div class="pt-2">
+<!-- Segmented Glass Tab Controls -->
+<div class="flex items-center gap-1.5 p-1 bg-black/40 backdrop-blur-md rounded-2xl border border-white/5 w-fit mb-4 overflow-x-auto max-w-full">
+<button class="px-3.5 py-1.5 rounded-xl bg-white/[0.12] text-white text-xs font-medium shadow-sm flex items-center gap-2 transition-all">
+<span class="w-2 h-2 rounded-full bg-blue-500"></span>
+<span>Meta Feed</span>
+</button>
+<button class="px-3.5 py-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-white/5 text-xs font-medium flex items-center gap-2 transition-all">
+<span class="w-2 h-2 rounded-full bg-pink-500"></span>
+<span>Instagram Carousel</span>
+</button>
+<button class="px-3.5 py-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-white/5 text-xs font-medium flex items-center gap-2 transition-all">
+<span class="w-2 h-2 rounded-full bg-neutral-200"></span>
+<span>TikTok Hook</span>
+</button>
+<button class="px-3.5 py-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-white/5 text-xs font-medium flex items-center gap-2 transition-all">
+<span class="w-2 h-2 rounded-full bg-red-500"></span>
+<span>Xiaohongshu (RED)</span>
+</button>
+<button class="px-3.5 py-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-white/5 text-xs font-medium flex items-center gap-2 transition-all">
+<span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+<span>WeChat Moment</span>
+</button>
+</div>
+<!-- Visual Preview Card (High-Fidelity Ad Mockup) -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-5 bg-black/50 p-5 rounded-2xl border border-white/[0.08]">
+<!-- Left: Rendered Creative Asset -->
+<div class="md:col-span-5 relative group overflow-hidden rounded-xl bg-zinc-900 aspect-square">
+<img alt="Nordic Acoustic Ambient Light High-Fidelity Creative" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" data-alt="A luxurious Scandinavian acoustic felt ambient table lamp illuminated with a soft warm 2700K amber glow in an ultra-modern Tokyo apartment overlooking rainy nocturnal cityscape. Minimalist Japandi styling, warm timber textures, architectural concrete, soft cinematic depth of field." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBgLIji3lldJ3lW6wQLnh6wB2p7KJ11Q6eSjo3txSpj7_dVf7oX9OKzVX4YEu7Rb7zc0LEUMsIK1x_Bam4cSoq5sAQ3pqXB7cHJCW_j6_Jq7mNiqXer6TWCFyq_JgjLO7il-UoTkpVdZrHjMDHNVyqxJJx9t7ukCqJdA-uKMg64tutySitQ95xRWYTTDs9ZGaLNziHgrM_vp0sdA1sIKQDwWudhfXwFJ8ZA3ROWRVpg1bys9EgSN1GNCWShn0NBObfxjW-NK-cJvY9k"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+<div class="absolute top-3 left-3 px-2 py-1 rounded-lg bg-black/60 backdrop-blur-md border border-white/10 text-[10px] font-mono text-emerald-300 flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                  Creative Score: 98/100
+                </div>
+<div class="absolute bottom-3 left-3 right-3 flex justify-between items-center text-xs text-white">
+<span class="font-medium tracking-tight">København SoundLamp v2</span>
+<span class="font-mono text-indigo-300">¥28,400 / S$260</span>
+</div>
+</div>
+<!-- Right: Localized Dynamic Copy & Metadata -->
+<div class="md:col-span-7 flex flex-col justify-between space-y-4">
+<div class="space-y-3">
+<!-- Segment / Language Badge -->
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-[11px] font-medium">Tokyo Market (JA)</span>
+<span class="px-2 py-0.5 rounded-md bg-white/5 text-zinc-400 text-[11px]">Sub-target: Shinjuku &amp; Shibuya</span>
+</div>
+<span class="text-[11px] text-zinc-500 font-mono">Dynamic A/B Cohort #3</span>
+</div>
+<!-- Headline & Body -->
+<div class="space-y-1.5">
+<h4 class="text-sm font-semibold text-white">
+                      「静寂を灯す」北欧アコースティックランプ。残響音を42%吸収する、新しい夜の過ごし方。
+                    </h4>
+<p class="text-xs text-zinc-300 leading-relaxed">
+                      Transform urban sensory fatigue into serene clarity. Hand-molded recycled acoustic felt meets natural 2700K biodynamic circadian warmth. Crafted in Denmark for modern micro-apartments in Shibuya and Ginza.
+                    </p>
+</div>
+<!-- Hashtag Pills -->
+<div class="flex flex-wrap gap-1.5 pt-1">
+<span class="px-2 py-0.5 rounded-full bg-white/[0.04] text-[11px] text-zinc-400 font-mono border border-white/5">#JapandiLiving</span>
+<span class="px-2 py-0.5 rounded-full bg-white/[0.04] text-[11px] text-zinc-400 font-mono border border-white/5">#NordicDesign</span>
+<span class="px-2 py-0.5 rounded-full bg-white/[0.04] text-[11px] text-zinc-400 font-mono border border-white/5">#TokyoHomes</span>
+<span class="px-2 py-0.5 rounded-full bg-white/[0.04] text-[11px] text-zinc-400 font-mono border border-white/5">#AcousticLighting</span>
+</div>
+</div>
+<!-- Simulated Engagement Metric Strip -->
+<div class="pt-3 border-t border-white/[0.08] flex items-center justify-between text-xs text-zinc-400">
+<div class="flex items-center gap-4">
+<span class="flex items-center gap-1.5 hover:text-white transition-colors">
+<span class="material-symbols-outlined text-sm text-pink-400" data-icon="favorite">favorite</span> 24.8k
+                    </span>
+<span class="flex items-center gap-1.5 hover:text-white transition-colors">
+<span class="material-symbols-outlined text-sm text-indigo-400" data-icon="share">share</span> 4.2k
+                    </span>
+<span class="flex items-center gap-1.5 hover:text-white transition-colors">
+<span class="material-symbols-outlined text-sm text-amber-400" data-icon="bookmark">bookmark</span> 12.1k
+                    </span>
+</div>
+<span class="text-[11px] text-emerald-400 font-mono">Predicted Viral Index: High (0.87)</span>
+</div>
+</div>
+</div>
+</div>
+<!-- PROJECTED YIELD BENTO CARD (4 Micro-Metric Widgets + Channel Allocation) -->
+<div class="space-y-3 pt-2">
+<div class="flex items-center justify-between">
+<span class="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Algorithmic Projection &amp; Yield Engine</span>
+<span class="text-[11px] text-zinc-500 font-mono">Simulated Confidence: 94.2%</span>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+<!-- Widget 1: Projected Reach -->
+<div class="p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.06] space-y-1">
+<div class="flex items-center justify-between text-zinc-400 text-xs">
+<span>Gross Reach</span>
+<span class="material-symbols-outlined text-xs text-indigo-400" data-icon="groups">groups</span>
+</div>
+<div class="text-lg font-bold text-white tracking-tight">420,000</div>
+<div class="text-[10px] text-emerald-400 flex items-center gap-0.5">
+<span class="material-symbols-outlined text-[12px]" data-icon="trending_up">trending_up</span> +34% vs category avg
+                </div>
+</div>
+<!-- Widget 2: Blended CTR -->
+<div class="p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.06] space-y-1">
+<div class="flex items-center justify-between text-zinc-400 text-xs">
+<span>Cross-Platform CTR</span>
+<span class="material-symbols-outlined text-xs text-blue-400" data-icon="ads_click">ads_click</span>
+</div>
+<div class="text-lg font-bold text-white tracking-tight">4.12%</div>
+<div class="text-[10px] text-emerald-400 flex items-center gap-0.5">
+<span class="material-symbols-outlined text-[12px]" data-icon="trending_up">trending_up</span> Top 5% Decile
+                </div>
+</div>
+<!-- Widget 3: Projected ROAS -->
+<div class="p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.06] space-y-1">
+<div class="flex items-center justify-between text-zinc-400 text-xs">
+<span>Target ROAS</span>
+<span class="material-symbols-outlined text-xs text-emerald-400" data-icon="payments">payments</span>
+</div>
+<div class="text-lg font-bold text-emerald-400 tracking-tight">3.82x</div>
+<div class="text-[10px] text-zinc-400">
+                  Breakeven: 1.60x
+                </div>
+</div>
+<!-- Widget 4: Compliance Score -->
+<div class="p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.06] space-y-1">
+<div class="flex items-center justify-between text-zinc-400 text-xs">
+<span>Ad Shield Score</span>
+<span class="material-symbols-outlined text-xs text-emerald-400" data-icon="verified_user">verified_user</span>
+</div>
+<div class="text-lg font-bold text-white tracking-tight">99.4%</div>
+<div class="text-[10px] text-zinc-400 truncate">
+                  Zero Policy Infractions
+                </div>
+</div>
+</div>
+<!-- Multi-Channel Budget Allocation Bar -->
+<div class="p-3 rounded-2xl bg-white/[0.02] border border-white/[0.06] space-y-2">
+<div class="flex items-center justify-between text-[11px] text-zinc-400">
+<span>Autonomous Budget Allocation ($24,000 Total Allocation)</span>
+<span class="font-mono text-zinc-300">Live Bandit Optimizer Active</span>
+</div>
+<!-- Segmented visual bar -->
+<div class="h-2.5 w-full rounded-full bg-white/5 flex overflow-hidden p-[1px]">
+<div class="h-full bg-blue-500 rounded-l-full" style="width: 45%;" title="Meta (45%)"></div>
+<div class="h-full bg-pink-500 mx-[1px]" style="width: 25%;" title="Instagram (25%)"></div>
+<div class="h-full bg-purple-500 mx-[1px]" style="width: 20%;" title="TikTok (20%)"></div>
+<div class="h-full bg-red-500 rounded-r-full" style="width: 10%;" title="Xiaohongshu (10%)"></div>
+</div>
+<div class="flex items-center justify-between text-[10px] text-zinc-500 font-mono pt-0.5">
+<span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-blue-500"></span> Meta: $10.8k</span>
+<span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-pink-500"></span> IG Reels: $6.0k</span>
+<span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-purple-500"></span> TikTok: $4.8k</span>
+<span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-red-500"></span> RED: $2.4k</span>
+</div>
+</div>
+</div>
+<!-- HUMAN-IN-THE-LOOP ACTION BAR -->
+<div class="pt-4 border-t border-white/[0.08] flex flex-wrap items-center justify-between gap-3">
+<div class="flex items-center gap-2">
+<!-- Primary VisionOS Gradient Button -->
+<button class="px-5 py-2.5 rounded-full bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-500 text-neutral-950 text-xs font-semibold shadow-lg shadow-emerald-500/25 flex items-center gap-2 transition-all duration-150 active:scale-95">
+<span class="material-symbols-outlined text-base font-bold" data-icon="check_circle">check_circle</span>
+<span>Approve &amp; Schedule Dispatch</span>
+</button>
+<button class="px-3.5 py-2 rounded-full bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.1] text-zinc-200 text-xs font-medium flex items-center gap-1.5 transition-all active:scale-95">
+<span class="material-symbols-outlined text-sm" data-icon="refresh">refresh</span>
+<span>Regenerate Hooks</span>
+</button>
+</div>
+<div class="flex items-center gap-2">
+<button class="px-3 py-2 rounded-full bg-white/[0.04] hover:bg-white/[0.08] text-zinc-400 hover:text-white text-xs transition-colors flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm" data-icon="edit_note">edit_note</span>
+<span>Custom Copy Override</span>
+</button>
+<button class="px-3 py-2 rounded-full bg-white/[0.04] hover:bg-white/[0.08] text-zinc-400 hover:text-white text-xs transition-colors flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm" data-icon="rule">rule</span>
+<span>Inspect Target Matrix</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- ========================================================================= -->
+<!-- 3. BOTTOM FLOATING INPUT ISLAND (macOS / visionOS Floating Glass Dock)    -->
+<!-- ========================================================================= -->
+<div class="absolute bottom-6 inset-x-0 mx-auto max-w-3xl px-4 z-40">
+<!-- Ambient Backglow for Island -->
+<div class="relative">
+<div class="absolute -inset-1 bg-gradient-to-r from-indigo-500/20 via-emerald-500/20 to-indigo-500/20 rounded-3xl blur-xl opacity-75 pointer-events-none"></div>
+<div class="glass-island rounded-3xl p-2.5 shadow-2xl relative">
+<!-- Top Chip Row (Mentions, Attachments, Suggestions) -->
+<div class="flex items-center justify-between px-2 pb-2 text-xs border-b border-white/[0.06] gap-2 overflow-x-auto">
+<div class="flex items-center gap-1.5 shrink-0">
+<span class="text-[11px] text-zinc-400 font-medium mr-1">Target Nets:</span>
+<button class="px-2 py-0.5 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 text-[11px] font-mono border border-white/5 transition-colors">@Meta</button>
+<button class="px-2 py-0.5 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 text-[11px] font-mono border border-white/5 transition-colors">@TikTok</button>
+<button class="px-2 py-0.5 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 text-[11px] font-mono border border-white/5 transition-colors">@Xiaohongshu</button>
+<button class="px-2 py-0.5 rounded-md bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 text-[11px] font-mono border border-indigo-500/30 transition-colors">@All Ecosystems</button>
+</div>
+<div class="flex items-center gap-2 shrink-0">
+<button class="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-white px-2 py-0.5 rounded hover:bg-white/5 transition-colors">
+<span class="material-symbols-outlined text-xs" data-icon="attach_file">attach_file</span>
+<span>Attach Media</span>
+</button>
+<button class="flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-300 px-2 py-0.5 rounded hover:bg-indigo-500/10 transition-colors">
+<span class="material-symbols-outlined text-xs" data-icon="auto_fix_high">auto_fix_high</span>
+<span>Suggestions</span>
+</button>
+</div>
+</div>
+<!-- Main Input Field & Apple Spring Controls -->
+<div class="flex items-center gap-2 pt-2 px-1">
+<button class="p-2 text-zinc-400 hover:text-white rounded-xl hover:bg-white/5 transition-colors" title="Voice Dictation">
+<span class="material-symbols-outlined text-lg" data-icon="graphic_eq">graphic_eq</span>
+</button>
+<input class="w-full bg-transparent border-0 focus:ring-0 text-sm text-white placeholder-zinc-500 py-1.5 px-1 font-normal selection:bg-indigo-500/30" placeholder="Message OmniFlow or type '/' for marketing directives..." type="text" value="Refine the TikTok Hook video sequence with shorter 1.2s text cuts and add Singapore Dollar pricing..."/>
+<!-- Circular Apple Indigo Send Button -->
+<button class="w-9 h-9 rounded-full bg-gradient-to-tr from-indigo-600 to-indigo-400 hover:from-indigo-500 hover:to-indigo-300 text-white flex items-center justify-center shrink-0 shadow-lg shadow-indigo-600/30 transition-transform duration-150 active:scale-90 group" title="Execute Directives">
+<span class="material-symbols-outlined text-base group-hover:-translate-y-0.5 transition-transform" data-icon="arrow_upward">arrow_upward</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Micro Compliance & Human Approval Subtext -->
+<div class="flex items-center justify-center gap-2 text-[11px] text-zinc-500 text-center mt-2 font-light">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+<span>OmniFlow 4.5 synthesizes live market signals across 7 ad networks. Human approval required prior to spend dispatch.</span>
+</div>
+</div>
+</main>
+<!-- Interactive Segment Tab Micro-Interactions Script -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Interactive tab pills on the preview container
+      const tabButtons = document.querySelectorAll('.glass-panel button[class*="rounded-xl"]');
+      tabButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          tabButtons.forEach(b => {
+            b.classList.remove('bg-white/[0.12]', 'text-white', 'shadow-sm');
+            b.classList.add('text-zinc-400');
+          });
+          btn.classList.add('bg-white/[0.12]', 'text-white', 'shadow-sm');
+          btn.classList.remove('text-zinc-400');
+        });
+      });
+    });
+  </script>
+</body></html>

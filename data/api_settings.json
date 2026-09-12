@@ -1,0 +1,9 @@
+{
+  "meta_access_token": "EAAB_test_token_live",
+  "tiktok_api_key": "tt_live_key_999",
+  "xiaohongshu_api_key": "",
+  "wechat_app_id": "",
+  "wechat_app_secret": "",
+  "openai_api_key": "",
+  "stitch_mcp_url": "mcp://stitch-server-local"
+}

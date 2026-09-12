@@ -1,0 +1,159 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 520" width="1200" height="520">
+  <defs>
+    <!-- Background Gradients -->
+    <linearGradient id="bgDeep" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#06070B"/>
+      <stop offset="50%" stop-color="#0A0C16"/>
+      <stop offset="100%" stop-color="#040508"/>
+    </linearGradient>
+    
+    <!-- Supersonic Plasma Gradients -->
+    <linearGradient id="plasmaGrad1" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#4F46E5" stop-opacity="0"/>
+      <stop offset="30%" stop-color="#6366F1"/>
+      <stop offset="70%" stop-color="#06B6D4"/>
+      <stop offset="100%" stop-color="#10B981"/>
+    </linearGradient>
+    <linearGradient id="plasmaGrad2" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#F59E0B" stop-opacity="0"/>
+      <stop offset="40%" stop-color="#EF4444"/>
+      <stop offset="70%" stop-color="#EC4899"/>
+      <stop offset="100%" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <linearGradient id="goldBeam" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE047"/>
+      <stop offset="50%" stop-color="#F59E0B"/>
+      <stop offset="100%" stop-color="#D97706"/>
+    </linearGradient>
+
+    <!-- Ambient Core Radial Glow -->
+    <radialGradient id="boostCoreGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#6366F1" stop-opacity="0.95"/>
+      <stop offset="35%" stop-color="#06B6D4" stop-opacity="0.5"/>
+      <stop offset="70%" stop-color="#10B981" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="flareGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="1"/>
+      <stop offset="20%" stop-color="#FDE047" stop-opacity="0.9"/>
+      <stop offset="60%" stop-color="#F59E0B" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Filters -->
+    <filter id="bloom" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    
+    <!-- Perspective Grid Pattern -->
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255, 255, 255, 0.04)" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <!-- 1. Deep Canvas Backdrop -->
+  <rect width="1200" height="520" rx="32" fill="url(#bgDeep)"/>
+  
+  <!-- Perspective Cyber Grid overlay -->
+  <rect width="1200" height="520" rx="32" fill="url(#grid)" opacity="0.7"/>
+
+  <!-- Top & Bottom Vignette Border -->
+  <rect width="1200" height="520" rx="32" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="2"/>
+
+  <!-- 2. Cosmic Speed Streaks / Warp Lines -->
+  <g opacity="0.6">
+    <line x1="100" y1="260" x2="450" y2="260" stroke="url(#plasmaGrad1)" stroke-width="2" filter="url(#softGlow)"/>
+    <line x1="80" y1="210" x2="420" y2="240" stroke="url(#plasmaGrad1)" stroke-width="1.5" stroke-dasharray="8 12"/>
+    <line x1="90" y1="310" x2="430" y2="280" stroke="url(#plasmaGrad1)" stroke-width="1.5" stroke-dasharray="14 18"/>
+    <line x1="750" y1="260" x2="1100" y2="260" stroke="url(#plasmaGrad1)" stroke-width="2" filter="url(#softGlow)"/>
+    <line x1="770" y1="230" x2="1120" y2="200" stroke="url(#plasmaGrad2)" stroke-width="1.5" stroke-dasharray="10 14"/>
+    <line x1="760" y1="290" x2="1110" y2="320" stroke="url(#plasmaGrad2)" stroke-width="1.5" stroke-dasharray="6 10"/>
+    
+    <!-- Diagonal Warp Streaks -->
+    <line x1="200" y1="80" x2="520" y2="220" stroke="#6366F1" stroke-width="1" opacity="0.3"/>
+    <line x1="1000" y1="80" x2="680" y2="220" stroke="#06B6D4" stroke-width="1" opacity="0.3"/>
+    <line x1="220" y1="440" x2="520" y2="300" stroke="#10B981" stroke-width="1" opacity="0.3"/>
+    <line x1="980" y1="440" x2="680" y2="300" stroke="#F59E0B" stroke-width="1" opacity="0.3"/>
+  </g>
+
+  <!-- 3. Giant Central Ambient Boost Core -->
+  <circle cx="600" cy="240" r="180" fill="url(#boostCoreGlow)"/>
+  
+  <!-- Outer Overclock Gyroscope Rings (Spinning effect) -->
+  <g transform="rotate(-25 600 240)">
+    <ellipse cx="600" cy="240" rx="170" ry="75" fill="none" stroke="url(#plasmaGrad1)" stroke-width="4.5" filter="url(#bloom)"/>
+    <circle cx="430" cy="240" r="6" fill="#06B6D4" filter="url(#bloom)"/>
+    <circle cx="770" cy="240" r="6" fill="#10B981" filter="url(#bloom)"/>
+  </g>
+  <g transform="rotate(40 600 240)">
+    <ellipse cx="600" cy="240" rx="165" ry="70" fill="none" stroke="url(#plasmaGrad2)" stroke-width="4" filter="url(#bloom)"/>
+    <circle cx="435" cy="240" r="6" fill="#F59E0B" filter="url(#bloom)"/>
+    <circle cx="765" cy="240" r="6" fill="#EC4899" filter="url(#bloom)"/>
+  </g>
+  <g transform="rotate(85 600 240)">
+    <ellipse cx="600" cy="240" rx="155" ry="60" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="2" stroke-dasharray="12 16"/>
+  </g>
+
+  <!-- Center Holographic Glass Pod -->
+  <rect x="520" y="160" width="160" height="160" rx="44" fill="rgba(20, 24, 40, 0.75)" stroke="rgba(255,255,255,0.25)" stroke-width="2" backdrop-filter="blur(20px)" filter="url(#softGlow)"/>
+  
+  <!-- Supercharged OmniFlow Gyroscope Icon Core -->
+  <ellipse cx="600" cy="240" rx="48" ry="24" fill="none" stroke="url(#plasmaGrad1)" stroke-width="4" transform="rotate(-30 600 240)" filter="url(#bloom)"/>
+  <ellipse cx="600" cy="240" rx="48" ry="24" fill="none" stroke="url(#plasmaGrad2)" stroke-width="4" transform="rotate(45 600 240)" filter="url(#bloom)"/>
+  
+  <!-- Solar Flare Burst Core -->
+  <circle cx="600" cy="240" r="28" fill="url(#flareGlow)" filter="url(#bloom)"/>
+  <circle cx="600" cy="240" r="12" fill="#FFFFFF"/>
+  
+  <!-- Lightning Bolt Energy Overlay -->
+  <path d="M604 212 L590 236 H603 L596 268 L614 240 H602 Z" fill="url(#goldBeam)" filter="url(#bloom)"/>
+
+  <!-- 4. Top Telemetry Glass HUD Pill -->
+  <g transform="translate(425, 40)">
+    <rect width="350" height="42" rx="21" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.15)" stroke-width="1.5" backdrop-filter="blur(16px)"/>
+    <!-- Pulsing Live Dot -->
+    <circle cx="28" cy="21" r="5" fill="#10B981" filter="url(#softGlow)"/>
+    <circle cx="28" cy="21" r="8" fill="none" stroke="#10B981" stroke-width="1.5" opacity="0.6"/>
+    <!-- HUD Text -->
+    <text x="48" y="26" fill="#FFFFFF" font-family="-apple-system, BlinkMacSystemFont, 'Inter', sans-serif" font-size="12" font-weight="700" letter-spacing="2">OMNIFLOW 2.0</text>
+    <text x="165" y="26" fill="#F59E0B" font-family="-apple-system, BlinkMacSystemFont, 'Inter', sans-serif" font-size="12" font-weight="800" letter-spacing="1.5">⚡ BOOST MODE</text>
+    <rect x="292" y="11" width="46" height="20" rx="10" fill="rgba(245, 158, 11, 0.2)" stroke="rgba(245, 158, 11, 0.4)" stroke-width="1"/>
+    <text x="303" y="25" fill="#FDE047" font-family="monospace" font-size="10" font-weight="700">10X</text>
+  </g>
+
+  <!-- 5. Left HUD Data Card: Multi-Agent Swarm Overclock -->
+  <g transform="translate(60, 190)">
+    <rect width="250" height="110" rx="20" fill="rgba(15, 18, 30, 0.7)" stroke="rgba(99, 102, 241, 0.3)" stroke-width="1.5" backdrop-filter="blur(20px)"/>
+    <text x="20" y="32" fill="#818CF8" font-family="-apple-system, 'Inter', sans-serif" font-size="10" font-weight="700" letter-spacing="1">AI SWARM CONCURRENCY</text>
+    <text x="20" y="62" fill="#FFFFFF" font-family="-apple-system, 'Inter', sans-serif" font-size="24" font-weight="800">7 Engines</text>
+    <text x="145" y="60" fill="#34D399" font-family="monospace" font-size="12" font-weight="700">▲ PARALLEL</text>
+    <text x="20" y="88" fill="#94A3B8" font-family="-apple-system, 'Inter', sans-serif" font-size="11">Meta · TikTok · RED · WeChat · X</text>
+    <line x1="20" y1="98" x2="230" y2="98" stroke="url(#plasmaGrad1)" stroke-width="2"/>
+  </g>
+
+  <!-- 6. Right HUD Data Card: ROAS & Audience Turbo Acceleration -->
+  <g transform="translate(890, 190)">
+    <rect width="250" height="110" rx="20" fill="rgba(15, 18, 30, 0.7)" stroke="rgba(16, 185, 129, 0.3)" stroke-width="1.5" backdrop-filter="blur(20px)"/>
+    <text x="20" y="32" fill="#34D399" font-family="-apple-system, 'Inter', sans-serif" font-size="10" font-weight="700" letter-spacing="1">PROJECTED CAMPAIGN ROAS</text>
+    <text x="20" y="62" fill="#FFFFFF" font-family="-apple-system, 'Inter', sans-serif" font-size="24" font-weight="800">4.8x</text>
+    <text x="80" y="60" fill="#F59E0B" font-family="monospace" font-size="12" font-weight="700">▲ +174% BOOST</text>
+    <text x="20" y="88" fill="#94A3B8" font-family="-apple-system, 'Inter', sans-serif" font-size="11">892,800 ➔ 2.45M Reach</text>
+    <line x1="20" y1="98" x2="230" y2="98" stroke="url(#plasmaGrad2)" stroke-width="2"/>
+  </g>
+
+  <!-- 7. Bottom Central Title & Architecture Banner -->
+  <g transform="translate(300, 410)">
+    <rect width="600" height="74" rx="24" fill="rgba(10, 12, 20, 0.85)" stroke="rgba(255,255,255,0.15)" stroke-width="1.5" backdrop-filter="blur(24px)"/>
+    <text x="300" y="34" fill="#FFFFFF" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', sans-serif" font-size="16" font-weight="800" text-anchor="middle" letter-spacing="0.5">
+      CROSS-BORDER AUTONOMOUS MARKETING ENGINE
+    </text>
+    <text x="300" y="56" fill="#A1A1AA" font-family="-apple-system, BlinkMacSystemFont, 'Inter', sans-serif" font-size="11" font-weight="500" text-anchor="middle">
+      High-Velocity Strategy · Algorithmic Budget Optimization · Global Content Localization
+    </text>
+  </g>
+</svg>

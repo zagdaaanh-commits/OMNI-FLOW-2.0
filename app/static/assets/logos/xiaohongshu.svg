@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <defs>
+    <linearGradient id="redGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF385C"/>
+      <stop offset="100%" stop-color="#E0042A"/>
+    </linearGradient>
+  </defs>
+  <rect width="100" height="100" rx="24" fill="url(#redGrad)"/>
+  <!-- Stylized RED calligraphy emblem -->
+  <path fill="#FFFFFF" d="M26 68V32h14c6.5 0 10.5 3.5 10.5 9.5 0 4.5-2.5 7.5-6.5 8.7L52 68H42l-6.5-16h-3.5v16H26zm6-22h7c3.2 0 5-1.5 5-4.5s-1.8-4.5-5-4.5h-7v9z"/>
+  <circle cx="70" cy="38" r="7" fill="#FFFFFF"/>
+  <rect x="63" y="48" width="14" height="20" rx="4" fill="#FFFFFF"/>
+</svg>

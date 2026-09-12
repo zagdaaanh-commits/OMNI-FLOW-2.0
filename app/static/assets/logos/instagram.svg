@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <defs>
+    <linearGradient id="instaGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FFD521"/>
+      <stop offset="25%" stop-color="#F50000"/>
+      <stop offset="55%" stop-color="#B900B4"/>
+      <stop offset="100%" stop-color="#4B00D1"/>
+    </linearGradient>
+  </defs>
+  <rect width="100" height="100" rx="24" fill="url(#instaGrad)"/>
+  <rect x="20" y="20" width="60" height="60" rx="16" fill="none" stroke="#FFFFFF" stroke-width="6.5"/>
+  <circle cx="50" cy="50" r="14" fill="none" stroke="#FFFFFF" stroke-width="6.5"/>
+  <circle cx="67" cy="33" r="3.5" fill="#FFFFFF"/>
+</svg>
