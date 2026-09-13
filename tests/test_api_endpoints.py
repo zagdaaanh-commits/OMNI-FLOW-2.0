@@ -335,9 +335,9 @@ def test_facebook_token_update_validation():
     mock_resp.json.return_value = {"id": "101728504668130", "name": "Mai boovoo"}
     mock_resp.content = b'{"id": "101728504668130", "name": "Mai boovoo"}'
     
-    with patch("requests.get", return_value=mock_resp), patch("app.main._update_env_file"):
+    with patch("requests.get", return_value=mock_resp), patch("app.main._update_env_file"), patch.dict("os.environ"):
         res_ok = client.post("/tools/facebook/update-token", json={
-            "access_token": "EAAB_mock_valid_access_token",
+            "access_token": "EAAB_valid_access_token_123",
             "page_id": "101728504668130"
         })
         assert res_ok.status_code == 200
@@ -362,7 +362,8 @@ def test_publish_meta_photo_pipeline():
         "message": "Published to Mai boovoo 🟢",
     }
     
-    with patch("tools.meta_api.MetaAPIClient.publish_facebook_page_photo", return_value=mock_photo_res) as mock_photo:
+    with patch("tools.meta_api.MetaAPIClient.has_facebook_credentials", return_value=True), \
+         patch("tools.meta_api.MetaAPIClient.publish_facebook_page_photo", return_value=mock_photo_res) as mock_photo:
         res = client.post("/publish/schedule", json={
             "content_draft_ids": ["test-photo-draft"],
             "publish_now": True,
