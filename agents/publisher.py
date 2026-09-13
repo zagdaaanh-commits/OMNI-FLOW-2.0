@@ -144,7 +144,7 @@ class PublisherAgent:
                     badge = res.get("confirmation_badge") or ("Token Expired 🟡" if res.get("mode") == "token_expired" else "Gateway Fallback 🟡")
                     return {
                         "id": f"demo-meta-{draft.id[:8]}",
-                        "post_url": res.get("post_url"),
+                        "post_url": res.get("post_url") or f"https://www.facebook.com/{res.get('post_id') or res.get('id', '')}",
                         "confirmation_badge": badge,
                         "status": "token_expired" if res.get("mode") == "token_expired" else "published_fallback",
                         "mode": res.get("mode", "mock_fallback"),
