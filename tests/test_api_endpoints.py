@@ -237,42 +237,60 @@ def test_integrations_flow():
     assert "oauth_url" in res_oauth.json()
 
 
-def test_facebook_graph_api_publishing_and_resilience():
-    from unittest.mock import patch, MagicMock
+def test_facebook_graph_api_publishing_and_resilience(graph_stub, monkeypatch):
+    # 1. Successful Facebook publish through the (mocked) Graph API
+    monkeypatch.setenv("FACEBOOK_PAGE_ID", "101728504668130")
+    monkeypatch.setenv("FACEBOOK_PAGE_ACCESS_TOKEN", "EAAB_test_page_token")
+    graph_stub.add("POST", "/101728504668130/photos", json={"id": "101728504668130_9988776655"})
 
-    # 1. Test successful Facebook publish via Graph API mock
-    mock_resp = MagicMock()
-    mock_resp.status_code = 200
-    mock_resp.content = b'{"id": "101728504668130_9988776655"}'
-    mock_resp.json.return_value = {"id": "101728504668130_9988776655"}
+    res = client.post("/publish/schedule", json={
+        "content_draft_ids": ["test-meta-draft"],
+        "publish_now": True,
+        "channel": "meta"
+    })
+    assert res.status_code == 200
+    tasks = res.json()
+    assert len(tasks) == 1
+    t = tasks[0]
+    assert t["status"] == "published"
+    assert t["external_post_id"] == "101728504668130_9988776655"
+    assert t["post_url"] == "https://www.facebook.com/101728504668130_9988776655"
+    assert "Published to" in t["confirmation_badge"]
+    assert not graph_stub.unmatched
 
-    with patch("requests.post", return_value=mock_resp):
-        res = client.post("/publish/schedule", json={
-            "content_draft_ids": ["test-meta-draft"],
-            "publish_now": True,
-            "channel": "meta"
-        })
-        assert res.status_code == 200
-        tasks = res.json()
-        assert len(tasks) == 1
-        t = tasks[0]
-        assert t["status"] == "published"
-        assert t["external_post_id"] == "101728504668130_9988776655"
-        assert t["post_url"] == "https://www.facebook.com/101728504668130_9988776655"
-        assert "Published to" in t["confirmation_badge"]
 
-    # 2. Test live resilience (using current environment credentials with graceful error handling)
-    res_live = client.post("/publish/schedule", json={
+def test_facebook_publish_failure_is_reported_as_failed(graph_stub, monkeypatch):
+    # Credentials configured but Meta rejects the token: the task must be FAILED, never "published".
+    monkeypatch.setenv("FACEBOOK_PAGE_ID", "101728504668130")
+    monkeypatch.setenv("FACEBOOK_PAGE_ACCESS_TOKEN", "EAAB_expired")
+    graph_stub.add("POST", "/photos", status=400, json={"error": {"message": "Error validating access token: Session has expired", "code": 190}})
+
+    res = client.post("/publish/schedule", json={
+        "content_draft_ids": ["test-meta-draft-fail"],
+        "publish_now": True,
+        "channel": "meta"
+    })
+    assert res.status_code == 200
+    t = res.json()[0]
+    assert t["status"] == "failed"
+    assert "expired" in t["error"].lower()
+    assert t["confirmation_badge"] == "Token Expired 🟡"
+
+
+def test_publish_without_credentials_is_simulated():
+    # No credentials in the hermetic environment: demo mode still completes, marked as simulated.
+    res = client.post("/publish/schedule", json={
         "content_draft_ids": ["test-meta-draft-live"],
         "publish_now": True,
         "channel": "meta"
     })
-    assert res_live.status_code == 200
-    live_tasks = res_live.json()
+    assert res.status_code == 200
+    live_tasks = res.json()
     assert len(live_tasks) == 1
     lt = live_tasks[0]
     assert lt["status"] == "published"
     assert lt["confirmation_badge"] is not None
+    assert any(log["data"].get("mode") == "simulated" for log in lt["logs"])
 
 
 def test_facebook_tools_status():
@@ -320,32 +338,28 @@ def test_assistant_chat_faq_and_directives():
         assert len(res_gen.json()["drafts"]) > 0
 
 
-def test_facebook_token_update_validation():
-    # Empty token rejected
+def test_facebook_token_update_validation(graph_stub):
+    # Empty token rejected before any network call
     res = client.post("/tools/facebook/update-token", json={"access_token": ""})
     assert res.status_code == 400
-    
-    # Fake token rejected with 400 or 500
+
+    # Fake token rejected by Graph -> 400
+    graph_stub.add("GET", "graph.facebook.com", status=400, json={"error": {"message": "Invalid OAuth access token.", "code": 190}})
     res_fake = client.post("/tools/facebook/update-token", json={"access_token": "invalid_fake_token_123"})
     assert res_fake.status_code in (400, 500)
-    
-    # Mock valid token verification
-    from unittest.mock import patch, MagicMock
-    mock_resp = MagicMock()
-    mock_resp.status_code = 200
-    mock_resp.json.return_value = {"id": "101728504668130", "name": "Mai boovoo"}
-    mock_resp.content = b'{"id": "101728504668130", "name": "Mai boovoo"}'
-    
-    with patch("requests.get", return_value=mock_resp), patch("app.main._update_env_file"), patch.dict("os.environ"):
-        res_ok = client.post("/tools/facebook/update-token", json={
-            "access_token": "EAAB_valid_access_token_123",
-            "page_id": "101728504668130"
-        })
-        assert res_ok.status_code == 200
-        data = res_ok.json()
-        assert data["success"] is True
-        assert data["page_name"] == "Mai boovoo"
-        assert "Connected to Mai boovoo" in data["confirmation_badge"]
+
+    # Valid page token
+    graph_stub.routes.clear()
+    graph_stub.add("GET", "/101728504668130", json={"id": "101728504668130", "name": "Mai boovoo"})
+    res_ok = client.post("/tools/facebook/update-token", json={
+        "access_token": "EAAB_valid_access_token_123",
+        "page_id": "101728504668130"
+    })
+    assert res_ok.status_code == 200
+    data = res_ok.json()
+    assert data["success"] is True
+    assert data["page_name"] == "Mai boovoo"
+    assert "Connected to Mai boovoo" in data["confirmation_badge"]
 
 
 def test_publish_meta_photo_pipeline():
@@ -376,7 +390,8 @@ def test_publish_meta_photo_pipeline():
         tasks = res.json()
         assert len(tasks) == 1
         assert tasks[0]["status"] == "published"
-        # assert tasks[0]["post_url"] == "https://www.facebook.com/101728504668130_1234567890"
+        assert tasks[0]["post_url"] == "https://www.facebook.com/101728504668130_1234567890"
+        assert tasks[0]["external_post_id"] == "101728504668130_1234567890"
         assert "Published to Mai boovoo" in tasks[0]["confirmation_badge"]
         mock_photo.assert_called_once()
 
@@ -389,143 +404,101 @@ def test_publish_facebook_endpoint_no_token():
         assert "FACEBOOK_PAGE_ACCESS_TOKEN not configured" in res.json()["detail"]
 
 
-def test_publish_facebook_endpoint_photo_success():
-    from unittest.mock import patch, MagicMock
-    tiny_png_b64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
-
-    mock_resp = MagicMock()
-    mock_resp.status_code = 200
-    mock_resp.json.return_value = {"id": "101728504668130_998877"}
-    mock_resp.text = '{"id": "101728504668130_998877"}'
-
-    with patch.dict("os.environ", {"FACEBOOK_PAGE_ACCESS_TOKEN": "valid_meta_test_token"}), \
-         patch("requests.post", return_value=mock_resp) as mock_post:
-        res = client.post("/publish/facebook", json={
-            "caption": "Photo creative caption",
-            "image_base64": tiny_png_b64,
-            "page_id": "101728504668130"
-        })
-        assert res.status_code == 200
-        data = res.json()
-        assert data["success"] is True
-        assert data["post_id"] == "101728504668130_998877"
-        assert data["post_url"] == "https://facebook.com/101728504668130_998877"
-        mock_post.assert_called_once()
-        call_url = mock_post.call_args[0][0]
-        assert "photos" in call_url
+TINY_PNG_B64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
 
 
-def test_publish_facebook_endpoint_feed_success():
-    from unittest.mock import patch, MagicMock
+def test_publish_facebook_endpoint_photo_success(graph_stub, monkeypatch):
+    monkeypatch.setenv("FACEBOOK_PAGE_ACCESS_TOKEN", "valid_meta_test_token")
+    graph_stub.add("POST", "/photos", json={"id": "998877", "post_id": "101728504668130_998877"})
 
-    mock_resp = MagicMock()
-    mock_resp.status_code = 200
-    mock_resp.json.return_value = {"id": "101728504668130_554433"}
-    mock_resp.text = '{"id": "101728504668130_554433"}'
-
-    with patch.dict("os.environ", {"FACEBOOK_PAGE_ACCESS_TOKEN": "valid_meta_test_token"}), \
-         patch("requests.post", return_value=mock_resp) as mock_post:
-        res = client.post("/publish/facebook", json={
-            "caption": "Text only creative caption",
-            "page_id": "101728504668130"
-        })
-        assert res.status_code == 200
-        data = res.json()
-        assert data["success"] is True
-        assert data["post_id"] == "101728504668130_554433"
-        assert data["post_url"] == "https://facebook.com/101728504668130_554433"
-        mock_post.assert_called_once()
-        call_url = mock_post.call_args[0][0]
-        assert "feed" in call_url
+    res = client.post("/publish/facebook", json={
+        "caption": "Photo creative caption",
+        "image_base64": TINY_PNG_B64,
+        "page_id": "101728504668130"
+    })
+    assert res.status_code == 200
+    data = res.json()
+    assert data["success"] is True
+    assert data["post_id"] == "101728504668130_998877"
+    assert data["post_url"] == "https://facebook.com/101728504668130_998877"
+    assert len(graph_stub.calls) == 1
+    assert "photos" in str(graph_stub.calls[0].url)
+    assert "multipart/form-data" in graph_stub.calls[0].headers["content-type"]
 
 
-def test_publish_facebook_endpoint_api_error():
-    from unittest.mock import patch, MagicMock
+def test_publish_facebook_endpoint_feed_success(graph_stub, monkeypatch):
+    monkeypatch.setenv("FACEBOOK_PAGE_ACCESS_TOKEN", "valid_meta_test_token")
+    graph_stub.add("POST", "/feed", json={"id": "101728504668130_554433"})
 
-    mock_resp = MagicMock()
-    mock_resp.status_code = 400
-    mock_resp.text = '{"error": {"message": "Invalid OAuth access token"}}'
-
-    with patch.dict("os.environ", {"FACEBOOK_PAGE_ACCESS_TOKEN": "invalid_meta_test_token"}), \
-         patch("requests.post", return_value=mock_resp):
-        res = client.post("/publish/facebook", json={
-            "caption": "Failing test post",
-            "page_id": "101728504668130"
-        })
-        assert res.status_code == 200
-        data = res.json()
-        assert data["success"] is False
-        assert "Invalid OAuth access token" in data["error"]
-        assert data["status_code"] == 400
+    res = client.post("/publish/facebook", json={
+        "caption": "Text only creative caption",
+        "page_id": "101728504668130"
+    })
+    assert res.status_code == 200
+    data = res.json()
+    assert data["success"] is True
+    assert data["post_id"] == "101728504668130_554433"
+    assert data["post_url"] == "https://facebook.com/101728504668130_554433"
+    assert len(graph_stub.calls) == 1
+    assert "feed" in str(graph_stub.calls[0].url)
 
 
-def test_publish_facebook_endpoint_empty_env_page_id():
-    from unittest.mock import patch, MagicMock
+def test_publish_facebook_endpoint_api_error(graph_stub, monkeypatch):
+    monkeypatch.setenv("FACEBOOK_PAGE_ACCESS_TOKEN", "invalid_meta_test_token")
+    graph_stub.add("POST", "/feed", status=400, json={"error": {"message": "Invalid OAuth access token"}})
 
-    mock_resp = MagicMock()
-    mock_resp.status_code = 200
-    mock_resp.json.return_value = {"id": "101728504668130_888"}
-    mock_resp.text = '{"id": "101728504668130_888"}'
-
-    with patch.dict("os.environ", {"FACEBOOK_PAGE_ACCESS_TOKEN": "valid_token", "FACEBOOK_PAGE_ID": ""}), \
-         patch("requests.post", return_value=mock_resp) as mock_post:
-        res = client.post("/publish/facebook", json={
-            "caption": "Empty env page id test",
-            "page_id": "101728504668130"
-        })
-        assert res.status_code == 200
-        assert res.json()["success"] is True
-        call_url = mock_post.call_args[0][0]
-        assert "101728504668130" in call_url
+    res = client.post("/publish/facebook", json={
+        "caption": "Failing test post",
+        "page_id": "101728504668130"
+    })
+    assert res.status_code == 200
+    data = res.json()
+    assert data["success"] is False
+    assert "Invalid OAuth access token" in data["error"]
+    assert data["status_code"] == 400
 
 
-def test_publish_facebook_endpoint_malformed_base64():
-    from unittest.mock import patch, MagicMock
+def test_publish_facebook_endpoint_empty_env_page_id(graph_stub, monkeypatch):
+    monkeypatch.setenv("FACEBOOK_PAGE_ACCESS_TOKEN", "valid_token")
+    monkeypatch.setenv("FACEBOOK_PAGE_ID", "")
+    graph_stub.add("POST", "/feed", json={"id": "101728504668130_888"})
 
-    mock_resp = MagicMock()
-    mock_resp.status_code = 200
-    mock_resp.json.return_value = {"id": "101728504668130_777"}
-    mock_resp.text = '{"id": "101728504668130_777"}'
-
-    # When base64 is malformed, it should gracefully fall back to feed endpoint without 500 crash
-    with patch.dict("os.environ", {"FACEBOOK_PAGE_ACCESS_TOKEN": "valid_token"}), \
-         patch("requests.post", return_value=mock_resp) as mock_post:
-        res = client.post("/publish/facebook", json={
-            "caption": "Malformed base64 fallback test",
-            "image_base64": "not_valid_base64_data_string_that_is_long_enough_to_trigger_photo_branch_1234567890",
-            "page_id": "101728504668130"
-        })
-        assert res.status_code == 200
-        data = res.json()
-        assert data["success"] is True
-        assert data["post_id"] == "101728504668130_777"
-        call_url = mock_post.call_args[0][0]
-        assert "feed" in call_url
+    res = client.post("/publish/facebook", json={
+        "caption": "Empty env page id test",
+        "page_id": "101728504668130"
+    })
+    assert res.status_code == 200
+    assert res.json()["success"] is True
+    assert "101728504668130" in str(graph_stub.calls[0].url)
 
 
-def test_publish_facebook_endpoint_raw_base64():
-    from unittest.mock import patch, MagicMock
-    raw_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+def test_publish_facebook_endpoint_malformed_base64(graph_stub, monkeypatch):
+    monkeypatch.setenv("FACEBOOK_PAGE_ACCESS_TOKEN", "valid_token")
+    graph_stub.add("POST", "/feed", json={"id": "101728504668130_777"})
 
-    mock_resp = MagicMock()
-    mock_resp.status_code = 200
-    mock_resp.json.return_value = {"id": "101728504668130_666"}
-    mock_resp.text = '{"id": "101728504668130_666"}'
-
-    with patch.dict("os.environ", {"FACEBOOK_PAGE_ACCESS_TOKEN": "valid_token"}), \
-         patch("requests.post", return_value=mock_resp) as mock_post:
-        res = client.post("/publish/facebook", json={
-            "caption": "Raw base64 test without data prefix",
-            "image_base64": raw_b64,
-            "page_id": "101728504668130"
-        })
-        assert res.status_code == 200
-        assert res.json()["success"] is True
-        call_url = mock_post.call_args[0][0]
-        assert "photos" in call_url
+    # Malformed base64 gracefully falls back to the feed endpoint without a 500 crash
+    res = client.post("/publish/facebook", json={
+        "caption": "Malformed base64 fallback test",
+        "image_base64": "not_valid_base64_data_string_that_is_long_enough_to_trigger_photo_branch_1234567890",
+        "page_id": "101728504668130"
+    })
+    assert res.status_code == 200
+    data = res.json()
+    assert data["success"] is True
+    assert data["post_id"] == "101728504668130_777"
+    assert "feed" in str(graph_stub.calls[0].url)
 
 
+def test_publish_facebook_endpoint_raw_base64(graph_stub, monkeypatch):
+    raw_b64 = TINY_PNG_B64.split(",", 1)[1]
+    monkeypatch.setenv("FACEBOOK_PAGE_ACCESS_TOKEN", "valid_token")
+    graph_stub.add("POST", "/photos", json={"id": "666", "post_id": "101728504668130_666"})
 
-
-
-
+    res = client.post("/publish/facebook", json={
+        "caption": "Raw base64 test without data prefix",
+        "image_base64": raw_b64,
+        "page_id": "101728504668130"
+    })
+    assert res.status_code == 200
+    assert res.json()["success"] is True
+    assert "photos" in str(graph_stub.calls[0].url)

@@ -1,0 +1,3 @@
+-r requirements.txt
+pytest>=8.0
+requests>=2.32  # only for the ad-hoc scripts in the repo root

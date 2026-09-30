@@ -5,7 +5,10 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, HttpUrl, ConfigDict, field_validator, model_validator, AliasChoices
+from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator, AliasChoices
+
+# Shared tenant used for single-merchant / demo mode and for rows created before multi-tenancy.
+DEFAULT_TENANT_ID = "default"
 
 
 class Platform(str, Enum):
@@ -128,6 +131,7 @@ class CampaignCreate(BaseModel):
 
 class Campaign(CampaignCreate):
     id: str = Field(default_factory=lambda: str(uuid4()))
+    tenant_id: str = DEFAULT_TENANT_ID
     status: CampaignStatus = CampaignStatus.DRAFT
     strategy: Dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -169,6 +173,7 @@ class ContentDraft(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     id: str = Field(default_factory=lambda: str(uuid4()))
+    tenant_id: str = DEFAULT_TENANT_ID
     campaign_id: str
     platform: Platform
     language: str
@@ -235,6 +240,7 @@ class PublishLog(BaseModel):
 
 class PublishTask(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid4()))
+    tenant_id: str = DEFAULT_TENANT_ID
     campaign_id: str
     content_draft_id: str
     platform: Platform
@@ -246,12 +252,15 @@ class PublishTask(BaseModel):
     confirmation_badge: Optional[str] = None
     image_base64: Optional[str] = None
     error: Optional[str] = None
+    attempts: int = 0
+    updated_at: Optional[datetime] = None
     logs: List[PublishLog] = Field(default_factory=list)
 
 
 class StructuredContentResponse(BaseModel):
-    model_config = ConfigDict(extra="allow", protected_namespaces=())
-    copy: str
+    # The JSON key stays "copy"; the attribute is renamed so it does not shadow BaseModel.copy().
+    model_config = ConfigDict(extra="allow", protected_namespaces=(), populate_by_name=True, serialize_by_alias=True)
+    copy_text: str = Field(validation_alias=AliasChoices("copy", "copy_text"), serialization_alias="copy")
     hashtags: Any
     platforms: List[str] = Field(default_factory=lambda: ["Meta", "TikTok"])
     draft_id: Optional[str] = None
@@ -312,6 +321,17 @@ class UserProfile(BaseModel):
     company: str
     avatar_url: Optional[str] = ""
     created_at: str
+    tenant_id: Optional[str] = None
+
+
+class Tenant(BaseModel):
+    id: str
+    name: str
+    slug: Optional[str] = None
+    plan: str = "free"
+    status: str = "active"
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
 
 
 class AuthResponse(BaseModel):

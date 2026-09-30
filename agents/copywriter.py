@@ -1,32 +1,34 @@
 from __future__ import annotations
 
+import json
 import logging
-import os
 import re
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import uuid4
-from pathlib import Path
 
-from dotenv import load_dotenv
-
-# Ensure .env is always loaded with override
-load_dotenv(override=True)
-if os.getenv("OPEN_AI_KEY") and not os.getenv("OPENAI_API_KEY"):
-    os.environ["OPENAI_API_KEY"] = os.getenv("OPEN_AI_KEY")
-
-import openai
+from agents.llm_client import (
+    LLMAuthError,
+    LLMClient,
+    LLMError,
+    LLMNotConfiguredError,
+    get_llm_client,
+)
+from app.config import load_environment
 from models.schemas import Campaign, ContentDraft, ContentGenerateRequest, Platform
+
+load_environment()
 
 logger = logging.getLogger("multi-agent-marketing.copywriter")
 
 
 class CopywriterAgent:
     """
-    AI Copywriter Agent connecting to the OpenAI SDK using gpt-5.6-luna
-    with platform-specific prompt engineering and resilient fallback protection.
+    AI Copywriter Agent backed by the unified OpenAI-compatible LLM client
+    (default: Zhipu GLM-4-Flash) with platform-specific prompt engineering,
+    exponential-backoff retries and deterministic fallbacks that always return copy.
     """
 
-    DEFAULT_MODEL = "gpt-5.6-luna"
+    DEFAULT_MODEL = "glm-4-flash"
 
     PLATFORM_RULES: Dict[Platform, Dict[str, int]] = {
         Platform.INSTAGRAM: {"max_chars": 2200, "hashtags": 8},
@@ -85,39 +87,54 @@ class CopywriterAgent:
         Platform.WECHAT: "Exclusive Highlights & Deep Dive: ",
     }
 
-    _global_auth_failed: bool = False
-    _global_last_key: Optional[str] = None
+    VISION_SYSTEM_PROMPT = (
+        "You are an expert direct-response copywriter for Meta and TikTok feeds. "
+        "Write high-converting ad copy with a scroll-stopping hook, concise value propositions, and a clear CTA. "
+        "All generated copy must be in clean, professional English. "
+        "You MUST respond ONLY with valid JSON with these exact keys: "
+        "{\"copy\": \"...\", \"hashtags\": [\"#tag1\", \"#tag2\"], \"platforms\": [\"Meta\", \"TikTok\"]}"
+    )
 
     def __init__(self) -> None:
+        self.client: Optional[LLMClient] = None
+        self.api_key: str = ""
+        self.base_url: str = ""
+        self.model: str = self.DEFAULT_MODEL
         self._init_openai_client()
 
     def _init_openai_client(self) -> None:
-        load_dotenv(override=True)
-        if os.getenv("OPEN_AI_KEY") and not os.getenv("OPENAI_API_KEY"):
-            os.environ["OPENAI_API_KEY"] = os.getenv("OPEN_AI_KEY")
+        """Refresh the shared LLM client (picks up runtime key/model/proxy changes)."""
+        llm = get_llm_client()
+        self.api_key = llm.settings.api_key
+        self.base_url = llm.settings.base_url
+        self.model = llm.settings.model
+        self.client = llm if llm.is_configured else None
 
-        self.api_key = os.getenv("OPENAI_API_KEY")
-        self.base_url = (os.getenv("OPENAI_BASE_URL", "https://api.openai-next.com/v1") or "https://api.openai-next.com/v1").strip()
-        self.model = os.getenv("OPENAI_MODEL", "gpt-5.6-luna").strip()
+    @property
+    def _llm_available(self) -> bool:
+        return bool(self.client and self.api_key and not self.client.auth_failed)
 
-        if CopywriterAgent._global_last_key != self.api_key:
-            CopywriterAgent._global_auth_failed = False
-            CopywriterAgent._global_last_key = self.api_key
+    def _vision_model_for(self, has_image: bool) -> str:
+        if has_image and self.client is not None:
+            lowered = self.model.lower()
+            if "glm" in lowered and "4v" not in lowered:
+                return self.client.vision_model
+        return self.model
 
-        if self.api_key:
-            try:
-                self.client: Optional[openai.OpenAI] = openai.OpenAI(
-                    api_key=self.api_key,
-                    base_url=self.base_url,
-                    timeout=30.0,
-                    max_retries=1,
-                )
-                logger.info(f"OpenAI Client initialized with model={self.model} base_url={self.base_url}")
-            except Exception as e:
-                logger.warning(f"Failed to initialize OpenAI client: {e}")
-                self.client = None
-        else:
-            self.client = None
+    @staticmethod
+    def _parse_json_reply(raw_text: str) -> Dict[str, Any]:
+        cleaned = re.sub(r"^```(?:json)?\s*", "", raw_text.strip(), flags=re.MULTILINE)
+        cleaned = re.sub(r"```\s*$", "", cleaned, flags=re.MULTILINE).strip()
+        try:
+            parsed = json.loads(cleaned)
+        except json.JSONDecodeError:
+            match = re.search(r"\{.*\}", cleaned, flags=re.DOTALL)
+            if not match:
+                raise
+            parsed = json.loads(match.group(0))
+        if not isinstance(parsed, dict):
+            raise ValueError("LLM reply is not a JSON object")
+        return parsed
 
     def generate_with_vision(
         self,
@@ -126,52 +143,70 @@ class CopywriterAgent:
         campaign: Optional[Campaign] = None,
     ) -> Dict[str, Any]:
         """
-        Feeds user prompt and image to gpt-5.6-luna with vision and bilingual capabilities.
-        Returns structured JSON: { copy: '...', hashtags: '...', platforms: ['Meta', 'TikTok'] }
+        Generates structured ad copy from a prompt and optional product image.
+        Uses the vision model (glm-4v-flash by default) for images, falls back to a
+        text-only call, then to the deterministic template generator.
+        Returns: { copy, hashtags (space-joined str), platforms, draft_id, image_base64, drafts }
         """
         self._init_openai_client()
         prompt_text = (prompt or "").strip()
-        result_copy = None
-        result_hashtags = []
-        result_platforms = ["Meta", "TikTok"]
+        result_copy: Optional[str] = None
+        result_hashtags: List[str] = []
+        result_platforms: List[str] = ["Meta", "TikTok"]
+        generation_meta: Dict[str, Any] = {"agent": "CopywriterAgent", "model": self.model}
 
-        if self.client and self.api_key:
+        if self._llm_available:
+            assert self.client is not None
+            text_part = {"type": "text", "text": f"Product/Idea: {prompt_text or 'High-Performance Showcase'}"}
             try:
-                sys_prompt = (
-                    "You are an expert direct-response copywriter for Meta and TikTok feeds. "
-                    "Write high-converting ad copy with a scroll-stopping hook, concise value propositions, and a clear CTA. "
-                    "All generated copy must be in clean, professional English. "
-                    "You MUST respond ONLY with valid JSON with these exact keys: "
-                    "{\"copy\": \"...\", \"hashtags\": [\"#tag1\", \"#tag2\"], \"platforms\": [\"Meta\", \"TikTok\"]}"
-                )
-
-                user_content = []
-                user_content.append({"type": "text", "text": f"Product/Idea: {prompt_text or 'High-Performance Showcase'}"})
+                raw_text: Optional[str] = None
                 if image_base64:
                     img_url = image_base64 if image_base64.startswith("data:") else f"data:image/jpeg;base64,{image_base64}"
-                    user_content.append({"type": "image_url", "image_url": {"url": img_url}})
+                    vision_model = self._vision_model_for(True)
+                    try:
+                        raw_text = self.client.chat(
+                            [
+                                {"role": "system", "content": self.VISION_SYSTEM_PROMPT},
+                                {"role": "user", "content": [text_part, {"type": "image_url", "image_url": {"url": img_url}}]},
+                            ],
+                            model=vision_model,
+                            max_tokens=700,
+                        )
+                        generation_meta["model"] = vision_model
+                    except LLMAuthError:
+                        raise
+                    except LLMError as vision_err:
+                        logger.info("Vision call on %s failed (%s); retrying text-only on %s", vision_model, vision_err, self.model)
+                if raw_text is None:
+                    raw_text = self.client.chat(
+                        [
+                            {"role": "system", "content": self.VISION_SYSTEM_PROMPT},
+                            {"role": "user", "content": text_part["text"]},
+                        ],
+                        max_tokens=700,
+                    )
+                parsed = self._parse_json_reply(raw_text)
+                copy_val = parsed.get("copy")
+                result_copy = str(copy_val).strip() if copy_val else None
+                raw_tags = parsed.get("hashtags")
+                if isinstance(raw_tags, list):
+                    result_hashtags = [str(t).strip() for t in raw_tags if str(t).strip()]
+                elif isinstance(raw_tags, str):
+                    result_hashtags = [t.strip() for t in raw_tags.split() if t.strip()]
+                raw_platforms = parsed.get("platforms")
+                if isinstance(raw_platforms, list) and raw_platforms:
+                    result_platforms = [str(p) for p in raw_platforms]
+                elif isinstance(raw_platforms, dict) and raw_platforms:
+                    result_platforms = [str(k) for k in raw_platforms.keys()]
+                generation_meta["status"] = "ai_generated"
+            except Exception as exc:  # noqa: BLE001 - always degrade gracefully
+                logger.warning("Vision/LLM generation failed: %s. Using template fallback.", exc)
+                generation_meta["status"] = "fallback"
+                generation_meta["fallback_reason"] = type(exc).__name__
+        else:
+            generation_meta["status"] = "fallback"
+            generation_meta["fallback_reason"] = "llm_auth_failed" if self.client else "llm_not_configured"
 
-                resp = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[
-                        {"role": "system", "content": sys_prompt},
-                        {"role": "user", "content": user_content},
-                    ],
-                    temperature=0.7,
-                    max_tokens=700,
-                )
-                raw_text = resp.choices[0].message.content.strip()
-                import json
-                clean_json_str = re.sub(r"^```json\s*", "", raw_text, flags=re.MULTILINE)
-                clean_json_str = re.sub(r"^```\s*", "", clean_json_str, flags=re.MULTILINE).strip()
-                parsed = json.loads(clean_json_str)
-                result_copy = parsed.get("copy")
-                result_hashtags = parsed.get("hashtags") or []
-                result_platforms = parsed.get("platforms") or ["Meta", "TikTok"]
-            except Exception as exc:
-                logger.warning(f"Vision/OpenAI call error: {exc}. Using intelligent fallback generator.")
-
-        # Fallback if OpenAI failed or returned empty
         if not result_copy:
             result_copy = (
                 f"🔥 Introducing the next evolution in performance: {prompt_text}!\n\n"
@@ -184,10 +219,16 @@ class CopywriterAgent:
                 f"Tap below to secure your allocation today before first drop sells out!"
             )
             result_hashtags = ["#Innovation", "#LaunchDay", "#ProductDrop", "#SmartLiving", "#Ecommerce"]
+            if generation_meta.get("status") == "ai_generated":
+                generation_meta["status"] = "fallback"
+                generation_meta["fallback_reason"] = "empty_copy"
 
-        hashtags_str = " ".join(result_hashtags) if isinstance(result_hashtags, list) else str(result_hashtags)
+        hashtags_str = " ".join(result_hashtags)
 
         cid = campaign.id if campaign else "demo-campaign"
+        tenant_kwargs: Dict[str, Any] = {}
+        if campaign is not None and getattr(campaign, "tenant_id", None):
+            tenant_kwargs["tenant_id"] = campaign.tenant_id
         meta_draft = ContentDraft(
             id=str(uuid4()),
             campaign_id=cid,
@@ -195,20 +236,25 @@ class CopywriterAgent:
             language="en",
             title=f"{prompt_text[:30]} | Meta",
             body=result_copy,
-            hashtags=result_hashtags if isinstance(result_hashtags, list) else result_hashtags.split(),
+            hashtags=list(result_hashtags),
             image_base64=image_base64,
             call_to_action="Learn More",
+            metadata=dict(generation_meta),
+            **tenant_kwargs,
         )
+        first_line = result_copy.splitlines()[0] if result_copy else ""
         tiktok_draft = ContentDraft(
             id=str(uuid4()),
             campaign_id=cid,
             platform=Platform.TIKTOK,
             language="en",
             title=f"{prompt_text[:30]} | TikTok",
-            body=f"Stop scrolling! ✋ Have you seen {prompt_text}?\n\n{result_copy.splitlines()[0] if result_copy else ''}\n\nCheck sound and tap link below ⬇️",
-            hashtags=result_hashtags if isinstance(result_hashtags, list) else result_hashtags.split(),
+            body=f"Stop scrolling! ✋ Have you seen {prompt_text}?\n\n{first_line}\n\nCheck sound and tap link below ⬇️",
+            hashtags=list(result_hashtags),
             image_base64=image_base64,
             call_to_action="TikTok Drop",
+            metadata=dict(generation_meta),
+            **tenant_kwargs,
         )
 
         return {
@@ -221,7 +267,7 @@ class CopywriterAgent:
         }
 
     def generate(self, campaign: Campaign, request: ContentGenerateRequest) -> List[ContentDraft]:
-        # Refresh client in case .env or keys changed dynamically
+        # Refresh client in case keys/model/proxy changed at runtime
         self._init_openai_client()
 
         platforms = request.platforms or campaign.platforms
@@ -257,15 +303,14 @@ class CopywriterAgent:
         body = None
         hashtags = None
         cta = None
-        ai_metadata: Dict[str, str] = {
+        ai_metadata: Dict[str, Any] = {
             "agent": "CopywriterAgent",
-            "provider": "openai",
+            "provider": self.client.settings.provider_host if self.client else "none",
             "model": self.model,
             "schedule_hint": schedule_time,
         }
 
-        # Attempt authentic generation via OpenAI gpt-5.6-luna
-        if self.client and self.api_key and not CopywriterAgent._global_auth_failed:
+        if self._llm_available:
             try:
                 ai_result = self._call_openai(campaign, topic, platform, language)
                 if ai_result:
@@ -274,20 +319,19 @@ class CopywriterAgent:
                     if ai_result.get("hashtags"):
                         hashtags = ai_result["hashtags"]
                     ai_metadata["status"] = "ai_generated"
-            except openai.AuthenticationError as auth_err:
-                logger.warning(f"OpenAI Authentication error: {auth_err}. Disabling further API attempts for this key.")
-                CopywriterAgent._global_auth_failed = True
+            except LLMAuthError as auth_err:
+                logger.warning("LLM authentication failed: %s. Further calls disabled for this key.", auth_err)
                 ai_metadata["status"] = "simulated_fallback"
-                ai_metadata["fallback_reason"] = "OpenAI authentication failed; used resilient localized fallback"
-            except Exception as exc:
-                logger.warning(f"OpenAI API call ({self.model}) encountered exception: {exc}. Using resilient generation fallback.")
+                ai_metadata["fallback_reason"] = "LLM authentication failed; used resilient localized fallback"
+            except Exception as exc:  # noqa: BLE001 - always degrade gracefully
+                logger.warning("LLM call (%s) failed: %s. Using resilient generation fallback.", self.model, exc)
                 ai_metadata["status"] = "simulated_fallback"
-                ai_metadata["fallback_reason"] = str(exc)
+                ai_metadata["fallback_reason"] = str(exc)[:300]
         else:
-            ai_metadata["status"] = "simulated_fallback" if CopywriterAgent._global_auth_failed else "deterministic_fallback"
-            ai_metadata["note"] = "OpenAI API offline, unauthorized, or key omitted"
+            auth_failed = bool(self.client and self.client.auth_failed)
+            ai_metadata["status"] = "simulated_fallback" if auth_failed else "deterministic_fallback"
+            ai_metadata["note"] = "LLM offline, unauthorized, or key omitted"
 
-        # Apply fallback if OpenAI did not yield a body
         if not body:
             body = self._write_fallback(campaign, topic, platform, language)
         if not cta:
@@ -298,6 +342,9 @@ class CopywriterAgent:
         limit = self.PLATFORM_RULES[platform]["max_chars"]
         body = body[:limit]
 
+        extra: Dict[str, Any] = {}
+        if getattr(campaign, "tenant_id", None):
+            extra["tenant_id"] = campaign.tenant_id
         return ContentDraft(
             id=str(uuid4()),
             campaign_id=campaign.id,
@@ -309,12 +356,17 @@ class CopywriterAgent:
             media_links=media_links,
             call_to_action=cta,
             metadata=ai_metadata,
+            **extra,
         )
 
     def _call_openai(self, campaign: Campaign, topic: str, platform: Platform, language: str) -> Optional[Dict]:
         """
-        Executes real chat completion via OpenAI SDK with gpt-5.6-luna.
+        Executes a chat completion via the unified LLM client (retries/backoff included).
+        Returns {"body", "cta", "hashtags"}; raises LLMError subclasses on failure.
         """
+        if self.client is None:
+            raise LLMNotConfiguredError("LLM client not configured")
+
         system_prompt = self.PLATFORM_SYSTEM_PROMPTS.get(
             platform,
             "You are a professional cross-border social media copywriter."
@@ -332,9 +384,8 @@ class CopywriterAgent:
             f"3. 3-5 high-converting relevant hashtags."
         )
 
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[
+        content = self.client.chat(
+            [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
@@ -342,12 +393,9 @@ class CopywriterAgent:
             temperature=0.7,
         )
 
-        content = response.choices[0].message.content.strip()
-        
-        # Parse extracted tags if present
-        found_tags = re.findall(r"#[A-Za-z0-9_]+", content)
-        clean_body = re.sub(r"#[A-Za-z0-9_]+", "", content).strip()
-        
+        found_tags = re.findall(r"#\w+", content)
+        clean_body = re.sub(r"#\w+", "", content).strip()
+
         return {
             "body": clean_body if clean_body else content,
             "cta": self._cta_fallback(platform, language),

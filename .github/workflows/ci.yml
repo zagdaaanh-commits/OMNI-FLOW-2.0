@@ -7,12 +7,43 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: pw
+          POSTGRES_DB: omniflow_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install -r requirements.txt
-      - run: pip install pytest
-      - run: python -m compileall app agents models tools storage.py
-      - run: pytest -q
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - run: pip install -r requirements-dev.txt
+      - run: python -m compileall app agents models tools db scripts storage.py
+      - run: python -m pytest -q
+        env:
+          OMNIFLOW_DISABLE_DOTENV: "1"
+          TEST_DATABASE_URL: postgresql://postgres:pw@localhost:5432/omniflow_test
+
+  infra:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shell syntax
+        run: for f in scripts/*.sh; do bash -n "$f"; done
+      - name: Validate compose file
+        run: |
+          printf 'DOMAIN=example.com\nLETSENCRYPT_EMAIL=a@b.c\nAPP_SECRET_KEY=%s\nREDIS_PASSWORD=x\nDATABASE_URL=postgresql://u:p@h/db\n' "$(openssl rand -hex 32)" > .env
+          docker compose -f docker-compose.prod.yml config -q
+      - name: Build production image
+        run: docker build -f Dockerfile.prod -t omniflow:ci .
+      - name: nginx config test
+        run: |
+          mkdir -p /tmp/le/live/omniflow
+          openssl req -x509 -nodes -newkey rsa:2048 -days 1 -keyout /tmp/le/live/omniflow/privkey.pem -out /tmp/le/live/omniflow/fullchain.pem -subj /CN=localhost
+          docker run --rm --add-host app:127.0.0.1 -v "$PWD/nginx/conf.d:/etc/nginx/conf.d:ro" -v /tmp/le:/etc/letsencrypt:ro nginx:1.27-alpine nginx -t

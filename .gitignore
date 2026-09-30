@@ -16,8 +16,8 @@ storage_state.json
 .DS_Store
 .vscode/
 .idea/
-.env
 *.env
-__pycache__/
 *.pyc
-.venv/'-n.env'n.venv'n__pycache__
+data/api_settings.json
+*.log
+nginx/certbot/

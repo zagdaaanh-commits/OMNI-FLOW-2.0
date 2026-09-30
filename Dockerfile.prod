@@ -1,0 +1,68 @@
+# syntax=docker/dockerfile:1.7
+# OmniFlow production image: multi-stage, pre-built wheels, non-root, gunicorn + uvicorn workers.
+#
+#   docker build -f Dockerfile.prod -t omniflow:latest .
+#   docker build -f Dockerfile.prod --build-arg INSTALL_PLAYWRIGHT=1 -t omniflow:rpa .   # optional RPA browsers
+
+# ---------------------------------------------------------------- builder ----
+FROM python:3.11-slim AS builder
+
+ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+WORKDIR /build
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential libffi-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+# Pre-compile every dependency into wheels; the runtime stage installs from these only.
+RUN pip wheel --wheel-dir /wheels -r requirements.txt
+
+# ---------------------------------------------------------------- runtime ----
+FROM python:3.11-slim AS runtime
+
+ARG INSTALL_PLAYWRIGHT=0
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    APP_ENV=production \
+    PORT=7860 \
+    PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tini \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system --gid 10001 omniflow \
+    && useradd --system --uid 10001 --gid omniflow --no-create-home --shell /usr/sbin/nologin omniflow
+
+WORKDIR /app
+
+COPY --from=builder /wheels /wheels
+COPY requirements.txt .
+RUN pip install --no-index --find-links=/wheels -r requirements.txt \
+    && rm -rf /wheels
+
+# Optional: Chromium for the RPA adapters (the app degrades gracefully without it).
+RUN if [ "$INSTALL_PLAYWRIGHT" = "1" ]; then \
+        python -m playwright install --with-deps chromium; \
+    fi
+
+COPY --chown=omniflow:omniflow app ./app
+COPY --chown=omniflow:omniflow agents ./agents
+COPY --chown=omniflow:omniflow models ./models
+COPY --chown=omniflow:omniflow tools ./tools
+COPY --chown=omniflow:omniflow db ./db
+COPY --chown=omniflow:omniflow scripts ./scripts
+COPY --chown=omniflow:omniflow storage.py gunicorn.conf.py ./
+
+RUN mkdir -p /app/data && chown omniflow:omniflow /app/data
+USER omniflow
+
+EXPOSE 7860
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
+    CMD python -c "import os,urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:%s/health' % os.environ.get('PORT','7860'), timeout=4).status == 200 else 1)"
+
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["gunicorn", "-c", "gunicorn.conf.py", "app.main:app"]

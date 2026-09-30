@@ -4,7 +4,6 @@ import logging
 import os
 import re
 from typing import Any, Dict, List, Optional
-from dotenv import load_dotenv
 
 from models.schemas import (
     Campaign,
@@ -13,6 +12,8 @@ from models.schemas import (
     ContentGenerateRequest,
     Platform,
 )
+from db.base import scoped_id
+from models.schemas import DEFAULT_TENANT_ID
 from tools.meta_api import MetaAPIClient
 
 logger = logging.getLogger("multi-agent-marketing.assistant")
@@ -32,7 +33,9 @@ class ConversationalAssistant:
         self.store = store
         self.meta_client = MetaAPIClient()
 
-    def process_message(self, message: str, campaign_id: Optional[str] = None) -> Dict[str, Any]:
+    def process_message(
+        self, message: str, campaign_id: Optional[str] = None, tenant_id: str = DEFAULT_TENANT_ID
+    ) -> Dict[str, Any]:
         raw_msg = (message or "").strip()
         lower = raw_msg.lower()
 
@@ -56,11 +59,11 @@ class ConversationalAssistant:
 
         # 5. Check for Campaign Creation Directive
         if ("campaign" in lower) and any(k in lower for k in ["create", "new", "launch"]):
-            return self._handle_create_campaign(raw_msg)
+            return self._handle_create_campaign(raw_msg, tenant_id)
 
         # 6. Ad / Content Generation Directive
         topic = self._extract_topic(raw_msg)
-        return self._handle_content_generation(topic, campaign_id)
+        return self._handle_content_generation(topic, campaign_id, tenant_id)
 
     def _handle_boost(self) -> Dict[str, Any]:
         return {
@@ -157,7 +160,7 @@ class ConversationalAssistant:
             "reply": reply,
         }
 
-    def _handle_create_campaign(self, text: str) -> Dict[str, Any]:
+    def _handle_create_campaign(self, text: str, tenant_id: str = DEFAULT_TENANT_ID) -> Dict[str, Any]:
         camp_name = re.sub(r"(?i)(create|launch|new|campaign)", "", text).strip()
         if not camp_name:
             camp_name = "Autonomous Growth Wave"
@@ -169,11 +172,11 @@ class ConversationalAssistant:
             platforms=[Platform.META, Platform.INSTAGRAM, Platform.TIKTOK, Platform.XIAOHONGSHU],
         )
         if self.planner:
-            campaign = self.planner.build_strategy(Campaign(**camp_payload.model_dump()))
+            campaign = self.planner.build_strategy(Campaign(tenant_id=tenant_id, **camp_payload.model_dump()))
             if self.store:
                 self.store.save_campaign(campaign)
         else:
-            campaign = Campaign(**camp_payload.model_dump())
+            campaign = Campaign(tenant_id=tenant_id, **camp_payload.model_dump())
 
         reply = (
             f"🚀 **Campaign Deployed Successfully!**\n\n"
@@ -190,22 +193,25 @@ class ConversationalAssistant:
             "data": campaign.model_dump(mode="json"),
         }
 
-    def _handle_content_generation(self, topic: str, campaign_id: Optional[str]) -> Dict[str, Any]:
+    def _handle_content_generation(
+        self, topic: str, campaign_id: Optional[str], tenant_id: str = DEFAULT_TENANT_ID
+    ) -> Dict[str, Any]:
         cid = campaign_id or "demo-campaign"
         campaign = None
         if self.store:
-            campaign = self.store.get_campaign(cid)
+            campaign = self.store.get_campaign(cid, tenant_id=tenant_id)
             if not campaign:
-                campaigns = self.store.list_campaigns()
+                campaigns = self.store.list_campaigns(tenant_id=tenant_id)
                 if campaigns:
                     campaign = campaigns[0]
 
+        # Synthesized demo campaigns get a tenant-namespaced id so ids never collide across tenants.
         if not campaign and self.planner:
-            campaign = self.planner.build_strategy(Campaign(id=cid, **CampaignCreate().model_dump()))
+            campaign = self.planner.build_strategy(Campaign(id=scoped_id(cid, tenant_id), tenant_id=tenant_id, **CampaignCreate().model_dump()))
             if self.store:
                 self.store.save_campaign(campaign)
         elif not campaign:
-            campaign = Campaign(id=cid, **CampaignCreate().model_dump())
+            campaign = Campaign(id=scoped_id(cid, tenant_id), tenant_id=tenant_id, **CampaignCreate().model_dump())
 
         req = ContentGenerateRequest(
             campaign_id=campaign.id,
