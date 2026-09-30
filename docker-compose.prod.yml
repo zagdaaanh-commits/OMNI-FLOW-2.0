@@ -56,6 +56,8 @@ services:
     image: omniflow:latest
     command: ["python", "-m", "app.worker"]
     env_file: .env
+    healthcheck:
+      disable: true   # the worker serves no HTTP; the image-level /health check would mark it unhealthy
     environment: *app-env
     volumes:
       - app-data:/app/data

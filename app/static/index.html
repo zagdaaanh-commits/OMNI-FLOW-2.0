@@ -215,311 +215,261 @@
       box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15) !important;
     }
 
+    /* ========================================================================= */
+    /* MERCHANT WORKSPACE POLISH                                                 */
+    /* ========================================================================= */
+    body {
+      background-image: radial-gradient(circle at 20% -10%, rgba(99, 102, 241, 0.12), transparent 28%), radial-gradient(circle at 90% 100%, rgba(16, 185, 129, 0.06), transparent 30%);
+    }
+    .text-gradient {
+      background: linear-gradient(100deg, #a5b4fc 0%, #c4b5fd 42%, #6ee7b7 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .onboarding-step {
+      min-height: 286px;
+      padding: 1rem;
+      border-radius: 1.25rem;
+      background: linear-gradient(145deg, rgba(255,255,255,0.045), rgba(255,255,255,0.018));
+      border: 1px solid rgba(255,255,255,0.075);
+      transition: transform 180ms ease, border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+    }
+    .onboarding-step:hover,
+    .onboarding-step.active-step {
+      transform: translateY(-2px);
+      border-color: rgba(129,140,248,0.32);
+      background: linear-gradient(145deg, rgba(99,102,241,0.12), rgba(255,255,255,0.025));
+      box-shadow: 0 18px 42px rgba(0,0,0,0.16);
+    }
+    .step-number {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2rem;
+      height: 2rem;
+      border-radius: 0.75rem;
+      color: #c7d2fe;
+      background: rgba(99,102,241,0.16);
+      border: 1px solid rgba(129,140,248,0.24);
+      font: 600 0.7rem/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .step-state {
+      color: #71717a;
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .wizard-input {
+      width: 100%;
+      border-radius: 0.75rem;
+      border: 1px solid rgba(255,255,255,0.09);
+      background: rgba(0,0,0,0.18);
+      color: #f4f4f5;
+      padding: 0.6rem 0.7rem;
+      font-size: 0.7rem;
+      outline: none;
+      transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+    }
+    .wizard-input::placeholder { color: #71717a; }
+    .wizard-input:focus {
+      border-color: rgba(129,140,248,0.62);
+      background: rgba(0,0,0,0.28);
+      box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+    }
+    .network-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.42rem;
+      min-height: 2rem;
+      padding: 0.45rem 0.7rem;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.09);
+      background: rgba(255,255,255,0.035);
+      color: #a1a1aa;
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      transition: border-color 180ms ease, color 180ms ease, background 180ms ease;
+    }
+    .network-dot { width: 0.42rem; height: 0.42rem; border-radius: 999px; background: #fbbf24; box-shadow: 0 0 0 3px rgba(251,191,36,0.10); }
+    .network-latency { color: #71717a; font: 500 0.6rem/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .network-healthy { color: #a7f3d0; border-color: rgba(52,211,153,0.26); background: rgba(16,185,129,0.08); }
+    .network-healthy .network-dot { background: #34d399; box-shadow: 0 0 0 3px rgba(52,211,153,0.12), 0 0 12px rgba(52,211,153,0.7); }
+    .network-degraded { color: #fde68a; border-color: rgba(251,191,36,0.25); background: rgba(245,158,11,0.08); }
+    .network-degraded .network-dot { background: #fbbf24; }
+    .network-offline { color: #fecaca; border-color: rgba(251,113,133,0.24); background: rgba(244,63,94,0.08); }
+    .network-offline .network-dot { background: #fb7185; }
+    @media (max-width: 760px) {
+      #sidebar { width: 220px; }
+      .network-pill { padding-inline: 0.55rem; }
+      .network-latency { display: none; }
+    }
+
   </style>
 </head>
-<body class="h-screen w-screen flex bg-[#0A0B10] text-zinc-100 antialiased select-none relative overflow-hidden">
+<body class="h-screen w-screen flex bg-[#070A12] text-zinc-100 antialiased select-none relative overflow-hidden">
 
-  <!-- Ambient background glow elements (Apple/visionOS style depth) -->
   <div class="ambient-glow -top-40 left-1/4 bg-indigo-600"></div>
   <div class="ambient-glow -bottom-32 right-1/4 bg-emerald-600/70"></div>
   <div class="ambient-glow top-1/2 left-3/4 bg-blue-600/30"></div>
 
-  <!-- ========================================================================= -->
-  <!-- 1. LEFT NAVIGATION SIDEBAR (Collapsible Dark Obsidian Glass)              -->
-  <!-- ========================================================================= -->
-  <aside id="sidebar" class="w-[280px] h-full flex flex-col justify-between p-4 z-20 shrink-0 bg-neutral-950/70 backdrop-blur-2xl border-r border-white/10 shadow-2xl transition-all duration-300">
-    <!-- Top Section -->
-    <div class="space-y-5">
-      <!-- Brand Header -->
+  <aside id="sidebar" class="w-[264px] h-full flex flex-col justify-between p-4 z-20 shrink-0 bg-[#090C14]/80 backdrop-blur-2xl border-r border-white/[0.08] shadow-2xl transition-all duration-300">
+    <div class="space-y-6">
       <div class="flex items-center justify-between px-2 pt-1">
         <div class="flex items-center gap-2.5 cursor-pointer" onclick="resetToNewChat()">
-          <img src="/static/assets/logos/omniflow_logo.svg" alt="OmniFlow AI" class="w-8 h-8 rounded-xl shadow-lg shadow-indigo-500/25"/>
+          <img src="/static/assets/logos/omniflow_logo.svg" alt="OmniFlow AI" class="w-9 h-9 rounded-xl shadow-lg shadow-indigo-500/25"/>
           <div>
             <span class="font-bold text-sm tracking-tight text-white block leading-tight">OmniFlow AI</span>
-            <span class="text-[10px] text-zinc-500 font-medium">Marketing Suite 2.0</span>
+            <span class="text-[10px] text-zinc-500 font-medium">Merchant workspace</span>
           </div>
         </div>
-        <button onclick="toggleSidebar()" class="p-1.5 rounded-lg hover:bg-white/5 text-zinc-400 hover:text-white transition" title="Toggle Sidebar">
+        <button onclick="toggleSidebar()" class="p-1.5 rounded-lg hover:bg-white/5 text-zinc-400 hover:text-white transition" title="Collapse navigation">
           <span class="material-symbols-outlined text-sm">left_panel_close</span>
         </button>
       </div>
 
-      <!-- + New Chat Action Button -->
-      <button onclick="resetToNewChat()" class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.09] hover:border-white/[0.18] text-white text-xs font-medium tracking-tight shadow-sm transition-all duration-150 active:scale-[0.98] group">
-        <div class="flex items-center gap-2">
-          <span class="material-symbols-outlined text-indigo-400 text-base group-hover:rotate-90 transition-transform duration-200">add</span>
-          <span>New Chat</span>
+      <button onclick="resetToNewChat()" class="w-full flex items-center justify-between px-3.5 py-3 rounded-2xl bg-indigo-500/10 hover:bg-indigo-500/15 border border-indigo-400/20 hover:border-indigo-300/35 text-white text-xs font-semibold tracking-tight shadow-lg shadow-indigo-950/40 transition-all duration-200 active:scale-[0.98] group">
+        <div class="flex items-center gap-2.5">
+          <span class="material-symbols-outlined text-indigo-300 text-base group-hover:rotate-90 transition-transform duration-200">add</span>
+          <span>New workspace prompt</span>
         </div>
-        <kbd class="text-[10px] text-zinc-500 bg-white/5 px-1.5 py-0.5 rounded border border-white/5 font-mono">⌘N</kbd>
+        <kbd class="text-[10px] text-indigo-200/70 bg-indigo-300/10 px-1.5 py-0.5 rounded border border-indigo-300/15 font-mono">⌘N</kbd>
       </button>
 
-      <!-- Quick Tools Section -->
       <div class="space-y-1">
-        <div class="px-2 pb-1 text-[10px] font-semibold tracking-wider text-zinc-500 uppercase">Quick Tools</div>
-        <button onclick="triggerBoostMode()" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 shadow-lg shadow-amber-500/10 transition text-left group">
-          <img src="/static/assets/logos/omniflow_boost_icon.svg" class="w-4 h-4 rounded-md group-hover:scale-110 transition-transform"/>
-          <span class="flex-1 font-semibold tracking-tight">AI /boost Mode</span>
-          <span class="text-[10px] text-amber-300 bg-amber-400/20 border border-amber-400/30 px-1.5 py-0.5 rounded font-mono font-bold">10X</span>
+        <div class="px-2 pb-2 text-[10px] font-semibold tracking-[0.18em] text-zinc-500 uppercase">Workspace</div>
+        <button onclick="openFacebookTokenModal()" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/[0.05] transition text-left group">
+          <span class="w-7 h-7 rounded-lg bg-blue-500/10 border border-blue-400/20 flex items-center justify-center"><img src="/static/assets/logos/meta.svg" class="w-4 h-4" alt="Meta"/></span>
+          <span class="flex-1">Connect Meta</span>
+          <span id="sidebarMetaDot" class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
         </button>
-        <button onclick="triggerQuickTool('analytics')" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/[0.05] transition text-left">
-          <span class="material-symbols-outlined text-indigo-400 text-base">analytics</span>
-          <span class="flex-1">Analyze & ROI Report</span>
-          <span class="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded font-mono">Live</span>
+        <button onclick="openIntegrationsModal()" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/[0.05] transition text-left">
+          <span class="w-7 h-7 rounded-lg bg-indigo-500/10 border border-indigo-400/20 flex items-center justify-center"><span class="material-symbols-outlined text-indigo-300 text-base">hub</span></span>
+          <span class="flex-1">Channels & APIs</span>
+          <span class="material-symbols-outlined text-zinc-600 text-sm">chevron_right</span>
         </button>
-        <button onclick="openSchedulesModal()" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/[0.05] transition text-left">
-          <span class="material-symbols-outlined text-zinc-400 text-base">schedule</span>
-          <span class="flex-1">Scheduled Posts</span>
-          <span id="scheduledBadgeCount" class="text-[10px] text-zinc-400 font-mono bg-white/5 px-1.5 py-0.5 rounded">14</span>
-        </button>
-        <button onclick="openMcpModal()" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/[0.05] transition text-left">
-          <span class="material-symbols-outlined text-zinc-400 text-base">cable</span>
-          <span class="flex-1">Custom MCP / APIs</span>
-          <span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+        <button onclick="openSchedulesModal()" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/[0.05] transition text-left">
+          <span class="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-400/20 flex items-center justify-center"><span class="material-symbols-outlined text-emerald-300 text-base">schedule</span></span>
+          <span class="flex-1">Schedule queue</span>
+          <span id="scheduledBadgeCount" class="text-[10px] text-zinc-500 font-mono">—</span>
         </button>
       </div>
 
-      <!-- Active Projects / Campaigns Section -->
-      <div class="space-y-1">
-        <div class="flex items-center justify-between px-2 pb-1">
-          <span class="text-[10px] font-semibold tracking-wider text-zinc-500 uppercase">Live Campaigns</span>
-          <button onclick="openNewCampaignModal()" class="text-zinc-500 hover:text-zinc-300 p-0.5 rounded hover:bg-white/5" title="New Campaign">
+      <div class="space-y-2">
+        <div class="flex items-center justify-between px-2">
+          <span class="text-[10px] font-semibold tracking-[0.18em] text-zinc-500 uppercase">Campaigns</span>
+          <button onclick="openNewCampaignModal()" class="text-zinc-500 hover:text-zinc-300 p-0.5 rounded hover:bg-white/5" title="New campaign">
             <span class="material-symbols-outlined text-xs">add</span>
           </button>
         </div>
         <div id="sidebarCampaignsList" class="space-y-1 max-h-48 overflow-y-auto pr-1">
-          <a href="#" class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-white bg-white/[0.07] border border-white/5 shadow-sm">
-            <span class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.7)] animate-pulse"></span>
-            <span class="flex-1 truncate">Nordic Spring Launch</span>
-            <span class="text-[10px] font-mono text-zinc-400">APAC</span>
-          </a>
+          <div class="p-3 rounded-xl bg-white/[0.025] border border-dashed border-white/[0.10] text-[11px] leading-relaxed text-zinc-500">Your campaigns will appear here after Meta is connected.</div>
         </div>
-        <button onclick="openNewCampaignModal()" class="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.02] transition mt-1">
+        <button onclick="openNewCampaignModal()" class="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.03] transition mt-1">
           <span class="material-symbols-outlined text-sm">add_circle</span>
-          <span>+ Add Campaign</span>
+          <span>Create campaign</span>
         </button>
       </div>
     </div>
 
-    <!-- Sidebar Footer -->
     <div class="pt-4 border-t border-white/[0.07] space-y-3">
-      <!-- Status Health Badge -->
-      <div class="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-white/[0.02] border border-white/[0.04] text-[11px] text-zinc-400 font-mono">
-        <div class="flex items-center gap-2">
-          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span class="text-zinc-300 font-mono text-[11px]">Port 5000</span>
-          <span class="text-[10px] font-semibold text-emerald-400 bg-emerald-500/15 border border-emerald-500/25 px-1.5 py-0.2 rounded-md">ONLINE</span>
-        </div>
-        <a href="/docs" target="_blank" class="text-zinc-500 hover:text-white text-[10px] font-sans">API Docs</a>
+      <div class="flex items-center justify-between px-2.5 py-2 rounded-xl bg-white/[0.025] border border-white/[0.05] text-[10px] text-zinc-500">
+        <div class="flex items-center gap-2"><span id="sidebarNetworkDot" class="w-1.5 h-1.5 rounded-full bg-amber-400"></span><span>Network monitored</span></div>
+        <a href="/docs" target="_blank" class="text-zinc-500 hover:text-white transition">API docs</a>
       </div>
-      <!-- Dynamic User Profile & Switcher -->
       <div class="relative">
         <div onclick="toggleUserDropdown()" class="flex items-center justify-between p-1.5 rounded-xl hover:bg-white/[0.04] transition cursor-pointer group">
           <div class="flex items-center gap-2.5">
             <div class="w-8 h-8 rounded-full ring-1 ring-white/20 p-0.5 relative shrink-0">
-              <div id="sidebarUserInitials" class="w-full h-full rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center font-bold text-xs text-white">AR</div>
-              <div class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-400 rounded-full ring-2 ring-[#0A0B10]"></div>
+              <div id="sidebarUserInitials" class="w-full h-full rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center font-bold text-xs text-white">WS</div>
+              <div class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-amber-400 rounded-full ring-2 ring-[#090C14]"></div>
             </div>
             <div class="text-left overflow-hidden">
-              <div id="sidebarUserName" class="text-xs font-medium text-zinc-200 group-hover:text-white truncate max-w-[130px]">Alex Rivera</div>
-              <div id="sidebarUserRole" class="text-[10px] text-zinc-500 truncate max-w-[130px]">Global Brand HQ</div>
+              <div id="sidebarUserName" class="text-xs font-medium text-zinc-200 group-hover:text-white truncate max-w-[130px]">Your workspace</div>
+              <div id="sidebarUserRole" class="text-[10px] text-zinc-500 truncate max-w-[130px]">Not connected</div>
             </div>
           </div>
           <span class="material-symbols-outlined text-zinc-500 text-sm group-hover:text-zinc-300 shrink-0">unfold_more</span>
         </div>
-
-        <!-- User Dropdown Popup -->
         <div id="userDropdown" class="hidden absolute bottom-full left-0 mb-2 w-64 glass-panel bg-neutral-900/95 backdrop-blur-2xl rounded-2xl p-2 border border-white/10 shadow-2xl space-y-1 z-50 animate-fade-in">
-          <div class="px-3 py-2 border-b border-white/5">
-            <div id="dropdownUserEmail" class="text-xs font-semibold text-white truncate">admin@omniflow.ai</div>
-            <div id="dropdownUserCompany" class="text-[10px] text-zinc-400 truncate">Role: Brand Director</div>
-          </div>
-          <button onclick="openAuthModal('login')" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-zinc-300 hover:text-white hover:bg-white/5 transition text-left">
-            <span class="material-symbols-outlined text-sm text-indigo-400">login</span>
-            <span>Sign In to Account</span>
-          </button>
-          <button onclick="openAuthModal('register')" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-zinc-300 hover:text-white hover:bg-white/5 transition text-left">
-            <span class="material-symbols-outlined text-sm text-emerald-400">person_add</span>
-            <span>Register New Account</span>
-          </button>
-          <div class="border-t border-white/5 pt-1">
-            <button onclick="handleLogout()" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition text-left">
-              <span class="material-symbols-outlined text-sm">logout</span>
-              <span>Sign Out</span>
-            </button>
-          </div>
+          <div class="px-3 py-2 border-b border-white/5"><div id="dropdownUserEmail" class="text-xs font-semibold text-white truncate">Workspace not signed in</div><div id="dropdownUserCompany" class="text-[10px] text-zinc-400 truncate">Connect an account to personalize</div></div>
+          <button onclick="openAuthModal('login')" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-zinc-300 hover:text-white hover:bg-white/5 transition text-left"><span class="material-symbols-outlined text-sm text-indigo-400">login</span><span>Sign in</span></button>
+          <button onclick="openAuthModal('register')" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-zinc-300 hover:text-white hover:bg-white/5 transition text-left"><span class="material-symbols-outlined text-sm text-emerald-400">person_add</span><span>Create account</span></button>
+          <div class="border-t border-white/5 pt-1"><button onclick="handleLogout()" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition text-left"><span class="material-symbols-outlined text-sm">logout</span><span>Sign out</span></button></div>
         </div>
       </div>
     </div>
   </aside>
 
-  <!-- ========================================================================= -->
-  <!-- 2. CENTRAL CONVERSATIONAL STAGE (Apple macOS / VisionOS Dark Canvas)      -->
-  <!-- ========================================================================= -->
-  <main class="flex-1 h-full flex flex-col relative z-10 overflow-hidden bg-gradient-to-b from-[#0A0B10] to-[#0D0E15]">
-    
-    <!-- Floating Top Bar / Control Header -->
-    <header class="h-14 px-6 flex items-center justify-between shrink-0 glass-panel border-b border-white/[0.06] z-30">
-      <!-- Left: Active Model Selector Pill -->
-      <div class="flex items-center gap-3">
-        <div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.05] border border-white/[0.1] hover:border-white/[0.2] transition cursor-pointer group">
-          <span class="material-symbols-outlined text-indigo-400 text-sm group-hover:scale-110 transition-transform">bolt</span>
-          <span class="text-xs font-medium text-white tracking-tight">Omni-Marketing 4.5</span>
-          <span class="text-[10px] text-zinc-400 bg-white/10 px-1.5 py-0.2 rounded-full font-mono">Ultra</span>
-          <span class="material-symbols-outlined text-zinc-400 text-xs">expand_more</span>
-        </div>
-        <div class="hidden sm:flex items-center gap-2 text-zinc-400 text-xs">
-          <span>/</span>
-          <span id="headerCampaignLabel" class="text-zinc-300 font-medium truncate max-w-xs">Campaign Analytics & AI Dispatch</span>
-        </div>
+  <main class="flex-1 h-full flex flex-col relative z-10 overflow-hidden bg-[radial-gradient(circle_at_top_right,_rgba(79,70,229,0.10),_transparent_30%),linear-gradient(145deg,#080B13_0%,#0B101B_55%,#0A0F18_100%)]">
+    <header class="min-h-[68px] px-4 sm:px-7 flex items-center justify-between gap-4 shrink-0 bg-black/10 backdrop-blur-2xl border-b border-white/[0.07] z-30">
+      <div class="min-w-0">
+        <div class="flex items-center gap-2.5"><span class="w-2 h-2 rounded-full bg-indigo-400 shadow-[0_0_14px_rgba(129,140,248,0.8)]"></span><span class="text-sm font-semibold text-white tracking-tight">Merchant command center</span></div>
+        <div class="hidden sm:flex items-center gap-2 mt-1 text-[11px] text-zinc-500"><span>AI-assisted cross-border growth</span><span class="text-zinc-700">/</span><span id="headerCampaignLabel" class="text-zinc-400 truncate max-w-xs">Ready for your first connection</span></div>
       </div>
-      <!-- Right: Action Icons Cluster -->
-      <div class="flex items-center gap-1.5">
-        <!-- Theme Toggle (Dark / Light) -->
-        <button onclick="toggleTheme()" id="themeToggleBtn" class="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.06] transition" title="Toggle Light / Dark Theme">
-          <span id="themeIcon" class="material-symbols-outlined text-base">light_mode</span>
+      <div class="flex items-center gap-2 shrink-0">
+        <div id="networkStatusPill" class="network-pill network-checking" title="Live latency check against /health/network"><span id="networkStatusDot" class="network-dot"></span><span id="networkStatusLabel">Checking network</span><span id="networkLatency" class="network-latency">—</span></div>
+        <button onclick="openFacebookTokenModal()" class="hidden md:flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium bg-blue-500/10 border border-blue-400/20 text-blue-200 hover:bg-blue-500/20 transition" title="Facebook Page connection">
+          <img src="/static/assets/logos/meta.svg" class="w-3.5 h-3.5" alt="Meta"/><span id="headerFbBadge">Connect Meta</span>
         </button>
-        <!-- Facebook Page Token / Live Status -->
-        <button onclick="openFacebookTokenModal()" class="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-blue-600/15 border border-blue-500/30 text-blue-300 hover:bg-blue-600/25 transition" title="Facebook Page Connection & Token">
-          <img src="/static/assets/logos/meta.svg" class="w-3.5 h-3.5"/>
-          <span id="headerFbBadge">Facebook Token</span>
-        </button>
-        <!-- Social Channels Connect -->
-        <button onclick="openIntegrationsModal()" class="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 hover:bg-indigo-500/25 transition" title="Connected Social Channels & OAuth">
-          <span class="material-symbols-outlined text-sm">hub</span>
-          <span>Connect Socials</span>
-        </button>
-        <button onclick="triggerDemoSeed()" class="flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25 transition">
-          <span>⚡ Live Sync Data</span>
-        </button>
-        <button onclick="openSchedulesModal()" class="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.06] transition" title="Scheduled Timeline">
-          <span class="material-symbols-outlined text-base">calendar_month</span>
-        </button>
-        <button onclick="openMcpModal()" class="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.06] transition" title="MCP / APIs">
-          <span class="material-symbols-outlined text-base">tune</span>
-        </button>
+        <button onclick="openIntegrationsModal()" class="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.06] transition" title="Connected channels"><span class="material-symbols-outlined text-base">hub</span></button>
+        <button onclick="openSchedulesModal()" class="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.06] transition" title="Schedule queue"><span class="material-symbols-outlined text-base">calendar_month</span></button>
+        <button onclick="openMcpModal()" class="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.06] transition" title="MCP and APIs"><span class="material-symbols-outlined text-base">tune</span></button>
       </div>
     </header>
 
-    <!-- Scrollable Chat Stream Stage -->
-    <div id="chatScrollArea" class="flex-1 overflow-y-auto px-4 md:px-12 py-8 space-y-6 pb-40">
-      
-      <!-- EMPTY STATE HERO (Gemini / ChatGPT Style) -->
-      <div id="emptyHeroState" class="max-w-2xl mx-auto text-center pt-16 pb-8 space-y-6 animate-fade-in">
-        <div class="w-16 h-16 mx-auto">
-          <img src="/static/assets/logos/omniflow_logo.svg" alt="OmniFlow AI" class="w-full h-full rounded-2xl shadow-2xl shadow-indigo-500/30"/>
+    <div id="chatScrollArea" class="flex-1 overflow-y-auto px-4 sm:px-8 lg:px-12 py-8 space-y-6 pb-44">
+      <div id="emptyHeroState" class="max-w-5xl mx-auto py-2 sm:py-8 animate-fade-in">
+        <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 mb-8">
+          <div class="max-w-2xl">
+            <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-indigo-500/10 border border-indigo-400/20 text-[10px] font-semibold tracking-[0.16em] uppercase text-indigo-200 mb-4"><span class="w-1.5 h-1.5 rounded-full bg-indigo-300"></span>New workspace</div>
+            <h1 class="text-3xl sm:text-5xl font-bold tracking-[-0.04em] text-white leading-[1.08]">Build your first<br/><span class="text-gradient">cross-border campaign.</span></h1>
+            <p class="text-sm sm:text-base text-zinc-400 max-w-xl mt-4 leading-relaxed">Connect a real Meta Page, define your brand voice, and let OmniFlow prepare your first campaign draft. Live metrics will appear after your account is connected.</p>
+          </div>
+          <div class="lg:max-w-[245px] rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4 text-left shadow-xl shadow-black/10"><div class="flex items-center gap-2 text-xs font-semibold text-zinc-200"><span class="material-symbols-outlined text-indigo-300 text-base">shield</span>Safe by default</div><p class="text-[11px] text-zinc-500 leading-relaxed mt-2">No placeholder spend, reach, or post performance is shown before a live connection is available.</p></div>
         </div>
-        <div class="space-y-2">
-          <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight text-white">What are we creating today?</h1>
-          <p class="text-sm text-zinc-400 max-w-md mx-auto leading-relaxed">
-            Multi-agent cross-border marketing engine. Draft copy, schedule posts across 7 ecosystems, or audit ROI.
-          </p>
-        </div>
-        <!-- Quick Action Prompt Pills -->
-        <div class="flex flex-wrap items-center justify-center gap-2.5 pt-2 max-w-xl mx-auto">
-          <button onclick="triggerBoostMode()" class="glass-pill bg-amber-500/15 border-amber-500/35 hover:bg-amber-500/25 text-amber-300 hover:text-amber-200 px-4 py-2 rounded-full text-xs font-medium transition flex items-center gap-2 shadow-lg shadow-amber-500/10 active:scale-95">
-            <img src="/static/assets/logos/omniflow_boost_icon.svg" class="w-4 h-4 rounded-sm"/>
-            <span>⚡ /boost Turbo Mode</span>
-          </button>
-          <button onclick="fillAndSend('Launch TikTok Campaign for Nordic Ambient Light with $1500 budget')" class="glass-pill hover:bg-white/[0.1] px-4 py-2 rounded-full text-xs text-zinc-300 hover:text-white transition flex items-center gap-1.5 shadow-sm active:scale-95">
-            <span>🚀 Launch TikTok Campaign</span>
-          </button>
-          <button onclick="fillAndSend('Generate Meta and WeChat ad copy for acoustic lifestyle lamp with CTA')" class="glass-pill hover:bg-white/[0.1] px-4 py-2 rounded-full text-xs text-zinc-300 hover:text-white transition flex items-center gap-1.5 shadow-sm active:scale-95">
-            <span>✍️ Generate Meta & WeChat Copy</span>
-          </button>
-          <button onclick="fillAndSend('Show weekly ROAS and channel analytics report')" class="glass-pill hover:bg-white/[0.1] px-4 py-2 rounded-full text-xs text-zinc-300 hover:text-white transition flex items-center gap-1.5 shadow-sm active:scale-95">
-            <span>📊 Show Weekly ROAS & Analytics</span>
-          </button>
+
+        <div id="metaOnboarding" class="glass-panel rounded-[28px] border border-white/[0.09] p-4 sm:p-6 shadow-2xl shadow-black/20">
+          <div class="flex items-start justify-between gap-4 pb-5 border-b border-white/[0.07]"><div><p class="text-xs font-semibold text-zinc-300">Get your workspace live</p><p class="text-[11px] text-zinc-500 mt-1">Three short steps to your first AI-assisted campaign.</p></div><span id="onboardingProgress" class="text-[11px] text-indigo-200 bg-indigo-500/10 border border-indigo-400/20 px-2.5 py-1 rounded-full">0 / 3 complete</span></div>
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 mt-5">
+            <section id="onboardingStep1" class="onboarding-step active-step">
+              <div class="flex items-center justify-between"><span class="step-number">01</span><span id="step1State" class="step-state">Start here</span></div>
+              <div class="mt-5"><div class="w-10 h-10 rounded-2xl bg-blue-500/10 border border-blue-400/20 flex items-center justify-center"><img src="/static/assets/logos/meta.svg" class="w-5 h-5" alt="Meta"/></div><h2 class="text-sm font-semibold text-white mt-4">Connect Facebook Page</h2><p class="text-[11px] text-zinc-500 leading-relaxed mt-2 min-h-[50px]">Bring in a real Page so campaign drafts and future performance data belong to your business.</p></div>
+              <div class="flex flex-wrap gap-2 mt-5"><a href="/auth/facebook/login" class="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-blue-500 hover:bg-blue-400 text-white text-[11px] font-semibold transition active:scale-[0.98]"><span class="material-symbols-outlined text-sm">login</span>Connect with Facebook</a><button onclick="openFacebookTokenModal()" class="px-3 py-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.08] text-[11px] font-medium text-zinc-300 transition">Use Page token</button></div>
+            </section>
+
+            <section id="onboardingStep2" class="onboarding-step">
+              <div class="flex items-center justify-between"><span class="step-number">02</span><span id="step2State" class="step-state">Optional now</span></div>
+              <div class="mt-5"><div class="w-10 h-10 rounded-2xl bg-violet-500/10 border border-violet-400/20 flex items-center justify-center"><span class="material-symbols-outlined text-violet-300">tune</span></div><h2 class="text-sm font-semibold text-white mt-4">Target audience & voice</h2><p class="text-[11px] text-zinc-500 leading-relaxed mt-2">Give the copywriter just enough context to sound like your brand.</p></div>
+              <div class="space-y-2 mt-4"><input id="merchantNiche" type="text" placeholder="Merchant niche · e.g. skincare" class="wizard-input"/><input id="brandTone" type="text" placeholder="Brand tone · e.g. warm, expert" class="wizard-input"/><input id="brandLanguages" type="text" placeholder="Languages · e.g. EN, ZH" class="wizard-input"/></div>
+            </section>
+
+            <section id="onboardingStep3" class="onboarding-step">
+              <div class="flex items-center justify-between"><span class="step-number">03</span><span id="step3State" class="step-state">Needs Meta</span></div>
+              <div class="mt-5"><div class="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-400/20 flex items-center justify-center"><span class="material-symbols-outlined text-emerald-300">auto_awesome</span></div><h2 class="text-sm font-semibold text-white mt-4">Schedule first AI campaign</h2><p class="text-[11px] text-zinc-500 leading-relaxed mt-2">Ask the backend copywriter for a first draft. You review everything before anything is scheduled.</p></div>
+              <button id="scheduleFirstCampaignBtn" onclick="scheduleFirstCampaign()" class="w-full mt-5 inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-emerald-400 hover:bg-emerald-300 text-[#06130E] text-[11px] font-bold transition active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed" disabled><span class="material-symbols-outlined text-sm">arrow_forward</span>Prepare first campaign</button>
+            </section>
+          </div>
         </div>
       </div>
 
-      <!-- ACTIVE MESSAGES CONTAINER -->
       <div id="previewCopy" class="hidden">New Creative</div>
       <div id="messagesContainer" class="max-w-4xl mx-auto space-y-6 hidden"></div>
-
     </div>
 
-    <!-- ========================================================================= -->
-    <!-- 3. BOTTOM FLOATING INPUT ISLAND (macOS / visionOS Floating Glass Dock)    -->
-    <!-- ========================================================================= -->
-    <div class="absolute bottom-6 inset-x-0 mx-auto max-w-3xl px-4 z-40">
-      <div class="relative">
-        <!-- Ambient Backglow -->
-        <div class="absolute -inset-1 bg-gradient-to-r from-indigo-500/20 via-emerald-500/20 to-indigo-500/20 rounded-3xl blur-xl opacity-75 pointer-events-none"></div>
-        <div class="glass-island rounded-3xl p-3 shadow-2xl relative space-y-2">
-          
-          <!-- Top Chip Row (Mentions & Attachments) -->
-          <div class="flex items-center justify-between px-2 text-xs border-b border-white/[0.06] pb-2 gap-2 overflow-x-auto">
-            <div class="flex items-center gap-1.5 shrink-0" id="platformChipsContainer">
-              <span class="text-[11px] text-zinc-500 font-medium mr-1">Target:</span>
-              <button onclick="togglePlatformChip(this, 'meta')" class="chip-btn flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 text-[11px] font-medium border border-white/5 transition">
-                <img src="/static/assets/logos/meta.svg" class="w-3.5 h-3.5 rounded-md"/> Meta
-              </button>
-              <button onclick="togglePlatformChip(this, 'tiktok')" class="chip-btn flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 text-[11px] font-medium border border-white/5 transition">
-                <img src="/static/assets/logos/tiktok.svg" class="w-3.5 h-3.5 rounded-md"/> TikTok
-              </button>
-              <button onclick="togglePlatformChip(this, 'xiaohongshu')" class="chip-btn flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 text-[11px] font-medium border border-white/5 transition">
-                <img src="/static/assets/logos/xiaohongshu.svg" class="w-3.5 h-3.5 rounded-md"/> RED
-              </button>
-              <button onclick="togglePlatformChip(this, 'wechat')" class="chip-btn flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 text-[11px] font-medium border border-white/5 transition">
-                <img src="/static/assets/logos/wechat.svg" class="w-3.5 h-3.5 rounded-md"/> WeChat
-              </button>
-              <button onclick="togglePlatformChip(this, 'instagram')" class="chip-btn flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 text-[11px] font-medium border border-white/5 transition">
-                <img src="/static/assets/logos/instagram.svg" class="w-3.5 h-3.5 rounded-md"/> Instagram
-              </button>
-              <button onclick="togglePlatformChip(this, 'x')" class="chip-btn flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 text-[11px] font-medium border border-white/5 transition">
-                <img src="/static/assets/logos/x.svg" class="w-3.5 h-3.5 rounded-md"/> X
-              </button>
-              <button onclick="togglePlatformChip(this, 'all')" class="chip-btn active-chip flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 text-[11px] font-medium border border-indigo-500/30 transition">
-                @All Ecosystems
-              </button>
-            </div>
-            <div class="flex items-center gap-2 shrink-0">
-              <input type="file" id="mediaFileInput" accept="image/*" class="hidden" onchange="handleMediaSelect(event)"/>
-              <button onclick="document.getElementById('mediaFileInput').click()" id="attachBtn" class="flex items-center gap-1.5 text-xs text-indigo-300 hover:text-white px-3 py-1 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 transition shadow-sm font-medium" title="Attach Media Image">
-                <span class="material-symbols-outlined text-sm">add_photo_alternate</span>
-                <span id="attachLabel">Attach Media (+)</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Attached Image Thumbnail Preview Box in Chat Dock -->
-          <div id="attachedImagePreview" class="hidden flex items-center justify-between px-3 py-1.5 bg-white/[0.06] border border-white/15 rounded-2xl mx-1 mb-1 backdrop-blur-md animate-fade-in">
-            <div class="flex items-center gap-2.5">
-              <img id="attachedThumb" src="" class="w-10 h-10 rounded-xl object-cover border border-white/20 shadow-md bg-black/40"/>
-              <div>
-                <span id="attachedFileName" class="text-xs text-white font-medium block truncate max-w-[220px]">product.jpg</span>
-                <span class="text-[10px] text-emerald-400 font-mono flex items-center gap-1">
-                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  Vision Upload Ready · Base64 Active
-                </span>
-              </div>
-            </div>
-            <button type="button" onclick="clearAttachedImage()" class="w-6 h-6 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center text-zinc-400 hover:text-white transition text-xs" title="Remove Attachment">✕</button>
-          </div>
-
-          <!-- Main Input Field & Apple Spring Controls -->
-          <div class="flex items-center gap-2 px-1">
-            <button onclick="simulateVoice()" class="p-2 text-zinc-400 hover:text-white rounded-xl hover:bg-white/5 transition" title="Voice Input">
-              <span class="material-symbols-outlined text-lg">graphic_eq</span>
-            </button>
-            <input id="chatInput" onkeydown="handleInputKey(event)"
-              class="w-full bg-transparent border-0 focus:ring-0 text-sm text-white placeholder-zinc-500 py-1.5 px-1 font-normal selection:bg-indigo-500/30"
-              placeholder="Ask OmniFlow to create campaigns, generate copy, or analyze ROI..." type="text"/>
-            <!-- Circular Apple Indigo Send Button -->
-            <button onclick="submitChat()" id="sendBtn" class="w-9 h-9 rounded-full bg-gradient-to-tr from-indigo-600 to-indigo-400 hover:from-indigo-500 hover:to-indigo-300 text-white flex items-center justify-center shrink-0 shadow-lg shadow-indigo-600/30 transition-transform duration-150 active:scale-90 group" title="Execute Directives">
-              <span class="material-symbols-outlined text-base group-hover:-translate-y-0.5 transition-transform">arrow_upward</span>
-            </button>
-          </div>
-
-        </div>
-      </div>
-      <!-- Micro Subtext -->
-      <div class="flex items-center justify-center gap-2 text-[11px] text-zinc-500 text-center mt-2 font-light">
-        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-        <span>OmniFlow 4.5 connects to live FastAPI backend at http://127.0.0.1:5000. Human approval required prior to spend dispatch.</span>
-      </div>
+    <div class="absolute bottom-5 inset-x-0 mx-auto max-w-4xl px-4 z-40">
+      <div class="relative"><div class="absolute -inset-1 bg-gradient-to-r from-indigo-500/20 via-emerald-500/15 to-blue-500/20 rounded-[28px] blur-xl opacity-80 pointer-events-none"></div><div class="glass-island rounded-[26px] p-3 shadow-2xl relative space-y-2">
+        <div class="flex items-center justify-between px-2 text-xs border-b border-white/[0.06] pb-2 gap-2 overflow-x-auto"><div class="flex items-center gap-1.5 shrink-0" id="platformChipsContainer"><span class="text-[11px] text-zinc-500 font-medium mr-1">Target</span><button onclick="togglePlatformChip(this, 'meta')" class="chip-btn flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 text-[11px] font-medium border border-white/5 transition"><img src="/static/assets/logos/meta.svg" class="w-3.5 h-3.5 rounded-md" alt="Meta"/>Meta</button><button onclick="togglePlatformChip(this, 'tiktok')" class="chip-btn flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 text-[11px] font-medium border border-white/5 transition"><img src="/static/assets/logos/tiktok.svg" class="w-3.5 h-3.5 rounded-md" alt="TikTok"/>TikTok</button><button onclick="togglePlatformChip(this, 'xiaohongshu')" class="chip-btn flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 text-[11px] font-medium border border-white/5 transition"><img src="/static/assets/logos/xiaohongshu.svg" class="w-3.5 h-3.5 rounded-md" alt="RED"/>RED</button><button onclick="togglePlatformChip(this, 'wechat')" class="chip-btn flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 text-[11px] font-medium border border-white/5 transition"><img src="/static/assets/logos/wechat.svg" class="w-3.5 h-3.5 rounded-md" alt="WeChat"/>WeChat</button><button onclick="togglePlatformChip(this, 'instagram')" class="chip-btn flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 text-[11px] font-medium border border-white/5 transition"><img src="/static/assets/logos/instagram.svg" class="w-3.5 h-3.5 rounded-md" alt="Instagram"/>Instagram</button><button onclick="togglePlatformChip(this, 'x')" class="chip-btn flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 text-[11px] font-medium border border-white/5 transition"><img src="/static/assets/logos/x.svg" class="w-3.5 h-3.5 rounded-md" alt="X"/>X</button><button onclick="togglePlatformChip(this, 'all')" class="chip-btn active-chip flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 text-[11px] font-medium border border-indigo-500/30 transition">All channels</button></div><div class="flex items-center gap-2 shrink-0"><input type="file" id="mediaFileInput" accept="image/*" class="hidden" onchange="handleMediaSelect(event)"/><button onclick="document.getElementById('mediaFileInput').click()" id="attachBtn" class="flex items-center gap-1.5 text-xs text-indigo-300 hover:text-white px-3 py-1 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 transition shadow-sm font-medium" title="Attach product media"><span class="material-symbols-outlined text-sm">add_photo_alternate</span><span id="attachLabel">Attach media</span></button></div></div>
+        <div id="attachedImagePreview" class="hidden flex items-center justify-between px-3 py-1.5 bg-white/[0.06] border border-white/15 rounded-2xl mx-1 mb-1 backdrop-blur-md animate-fade-in"><div class="flex items-center gap-2.5"><img id="attachedThumb" src="" class="w-10 h-10 rounded-xl object-cover border border-white/20 shadow-md bg-black/40" alt="Attached media"/><div><span id="attachedFileName" class="text-xs text-white font-medium block truncate max-w-[220px]">product.jpg</span><span class="text-[10px] text-emerald-400 font-mono flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>Vision upload ready</span></div></div><button type="button" onclick="clearAttachedImage()" class="w-6 h-6 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center text-zinc-400 hover:text-white transition text-xs" title="Remove attachment">✕</button></div>
+        <div class="flex items-center gap-2 px-1"><button onclick="simulateVoice()" class="p-2 text-zinc-400 hover:text-white rounded-xl hover:bg-white/5 transition" title="Voice input"><span class="material-symbols-outlined text-lg">graphic_eq</span></button><input id="chatInput" onkeydown="handleInputKey(event)" class="w-full bg-transparent border-0 focus:ring-0 text-sm text-white placeholder-zinc-500 py-1.5 px-1 font-normal selection:bg-indigo-500/30" placeholder="Ask OmniFlow to create copy or a campaign plan…" type="text"/><button onclick="submitChat()" id="sendBtn" class="w-9 h-9 rounded-full bg-gradient-to-tr from-indigo-600 to-indigo-400 hover:from-indigo-500 hover:to-indigo-300 text-white flex items-center justify-center shrink-0 shadow-lg shadow-indigo-600/30 transition-transform duration-150 active:scale-90 group" title="Send prompt"><span class="material-symbols-outlined text-base group-hover:-translate-y-0.5 transition-transform">arrow_upward</span></button></div>
+      </div></div>
+      <div class="flex items-center justify-center gap-2 text-[10px] text-zinc-600 text-center mt-2 font-light"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500/70"></span><span>Live backend connected · human review required before any spend or publishing action</span></div>
     </div>
-
   </main>
 
   <!-- ========================================================================= -->
@@ -543,7 +493,7 @@
       <form id="campaignModalForm" onsubmit="handleCampaignModalSubmit(event)" class="space-y-3.5 text-xs">
         <div>
           <label class="block text-zinc-300 font-medium mb-1">Campaign Name</label>
-          <input type="text" id="modalCampName" required value="Nordic Acoustic Ambient Launch"
+          <input type="text" id="modalCampName" required value="" placeholder="e.g. Summer launch for your hero product"
             class="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500"/>
         </div>
         <div class="grid grid-cols-2 gap-3">
@@ -557,7 +507,7 @@
           </div>
           <div>
             <label class="block text-zinc-300 font-medium mb-1">Budget ($ USD)</label>
-            <input type="number" id="modalCampBudget" min="100" step="50" value="1800"
+            <input type="number" id="modalCampBudget" min="100" step="50" value="" placeholder="Set budget after strategy review"
               class="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500"/>
           </div>
         </div>
@@ -598,7 +548,7 @@
         </div>
         <div>
           <label class="block text-zinc-300 font-medium mb-1">Product Description / Hook</label>
-          <textarea id="modalCampDesc" rows="2" class="w-full bg-black/40 border border-white/10 rounded-xl p-2 text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 resize-none">Nordic Acoustic Ambient Light engineered with zero-flicker natural circadian rhythms for urban creators</textarea>
+          <textarea id="modalCampDesc" rows="2" placeholder="Describe the product, offer, audience, or launch context" class="w-full bg-black/40 border border-white/10 rounded-xl p-2 text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 resize-none"></textarea>
         </div>
         <div class="flex items-center justify-end gap-2.5 pt-2 border-t border-white/10">
           <button type="button" onclick="closeNewCampaignModal()" class="px-3.5 py-1.5 rounded-xl text-zinc-400 hover:text-white transition">Cancel</button>
@@ -623,7 +573,7 @@
           </div>
           <div>
             <h3 class="text-sm font-bold text-white">Facebook Page Access Token</h3>
-            <p class="text-[11px] text-zinc-400">Target Page: <span id="fbModalPageName" class="text-white font-medium">Mai boovoo</span> (ID: <span id="fbModalPageIdDisplay" class="font-mono">101728504668130</span>)</p>
+            <p class="text-[11px] text-zinc-400">Target Page: <span id="fbModalPageName" class="text-white font-medium">Not connected</span> <span id="fbModalPageIdWrap" class="hidden">(ID: <span id="fbModalPageIdDisplay" class="font-mono"></span>)</span></p>
           </div>
         </div>
         <button onclick="closeFacebookTokenModal()" class="w-7 h-7 rounded-full bg-white/5 hover:bg-white/15 flex items-center justify-center text-zinc-400 hover:text-white transition">✕</button>
@@ -652,7 +602,7 @@
           </div>
           <ol class="list-decimal list-inside space-y-1 pl-1 text-zinc-300">
             <li>Open <a href="https://developers.facebook.com/tools/explorer/" target="_blank" class="text-blue-400 underline hover:text-blue-300">Meta Graph API Explorer ↗</a></li>
-            <li>In User or Page dropdown, select your page <strong>Mai boovoo</strong>.</li>
+            <li>In the User or Page dropdown, select the Facebook Page you want to connect.</li>
             <li>Ensure permissions: <code class="bg-black/40 px-1 py-0.5 rounded text-[10px] text-indigo-300">pages_manage_posts</code>, <code class="bg-black/40 px-1 py-0.5 rounded text-[10px] text-indigo-300">pages_read_engagement</code>.</li>
             <li>Click <strong>Generate Access Token</strong>, copy it, and paste it below.</li>
           </ol>
@@ -662,7 +612,7 @@
         <div class="space-y-3">
           <div>
             <label class="text-[11px] font-medium text-zinc-400 block mb-1">Page ID</label>
-            <input type="text" id="fbInputPageId" value="101728504668130" class="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-blue-500"/>
+            <input type="text" id="fbInputPageId" value="" placeholder="Enter your Facebook Page ID" class="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-blue-500"/>
           </div>
           <div>
             <label class="text-[11px] font-medium text-zinc-400 block mb-1">New Page Access Token (starts with EAAB... or EAAk...)</label>
@@ -1436,6 +1386,11 @@
         || document.querySelector("#publishBtn")
         || (typeof event !== 'undefined' ? (event?.target?.closest?.('button') || event?.target) : (typeof window !== 'undefined' && window.event ? window.event.target : null));
 
+      if (!connectedFacebookPageId) {
+        showToast('Connect a Facebook Page before publishing.', false);
+        return;
+      }
+
       const originalText = btn ? btn.innerText : "Publish";
       if (btn) {
         btn.innerText = "Publishing to Meta...";
@@ -1474,7 +1429,7 @@
           body: JSON.stringify({
             caption: caption,
             image_base64: image_base64,
-            page_id: '101728504668130'
+            page_id: connectedFacebookPageId
           })
         });
 
@@ -1482,7 +1437,7 @@
         console.log("[PUBLISH RESULT]", data);
 
         if (res.ok && data.success) {
-          alert("Success! Published to Facebook (Mai boovoo).\nPost ID: " + data.post_id);
+          alert("Success! Published to Facebook.\nPost ID: " + data.post_id);
           if (btn) {
             btn.innerText = "Published to Facebook";
             if (btn.classList && typeof btn.classList.remove === 'function') {
@@ -1497,7 +1452,7 @@
               <div class="p-3.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs flex flex-wrap items-center justify-between gap-2 shadow-lg animate-fade-in my-2">
                 <span class="font-semibold flex items-center gap-1.5">
                   <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                  <span>🟢 Successfully published to Facebook (Mai boovoo)!</span>
+                  <span>Successfully published to Facebook!</span>
                 </span>
                 <a href="${postUrl}" target="_blank" rel="noopener noreferrer" class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition flex items-center gap-1 text-xs shadow-md">
                   <span>View Post on Facebook</span>
@@ -1862,6 +1817,7 @@
     async function handleAnalyticsIntent() {
       try {
         const res = await fetch('/analytics/report?period_days=30');
+        if (!res.ok) throw new Error('Analytics are unavailable until a live account is connected.');
         const report = await res.json();
         const msgArea = document.getElementById('messagesContainer');
         if (!msgArea) return;
@@ -1869,10 +1825,10 @@
         const card = document.createElement('div');
         card.className = 'space-y-4 animate-fade-in';
         const totals = report.totals || {};
-        const impressions = totals.impressions != null ? Number(totals.impressions).toLocaleString() : '415,000';
-        const clicks = totals.clicks != null ? Number(totals.clicks).toLocaleString() : '18,770';
-        const spend = totals.spend != null ? ('$' + Number(totals.spend).toLocaleString()) : '$3,240';
-        const ctr = totals.ctr != null ? totals.ctr : '4.52%';
+        const impressions = totals.impressions != null ? Number(totals.impressions).toLocaleString() : '—';
+        const clicks = totals.clicks != null ? Number(totals.clicks).toLocaleString() : '—';
+        const spend = totals.spend != null ? ('$' + Number(totals.spend).toLocaleString()) : '—';
+        const ctr = totals.ctr != null ? totals.ctr : '—';
 
         card.innerHTML = `
           <div class="flex items-center gap-2 text-xs text-zinc-400">
@@ -1897,7 +1853,7 @@
               <div class="p-3.5 rounded-2xl bg-black/40 border border-white/[0.08] space-y-1">
                 <span class="text-zinc-500 block text-[10px] uppercase font-medium">Total Impressions</span>
                 <span class="text-lg font-extrabold text-white font-mono">${impressions}</span>
-                <span class="text-[10px] text-emerald-400 font-mono block">▲ +18.4%</span>
+                <span class="text-[10px] text-zinc-500 font-mono block">Live data only</span>
               </div>
               <div class="p-3.5 rounded-2xl bg-black/40 border border-white/[0.08] space-y-1">
                 <span class="text-zinc-500 block text-[10px] uppercase font-medium">Total Clicks</span>
@@ -1911,8 +1867,8 @@
               </div>
               <div class="p-3.5 rounded-2xl bg-black/40 border border-white/[0.08] space-y-1">
                 <span class="text-zinc-500 block text-[10px] uppercase font-medium">Avg ROAS</span>
-                <span class="text-lg font-extrabold text-emerald-400 font-mono">3.85x</span>
-                <span class="text-[10px] text-emerald-400 font-mono block">High Intent</span>
+                <span class="text-lg font-extrabold text-emerald-400 font-mono">${totals.roas != null ? totals.roas : '—'}</span>
+                <span class="text-[10px] text-zinc-500 font-mono block">Live data only</span>
               </div>
             </div>
 
@@ -1993,17 +1949,17 @@
             <div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-b border-white/[0.08] pb-4">
               <div>
                 <h3 class="text-lg font-bold text-white flex items-center gap-2">
-                  <span>Autonomous Swarm Turbocharged</span>
-                  <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">10X Overclock</span>
+                  <span>Campaign optimization</span>
+                  <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">Live data only</span>
                 </h3>
-                <p class="text-xs text-zinc-400 mt-1">Target Campaign: <span class="text-zinc-200 font-medium">${escapeHtml(data.campaign_name || 'Global Launch')}</span></p>
+                <p class="text-xs text-zinc-400 mt-1">Target Campaign: <span class="text-zinc-200 font-medium">${escapeHtml(data.campaign_name || 'Connected campaign')}</span></p>
               </div>
               <div class="flex items-center gap-2">
                 <span class="text-xs font-mono px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-bold">
-                  Target ROAS: ${data.boost_multiplier || '4.82x'}
+                  Target ROAS: ${data.boost_multiplier || '—'}
                 </span>
                 <span class="text-xs font-mono px-2.5 py-1 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
-                  Lift: ${data.lift_percentage || '+174%'}
+                  Lift: ${data.lift_percentage || '—'}
                 </span>
               </div>
             </div>
@@ -2012,23 +1968,23 @@
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div class="p-3.5 rounded-2xl bg-black/40 border border-white/[0.08] space-y-1">
                 <div class="text-[11px] text-zinc-400">Boosted Reach</div>
-                <div class="text-lg font-extrabold text-white font-mono">${data.projected_reach || '2,450,000'}</div>
-                <div class="text-[10px] text-emerald-400">▲ +1.55M Incremental</div>
+                <div class="text-lg font-extrabold text-white font-mono">${data.projected_reach || '—'}</div>
+                <div class="text-[10px] text-zinc-500">Live data only</div>
               </div>
               <div class="p-3.5 rounded-2xl bg-black/40 border border-white/[0.08] space-y-1">
                 <div class="text-[11px] text-zinc-400">Swarm Concurrency</div>
-                <div class="text-lg font-extrabold text-amber-300 font-mono">7 Micro-Agents</div>
-                <div class="text-[10px] text-zinc-400">Parallel Execution</div>
+                <div class="text-lg font-extrabold text-amber-300 font-mono">—</div>
+                <div class="text-[10px] text-zinc-500">Live data only</div>
               </div>
               <div class="p-3.5 rounded-2xl bg-black/40 border border-white/[0.08] space-y-1">
                 <div class="text-[11px] text-zinc-400">Target ROAS</div>
-                <div class="text-lg font-extrabold text-emerald-400 font-mono">${data.boost_multiplier || '4.82x'}</div>
-                <div class="text-[10px] text-zinc-400">Baseline: ${data.baseline_roas || '2.20x'}</div>
+                <div class="text-lg font-extrabold text-emerald-400 font-mono">${data.boost_multiplier || '—'}</div>
+                <div class="text-[10px] text-zinc-500">Live data only</div>
               </div>
               <div class="p-3.5 rounded-2xl bg-black/40 border border-white/[0.08] space-y-1">
                 <div class="text-[11px] text-zinc-400">Swarm Latency</div>
-                <div class="text-lg font-extrabold text-indigo-300 font-mono">12 ms</div>
-                <div class="text-[10px] text-emerald-400">Zero Bottlenecks</div>
+                <div class="text-lg font-extrabold text-indigo-300 font-mono">—</div>
+                <div class="text-[10px] text-zinc-500">Live data only</div>
               </div>
             </div>
 
@@ -2039,12 +1995,7 @@
                 <span>Active Swarm Optimizations Dispatched:</span>
               </div>
               <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-zinc-400">
-                ${(data.optimizations || [
-                  'Overclocked Meta and TikTok ad budget allocation (+35% share shift)',
-                  'Applied neuro-linguistic hook refinement for higher CTR conversion',
-                  'Enabled parallelized multi-lingual queue for APAC & Western ecosystems',
-                  'Swarm agent latency reduced to 12ms via distributed edge cache'
-                ]).map(opt => `
+                ${(data.optimizations || []).map(opt => `
                   <div class="flex items-start gap-2 p-2 rounded-xl bg-white/[0.02] border border-white/5">
                     <span class="material-symbols-outlined text-xs text-emerald-400 mt-0.5 shrink-0">check_circle</span>
                     <span class="text-[11px] leading-relaxed">${escapeHtml(opt)}</span>
@@ -2293,33 +2244,12 @@
       }
     }
 
-    async function triggerDemoSeed() {
-      showToast('Live syncing data from multi-agent engine...');
-      try {
-        const res = await fetch('/demo/seed', { method: 'POST' });
-        if (res.ok) {
-          const data = await res.json();
-          showToast(`Synced! ${data.drafts_count || 0} drafts, ${data.tasks_count || 0} tasks ready.`, true);
-          await loadCampaigns();
-          await loadSchedulesList();
-        } else {
-          showToast('Failed to sync demo data', false);
-        }
-      } catch (err) {
-        showToast('Sync error: ' + err.message, false);
-      }
-    }
-
-    
     // =========================================================================
     // THEME ENGINE (Dark / Light Cupertino Mode)
     // =========================================================================
     function initTheme() {
-      let saved = 'dark';
-      try {
-        saved = localStorage.getItem('omniflow_theme') || 'dark';
-      } catch (_) {}
-      applyTheme(saved);
+      applyTheme('dark');
+      try { localStorage.setItem('omniflow_theme', 'dark'); } catch (_) {}
     }
 
     function toggleTheme() {
@@ -2375,14 +2305,14 @@
         const initEl = document.getElementById('sidebarUserInitials');
         if (initEl) initEl.textContent = initials;
         const nameEl = document.getElementById('sidebarUserName');
-        if (nameEl) nameEl.textContent = user.full_name || 'Alex Rivera';
+        if (nameEl) nameEl.textContent = user.full_name || 'Your workspace';
         const roleEl = document.getElementById('sidebarUserRole');
-        if (roleEl) roleEl.textContent = user.company || user.role || 'Global Brand HQ';
+        if (roleEl) roleEl.textContent = user.company || user.role || 'Merchant workspace';
         
         const emailEl = document.getElementById('dropdownUserEmail');
         const compEl = document.getElementById('dropdownUserCompany');
-        if (emailEl) emailEl.textContent = user.email || 'admin@omniflow.ai';
-        if (compEl) compEl.textContent = `Role: ${user.role || 'Brand Director'}`;
+        if (emailEl) emailEl.textContent = user.email || 'Workspace not signed in';
+        if (compEl) compEl.textContent = user.role ? `Role: ${user.role}` : 'Connect an account to personalize';
       } catch (e) {
         console.warn('Error updating sidebar profile:', e);
       }
@@ -2405,8 +2335,8 @@
     function fillDemoCredentials() {
       const email = document.getElementById('authEmailInput');
       const pwd = document.getElementById('authPasswordInput');
-      if (email) email.value = 'admin@omniflow.ai';
-      if (pwd) pwd.value = 'admin123';
+      if (email) email.value = '';
+      if (pwd) pwd.value = '';
     }
 
     async function loginDemoNow() {
@@ -2483,9 +2413,13 @@
       if (e && e.preventDefault) e.preventDefault();
       const emailEl = document.getElementById('authEmailInput');
       const pwdEl = document.getElementById('authPasswordInput');
-      const email = (emailEl ? emailEl.value : '').trim() || 'admin@omniflow.ai';
-      const password = (pwdEl ? pwdEl.value : '') || 'admin123';
+      const email = (emailEl ? emailEl.value : '').trim();
+      const password = (pwdEl ? pwdEl.value : '').trim();
       const submitBtn = document.getElementById('authSubmitBtn');
+      if (!email || !password) {
+        showToast('Enter your email and password to continue.', false);
+        return;
+      }
       if (submitBtn) {
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<span class="material-symbols-outlined text-sm animate-spin">progress_activity</span> Authenticating...';
@@ -2496,8 +2430,8 @@
         if (authMode === 'register') {
           const nameEl = document.getElementById('authNameInput');
           const compEl = document.getElementById('authCompanyInput');
-          const fullName = (nameEl ? nameEl.value.trim() : '') || 'Marketing Lead';
-          const company = (compEl ? compEl.value.trim() : '') || 'Global Brand HQ';
+          const fullName = (nameEl ? nameEl.value.trim() : '');
+          const company = (compEl ? compEl.value.trim() : '');
           res = await fetch('/auth/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -2682,6 +2616,127 @@
     // FACEBOOK TOKEN MANAGER JAVASCRIPT
     // =========================================================================
     let activeCardIdForFbToken = null;
+    let connectedFacebookPageId = '';
+
+    function renderMetaConnectionState(connected, pageName) {
+      const onboarding = document.getElementById('metaOnboarding');
+      const step1State = document.getElementById('step1State');
+      const step3State = document.getElementById('step3State');
+      const progress = document.getElementById('onboardingProgress');
+      const campaignBtn = document.getElementById('scheduleFirstCampaignBtn');
+      const sidebarDot = document.getElementById('sidebarMetaDot');
+      if (!onboarding) return;
+
+      if (connected) {
+        if (step1State) {
+          step1State.textContent = 'Connected';
+          step1State.style.color = '#6ee7b7';
+        }
+        if (step3State) {
+          step3State.textContent = 'Ready';
+          step3State.style.color = '#6ee7b7';
+        }
+        if (progress) progress.textContent = '1 / 3 complete';
+        if (campaignBtn) campaignBtn.disabled = false;
+        if (sidebarDot) sidebarDot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]';
+        onboarding.dataset.connectedPage = pageName || '';
+      } else {
+        if (step1State) {
+          step1State.textContent = 'Start here';
+          step1State.style.color = '';
+        }
+        if (step3State) {
+          step3State.textContent = 'Needs Meta';
+          step3State.style.color = '';
+        }
+        if (progress) progress.textContent = '0 / 3 complete';
+        if (campaignBtn) campaignBtn.disabled = true;
+        if (sidebarDot) sidebarDot.className = 'w-1.5 h-1.5 rounded-full bg-amber-400';
+        delete onboarding.dataset.connectedPage;
+      }
+    }
+
+    async function scheduleFirstCampaign() {
+      const button = document.getElementById('scheduleFirstCampaignBtn');
+      const onboarding = document.getElementById('metaOnboarding');
+      if (!onboarding?.dataset.connectedPage) {
+        showToast('Connect a Facebook Page before preparing a campaign.', false);
+        return;
+      }
+
+      const niche = document.getElementById('merchantNiche')?.value.trim() || 'cross-border ecommerce';
+      const tone = document.getElementById('brandTone')?.value.trim() || 'clear and trustworthy';
+      const languages = document.getElementById('brandLanguages')?.value.trim() || 'English';
+      const prompt = `Prepare the first AI campaign for my ${niche} merchant business. Brand voice: ${tone}. Languages: ${languages}. Create a launch-ready multi-platform campaign draft with a clear audience, CTA, and suggested publishing sequence. Do not publish or spend budget.`;
+      const hero = document.getElementById('emptyHeroState');
+      const msgArea = document.getElementById('messagesContainer');
+      if (hero) hero.classList.add('hidden');
+      if (msgArea) msgArea.classList.remove('hidden');
+      appendUserMessage(prompt, null);
+      const thinkingId = appendThinkingIndicator();
+      if (button) {
+        button.disabled = true;
+        button.innerHTML = '<span class="material-symbols-outlined text-sm animate-spin">progress_activity</span>Writing your draft…';
+      }
+
+      try {
+        const res = await fetch('/content/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt, topic: prompt, campaign_id: currentCampaignId || 'first-campaign', platforms: ['meta'] })
+        });
+        if (!res.ok) {
+          let detail = 'The copywriter could not prepare a draft.';
+          try { const data = await res.json(); detail = data.detail || detail; } catch (_) {}
+          throw new Error(detail);
+        }
+        renderDynamicCreativeCard(prompt, await res.json(), null);
+        showToast('First campaign draft prepared for review.', true);
+        const state = document.getElementById('step3State');
+        if (state) { state.textContent = 'Draft ready'; state.style.color = '#6ee7b7'; }
+        scrollToBottom();
+      } catch (err) {
+        appendAiErrorMessage(err.message || 'Campaign draft failed.');
+        showToast(err.message || 'Campaign draft failed.', false);
+      } finally {
+        removeThinkingIndicator(thinkingId);
+        if (button) {
+          button.disabled = false;
+          button.innerHTML = '<span class="material-symbols-outlined text-sm">refresh</span>Prepare another draft';
+        }
+      }
+    }
+
+    async function checkNetworkHealth() {
+      const pill = document.getElementById('networkStatusPill');
+      const label = document.getElementById('networkStatusLabel');
+      const latency = document.getElementById('networkLatency');
+      const sidebarDot = document.getElementById('sidebarNetworkDot');
+      const startedAt = performance.now();
+      if (!pill || !label) return;
+      pill.classList.remove('network-healthy', 'network-degraded', 'network-offline');
+      pill.classList.add('network-checking');
+      label.textContent = 'Checking network';
+      try {
+        const res = await fetch('/health/network', { cache: 'no-store' });
+        const elapsed = Math.max(1, Math.round(performance.now() - startedAt));
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        let payload = null;
+        try { payload = await res.json(); } catch (_) {}
+        const healthy = payload?.healthy !== false && payload?.status !== 'unhealthy';
+        pill.classList.remove('network-checking');
+        pill.classList.add(healthy ? 'network-healthy' : 'network-degraded');
+        label.textContent = healthy ? 'Network healthy' : 'Network degraded';
+        if (latency) latency.textContent = elapsed + 'ms';
+        if (sidebarDot) sidebarDot.className = healthy ? 'w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]' : 'w-1.5 h-1.5 rounded-full bg-amber-400';
+      } catch (err) {
+        pill.classList.remove('network-checking');
+        pill.classList.add('network-offline');
+        label.textContent = 'Network unavailable';
+        if (latency) latency.textContent = '—';
+        if (sidebarDot) sidebarDot.className = 'w-1.5 h-1.5 rounded-full bg-rose-400';
+      }
+    }
 
     async function openFacebookTokenModal(cardId) {
       if (cardId) activeCardIdForFbToken = cardId;
@@ -2707,13 +2762,16 @@
       try {
         const res = await fetch('/tools/facebook/status');
         const data = await res.json();
-        const pageName = data.page_name || 'Mai boovoo';
-        const pageId = data.page_id || '101728504668130';
+        const pageName = data.page_name || 'Not connected';
+        const pageId = data.page_id || '';
+        connectedFacebookPageId = data.connected ? pageId : '';
 
         const nameEl = document.getElementById('fbModalPageName');
         if (nameEl) nameEl.textContent = pageName;
         const idDisplay = document.getElementById('fbModalPageIdDisplay');
         if (idDisplay) idDisplay.textContent = pageId;
+        const idWrap = document.getElementById('fbModalPageIdWrap');
+        if (idWrap) idWrap.classList.toggle('hidden', !pageId);
         const pageIdInput = document.getElementById('fbInputPageId');
         if (pageIdInput && !pageIdInput.value) pageIdInput.value = pageId;
 
@@ -2733,10 +2791,12 @@
           if (desc) desc.textContent = data.error || 'Check credentials';
           if (headerBadge) headerBadge.textContent = 'Facebook: Connect';
         }
+        renderMetaConnectionState(!!data.connected, pageName);
       } catch (err) {
         if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-rose-400';
         if (title) title.textContent = 'Connection Error';
         if (desc) desc.textContent = err.message;
+        renderMetaConnectionState(false);
       }
     }
 
@@ -2747,11 +2807,11 @@
       const errBox = document.getElementById('fbTokenErrorMsg');
 
       const access_token = tokenInput.value.trim();
-      const page_id = pageIdInput.value.trim() || '101728504668130';
+      const page_id = pageIdInput.value.trim();
 
-      if (!access_token) {
+      if (!access_token || !page_id) {
         errBox.classList.remove('hidden');
-        errBox.textContent = 'Please paste a valid Facebook Page Access Token.';
+        errBox.textContent = 'Please provide both a Facebook Page ID and Page Access Token.';
         return;
       }
 
@@ -2777,7 +2837,7 @@
             const btn = document.getElementById(`${activeCardIdForFbToken}-approveBtn`);
             if (btn) {
               btn.className = 'px-5 py-2.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-neutral-950 text-xs font-semibold shadow-lg shadow-emerald-500/25 flex items-center gap-2 transition active:scale-95';
-              btn.innerHTML = '<span class="material-symbols-outlined text-base font-bold">check_circle</span><span>Publish to Mai boovoo Now 🟢</span>';
+              btn.innerHTML = '<span class="material-symbols-outlined text-base font-bold">check_circle</span><span>Publish to Facebook now</span>';
               btn.disabled = false;
               btn.onclick = () => approveAndPublish(activeCardIdForFbToken);
             }
@@ -2852,7 +2912,6 @@
     window.closeCampaignDetailsModal = closeCampaignDetailsModal;
     window.switchDynamicCardPlatform = switchDynamicCardPlatform;
     window.triggerBoostMode = triggerBoostMode;
-    window.triggerDemoSeed = triggerDemoSeed;
     window.triggerImmediatePublishAll = triggerImmediatePublishAll;
     window.triggerQuickTool = triggerQuickTool;
     window.synthesizeDraftsForCampaign = synthesizeDraftsForCampaign;
@@ -2877,15 +2936,18 @@
     window.closeFacebookTokenModal = closeFacebookTokenModal;
     window.checkFacebookLiveStatus = checkFacebookLiveStatus;
     window.saveFacebookToken = saveFacebookToken;
+    window.scheduleFirstCampaign = scheduleFirstCampaign;
+    window.checkNetworkHealth = checkNetworkHealth;
 
-    // Boot: Start directly on Login Screen with Demo Account credentials ready
+    // Boot: stay on the empty workspace until a real account is connected
     document.addEventListener('DOMContentLoaded', () => {
       initTheme();
-      openAuthModal('login');
-      fillDemoCredentials();
+      renderMetaConnectionState(false);
       checkAuthSession();
       loadCampaigns();
       checkFacebookLiveStatus();
+      checkNetworkHealth();
+      window.setInterval(checkNetworkHealth, 30000);
 
       const pubBtn = document.querySelector("#publishBtn");
       if (pubBtn) {
@@ -2971,30 +3033,6 @@
         <button id="authTabRegister" onclick="switchAuthTab('register')" class="flex-1 py-1.5 rounded-lg text-xs font-medium text-zinc-400 hover:text-white transition">Create Account</button>
       </div>
 
-      <!-- Demo Account Quick Access Card -->
-      <div id="demoAccountCard" class="p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 space-y-2.5">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-1.5 text-xs font-semibold text-indigo-300">
-            <span class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
-            <span>Demo Account Ready</span>
-          </div>
-          <button type="button" onclick="loginDemoNow()" class="px-3 py-1 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-neutral-950 font-bold text-[11px] flex items-center gap-1 shadow-md shadow-emerald-500/20 transition active:scale-95">
-            <span class="material-symbols-outlined text-xs font-bold">bolt</span>
-            <span>1-Click Sign In</span>
-          </button>
-        </div>
-        <div class="grid grid-cols-2 gap-2 text-[11px] font-mono bg-black/40 p-2.5 rounded-xl border border-white/5">
-          <div onclick="fillDemoCredentials()" class="cursor-pointer hover:bg-white/[0.04] p-1 rounded-lg transition" title="Click to fill">
-            <span class="text-zinc-400 block text-[10px] font-sans">User Email</span>
-            <span class="text-zinc-100 font-medium select-all">admin@omniflow.ai</span>
-          </div>
-          <div onclick="fillDemoCredentials()" class="cursor-pointer hover:bg-white/[0.04] p-1 rounded-lg transition" title="Click to fill">
-            <span class="text-zinc-400 block text-[10px] font-sans">Access Code</span>
-            <span class="text-zinc-100 font-medium select-all">admin123</span>
-          </div>
-        </div>
-      </div>
-
       <!-- Auth Form -->
       <form id="authForm" onsubmit="handleAuthSubmit(event)" class="space-y-4">
         <div id="authNameField" class="hidden space-y-1">
@@ -3004,12 +3042,12 @@
 
         <div class="space-y-1">
           <label class="text-[11px] text-zinc-400 font-medium">Work Email</label>
-          <input type="email" id="authEmailInput" required value="admin@omniflow.ai" placeholder="name@company.com" class="w-full bg-black/30 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:ring-1 focus:ring-indigo-500"/>
+          <input type="email" id="authEmailInput" required value="" placeholder="name@company.com" class="w-full bg-black/30 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:ring-1 focus:ring-indigo-500"/>
         </div>
 
         <div class="space-y-1">
           <label class="text-[11px] text-zinc-400 font-medium">Password / Access Code</label>
-          <input type="password" id="authPasswordInput" required value="admin123" placeholder="••••••••" class="w-full bg-black/30 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:ring-1 focus:ring-indigo-500"/>
+          <input type="password" id="authPasswordInput" required value="" placeholder="Enter your password" class="w-full bg-black/30 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:ring-1 focus:ring-indigo-500"/>
         </div>
 
         <div id="authCompanyField" class="hidden space-y-1">

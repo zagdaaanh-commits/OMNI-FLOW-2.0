@@ -56,10 +56,6 @@ def get_dashboard_html() -> str:
           <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
           <span>FastAPI Engine (Port 5000)</span>
         </div>
-        <button onclick="seedDemoData()" id="seedBtn" class="inline-flex items-center space-x-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-semibold px-3 py-2 rounded-lg shadow-sm transition">
-          <i class="fa-solid fa-wand-magic-sparkles"></i>
-          <span>Instant Demo Seed</span>
-        </button>
         <a href="/docs" target="_blank" class="inline-flex items-center space-x-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium px-3 py-2 rounded-lg border border-slate-300 transition">
           <i class="fa-solid fa-code"></i>
           <span>Swagger Docs</span>
@@ -647,7 +643,6 @@ def get_dashboard_html() -> str:
             <div class="col-span-full bg-white p-8 rounded-2xl border border-dashed border-slate-300 text-center">
               <i class="fa-solid fa-bullhorn text-3xl text-slate-300 mb-2"></i>
               <p class="text-sm font-medium text-slate-600">No campaigns created yet.</p>
-              <button onclick="seedDemoData()" class="mt-3 text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg">Seed Demo Campaign</button>
             </div>
           `;
           return;
@@ -946,25 +941,6 @@ def get_dashboard_html() -> str:
         }).join('');
       } catch (err) {
         console.error('Failed to load tasks:', err);
-      }
-    }
-
-    // ==================== INSTANT DEMO SEED ====================
-    async function seedDemoData() {
-      const btn = document.getElementById('seedBtn');
-      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i><span>Seeding...</span>`;
-      try {
-        const res = await fetch('/demo/seed', { method: 'POST' });
-        const result = await res.json();
-        showToast("Sample campaign, drafts, and schedule seeded!");
-        loadAnalytics();
-        loadCampaigns();
-        loadDrafts();
-        loadTasks();
-      } catch (err) {
-        showToast("Error seeding demo data", true);
-      } finally {
-        btn.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i><span>Instant Demo Seed</span>`;
       }
     }
 

@@ -8,7 +8,7 @@ import pytest
 from agents.publisher import PublisherAgent
 from models.schemas import ContentDraft, Platform, PublishStatus, PublishTask
 
-PAGE = "101728504668130"
+PAGE = "1000000000001"
 
 
 def _draft(**kw) -> ContentDraft:

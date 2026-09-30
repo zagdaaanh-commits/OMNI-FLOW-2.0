@@ -10,7 +10,7 @@ from tools.http_client import get_http_client
 from tools.meta_api import MetaAPIClient, MetaOAuthError, parse_graph_error
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 16
-PAGE = "101728504668130"
+PAGE = "1000000000001"
 
 
 @pytest.fixture

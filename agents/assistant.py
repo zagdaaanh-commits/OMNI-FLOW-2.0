@@ -101,7 +101,7 @@ class ConversationalAssistant:
     def _handle_facebook_query(self) -> Dict[str, Any]:
         fb_status = self.meta_client.test_connection()
         connected = fb_status.get("connected", False)
-        page_id = fb_status.get("page_id", "101728504668130")
+        page_id = fb_status.get("page_id", "")
         page_name = fb_status.get("page_name", "Connected Facebook Page")
 
         is_expired = fb_status.get("token_expired", False)

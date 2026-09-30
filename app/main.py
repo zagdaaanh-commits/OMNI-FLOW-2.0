@@ -63,8 +63,6 @@ load_environment()
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger("multi-agent-marketing")
 
-LEGACY_FACEBOOK_PAGE_ID = "101728504668130"
-
 planner = CampaignPlanner()
 copywriter = CopywriterAgent()
 publisher = PublisherAgent()
@@ -167,7 +165,7 @@ def _resolve_campaign(campaign_id: Optional[str], tenant_id: str) -> Campaign:
 def _facebook_credentials(tenant_id: str, page_id: Optional[str]) -> Tuple[str, Optional[str]]:
     """(page_id, page_token) for direct Facebook publishing, isolated per tenant."""
     if tenant_id == DEFAULT_TENANT_ID:
-        page = page_id or os.getenv("FACEBOOK_PAGE_ID") or LEGACY_FACEBOOK_PAGE_ID
+        page = page_id or os.getenv("FACEBOOK_PAGE_ID") or ""
         token = (
             os.getenv("FACEBOOK_PAGE_ACCESS_TOKEN")
             or publisher.meta.resolve_page_token(page)
@@ -508,19 +506,21 @@ async def schedule_publish(payload: PublishRequest, ctx: TenantContext = Depends
 class FBPublishRequest(BaseModel):
     caption: str
     image_base64: str = ""
-    page_id: str = LEGACY_FACEBOOK_PAGE_ID
+    page_id: str = ""
 
 
 @app.post("/publish/facebook")
 async def publish_facebook_direct(req: FBPublishRequest, ctx: TenantContext = Depends(get_tenant_context)):
     if ctx.tenant_id == DEFAULT_TENANT_ID:
-        page_id = os.getenv("FACEBOOK_PAGE_ID") or req.page_id or LEGACY_FACEBOOK_PAGE_ID
+        page_id = os.getenv("FACEBOOK_PAGE_ID") or req.page_id
         token = os.getenv("FACEBOOK_PAGE_ACCESS_TOKEN")
         if not token:
             raise HTTPException(
                 status_code=400,
                 detail="Missing FACEBOOK_PAGE_ACCESS_TOKEN in env (FACEBOOK_PAGE_ACCESS_TOKEN not configured)",
             )
+        if not page_id:
+            raise HTTPException(status_code=400, detail="No Facebook page configured (set FACEBOOK_PAGE_ID or pass page_id).")
     else:
         page_id, token = _facebook_credentials(ctx.tenant_id, req.page_id)
         if not token:
@@ -565,73 +565,6 @@ def analytics_report(period_days: int = 30, ctx: TenantContext = Depends(get_ten
         start,
         end,
     )
-
-
-@app.post("/demo/seed")
-async def seed_demo_data(ctx: TenantContext = Depends(get_tenant_context)) -> dict:
-    tenant_id = ctx.tenant_id
-    camp_payload = CampaignCreate(
-        name="Global Cross-Border Summer Campaign",
-        objective="Drive multi-channel awareness and conversion across China & International markets",
-        budget=1500.0,
-        currency="USD",
-        platforms=[
-            Platform.META,
-            Platform.INSTAGRAM,
-            Platform.TIKTOK,
-            Platform.XIAOHONGSHU,
-            Platform.DOUYIN,
-            Platform.WECHAT,
-            Platform.X,
-        ],
-        languages=["en"],
-        brand_voice="modern, engaging, premium, clear",
-        product_description="Artisanal leather goods, modern lifestyle accessories, and limited summer gift boxes.",
-    )
-    data = camp_payload.model_dump()
-    data["tenant_id"] = tenant_id
-    campaign = store.save_campaign(planner.build_strategy(Campaign(**data)))
-
-    gen_req = ContentGenerateRequest(
-        campaign_id=campaign.id,
-        topic="Exclusive Summer Collection & Early Bird Perks",
-        count_per_platform=1,
-    )
-    drafts = copywriter.generate(campaign, gen_req)
-    for draft in drafts:
-        draft.tenant_id = tenant_id
-        store.save_draft(draft)
-
-    half = len(drafts) // 2
-    pub_now_drafts = drafts[:half]
-    sched_drafts = drafts[half:]
-
-    if pub_now_drafts:
-        for task in publisher.create_tasks(pub_now_drafts, publish_now=True, scheduled_at=None):
-            task.tenant_id = tenant_id
-            draft = next(d for d in pub_now_drafts if d.id == task.content_draft_id)
-            creds = resolve_task_credentials(store, task)
-            published = await publish_offloop(
-                publisher, task, draft,
-                page_id=creds.get("page_id"),
-                access_token=creds.get("access_token"),
-                isolated=bool(creds.get("isolated")),
-            )
-            store.save_task(published)
-
-    if sched_drafts:
-        future_time = datetime.now(timezone.utc) + timedelta(days=1)
-        for task in publisher.create_tasks(sched_drafts, publish_now=False, scheduled_at=future_time):
-            task.tenant_id = tenant_id
-            store.save_task(task)
-
-    return {
-        "status": "seeded",
-        "campaign_id": campaign.id,
-        "drafts_count": len(drafts),
-        "tasks_count": len(store.list_tasks(tenant_id=tenant_id)),
-        **store.counts(tenant_id=tenant_id),
-    }
 
 
 # =============================================================================
@@ -782,6 +715,13 @@ def logout_user():
 # =============================================================================
 # Social channels & OAuth foundation (Meta, TikTok, X, WeChat, RED)
 # =============================================================================
+def _mask_secret(value: Optional[str]) -> Optional[str]:
+    value = (value or "").strip()
+    if not value:
+        return None
+    return f"{value[:4]}...{value[-4:]}" if len(value) > 12 else "****"
+
+
 @app.get("/integrations/status")
 def get_integrations_status(ctx: TenantContext = Depends(get_tenant_context)):
     """Real connectivity status for Meta (Facebook/Instagram), TikTok, X, etc."""
@@ -806,9 +746,9 @@ def get_integrations_status(ctx: TenantContext = Depends(get_tenant_context)):
             "platform": "meta",
             "name": "Meta (Facebook Graph)",
             "status": "connected" if (meta_acc or has_meta_env) else "not_connected",
-            "account_name": meta_acc["account_name"] if meta_acc else ("Official Facebook Page" if has_meta_env else None),
-            "account_id": meta_acc["account_id"] if meta_acc else (os.getenv("META_PAGE_ID", "act-482019401") if is_default else None),
-            "masked_token": (meta_acc.get("masked_token") if meta_acc else "EAAB...3x4k") if (meta_acc or has_meta_env) else None,
+            "account_name": meta_acc["account_name"] if meta_acc else ("Facebook Page" if has_meta_env else None),
+            "account_id": meta_acc["account_id"] if meta_acc else ((os.getenv("FACEBOOK_PAGE_ID") or os.getenv("META_PAGE_ID") or None) if is_default else None),
+            "masked_token": (meta_acc.get("masked_token") if meta_acc else _mask_secret(settings.get("meta_access_token") or os.getenv("META_ACCESS_TOKEN"))) if (meta_acc or has_meta_env) else None,
             "permissions": ["pages_manage_posts", "pages_read_engagement", "ads_management"],
             "oauth_supported": True,
         },
@@ -816,9 +756,9 @@ def get_integrations_status(ctx: TenantContext = Depends(get_tenant_context)):
             "platform": "instagram",
             "name": "Instagram Professional",
             "status": "connected" if (ig_acc or has_ig_env) else "not_connected",
-            "account_name": ig_acc["account_name"] if ig_acc else ("@omniflow.global" if has_ig_env else None),
-            "account_id": ig_acc["account_id"] if ig_acc else (os.getenv("META_IG_USER_ID", "ig-99248102") if is_default else None),
-            "masked_token": (ig_acc.get("masked_token") if ig_acc else "EAAB...902p") if (ig_acc or has_ig_env) else None,
+            "account_name": ig_acc["account_name"] if ig_acc else ("Instagram Professional" if has_ig_env else None),
+            "account_id": ig_acc["account_id"] if ig_acc else ((os.getenv("META_IG_USER_ID") or None) if is_default else None),
+            "masked_token": (ig_acc.get("masked_token") if ig_acc else _mask_secret(os.getenv("META_ACCESS_TOKEN") or settings.get("meta_access_token"))) if (ig_acc or has_ig_env) else None,
             "permissions": ["instagram_basic", "instagram_content_publish", "instagram_manage_insights"],
             "oauth_supported": True,
         },
@@ -826,9 +766,9 @@ def get_integrations_status(ctx: TenantContext = Depends(get_tenant_context)):
             "platform": "tiktok",
             "name": "TikTok Commercial",
             "status": "connected" if (tiktok_acc or has_tiktok_env) else "not_connected",
-            "account_name": tiktok_acc["account_name"] if tiktok_acc else ("@omniflow_official" if has_tiktok_env else None),
-            "account_id": tiktok_acc["account_id"] if tiktok_acc else "tt-open-8812",
-            "masked_token": (tiktok_acc.get("masked_token") if tiktok_acc else "ttk_...19a") if (tiktok_acc or has_tiktok_env) else None,
+            "account_name": tiktok_acc["account_name"] if tiktok_acc else ("TikTok" if has_tiktok_env else None),
+            "account_id": tiktok_acc["account_id"] if tiktok_acc else None,
+            "masked_token": (tiktok_acc.get("masked_token") if tiktok_acc else _mask_secret(settings.get("tiktok_api_key") or os.getenv("TIKTOK_API_KEY"))) if (tiktok_acc or has_tiktok_env) else None,
             "permissions": ["video.upload", "video.publish", "user.info.stats"],
             "oauth_supported": True,
         },
@@ -836,9 +776,9 @@ def get_integrations_status(ctx: TenantContext = Depends(get_tenant_context)):
             "platform": "x",
             "name": "X Corp (Twitter API v2)",
             "status": "connected" if (x_acc or has_x_env) else "not_connected",
-            "account_name": x_acc["account_name"] if x_acc else ("@OmniFlowAI" if has_x_env else None),
-            "account_id": x_acc["account_id"] if x_acc else "x-14920481",
-            "masked_token": (x_acc.get("masked_token") if x_acc else "AAAA...892") if (x_acc or has_x_env) else None,
+            "account_name": x_acc["account_name"] if x_acc else ("X" if has_x_env else None),
+            "account_id": x_acc["account_id"] if x_acc else None,
+            "masked_token": (x_acc.get("masked_token") if x_acc else _mask_secret(os.getenv("X_API_KEY") or os.getenv("TWITTER_API_KEY"))) if (x_acc or has_x_env) else None,
             "permissions": ["tweet.read", "tweet.write", "users.read"],
             "oauth_supported": True,
         },
@@ -846,16 +786,16 @@ def get_integrations_status(ctx: TenantContext = Depends(get_tenant_context)):
             "platform": "xiaohongshu",
             "name": "Xiaohongshu (RED) Open Platform",
             "status": "connected" if (acc_map.get("xiaohongshu") or bool(settings.get("xiaohongshu_api_key"))) else "not_connected",
-            "account_name": "OmniFlow RED Flagship",
-            "account_id": "xhs-pro-1194",
+            "account_name": (acc_map.get("xiaohongshu") or {}).get("account_name"),
+            "account_id": (acc_map.get("xiaohongshu") or {}).get("account_id"),
             "oauth_supported": False,
         },
         "wechat": {
             "platform": "wechat",
             "name": "WeChat Official Account",
             "status": "connected" if (acc_map.get("wechat") or bool(settings.get("wechat_app_id"))) else "not_connected",
-            "account_name": "OmniFlow Official",
-            "account_id": settings.get("wechat_app_id", "gh_992140a"),
+            "account_name": (acc_map.get("wechat") or {}).get("account_name"),
+            "account_id": (acc_map.get("wechat") or {}).get("account_id") or settings.get("wechat_app_id") or None,
             "oauth_supported": False,
         },
     }
@@ -977,7 +917,9 @@ def update_facebook_token(payload: FacebookTokenUpdatePayload, ctx: TenantContex
     """Validates a Page/User access token via Meta Graph API and stores the resolved Page token."""
     token = payload.access_token.strip()
     is_default = ctx.tenant_id == DEFAULT_TENANT_ID
-    target_page = (payload.page_id or (os.getenv("FACEBOOK_PAGE_ID") if is_default else "") or LEGACY_FACEBOOK_PAGE_ID).strip()
+    target_page = (payload.page_id or (os.getenv("FACEBOOK_PAGE_ID") if is_default else "") or "").strip()
+    if not target_page:
+        raise HTTPException(status_code=400, detail="Facebook Page ID is required.")
 
     if not token:
         raise HTTPException(status_code=400, detail="Access token cannot be empty.")

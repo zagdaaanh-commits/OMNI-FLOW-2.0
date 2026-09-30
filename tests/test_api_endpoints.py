@@ -166,17 +166,6 @@ def test_analytics_report_with_metrics():
     assert len(report["recommendations"]) >= 1
 
 
-def test_demo_seed_endpoint():
-    from unittest.mock import patch
-    with patch("agents.copywriter.CopywriterAgent._call_openai", return_value={"body": "Seeded body", "cta": "Explore", "hashtags": ["#summer"]}):
-        res = client.post("/demo/seed")
-        assert res.status_code == 200
-        data = res.json()
-        assert data["status"] == "seeded"
-        assert data["drafts_count"] >= 1
-        assert data["tasks_count"] >= 1
-
-
 def test_auth_flow():
     # 1. Register with idempotent unique email
     from uuid import uuid4
@@ -239,9 +228,9 @@ def test_integrations_flow():
 
 def test_facebook_graph_api_publishing_and_resilience(graph_stub, monkeypatch):
     # 1. Successful Facebook publish through the (mocked) Graph API
-    monkeypatch.setenv("FACEBOOK_PAGE_ID", "101728504668130")
+    monkeypatch.setenv("FACEBOOK_PAGE_ID", "1000000000001")
     monkeypatch.setenv("FACEBOOK_PAGE_ACCESS_TOKEN", "EAAB_test_page_token")
-    graph_stub.add("POST", "/101728504668130/photos", json={"id": "101728504668130_9988776655"})
+    graph_stub.add("POST", "/1000000000001/photos", json={"id": "1000000000001_9988776655"})
 
     res = client.post("/publish/schedule", json={
         "content_draft_ids": ["test-meta-draft"],
@@ -253,15 +242,15 @@ def test_facebook_graph_api_publishing_and_resilience(graph_stub, monkeypatch):
     assert len(tasks) == 1
     t = tasks[0]
     assert t["status"] == "published"
-    assert t["external_post_id"] == "101728504668130_9988776655"
-    assert t["post_url"] == "https://www.facebook.com/101728504668130_9988776655"
+    assert t["external_post_id"] == "1000000000001_9988776655"
+    assert t["post_url"] == "https://www.facebook.com/1000000000001_9988776655"
     assert "Published to" in t["confirmation_badge"]
     assert not graph_stub.unmatched
 
 
 def test_facebook_publish_failure_is_reported_as_failed(graph_stub, monkeypatch):
     # Credentials configured but Meta rejects the token: the task must be FAILED, never "published".
-    monkeypatch.setenv("FACEBOOK_PAGE_ID", "101728504668130")
+    monkeypatch.setenv("FACEBOOK_PAGE_ID", "1000000000001")
     monkeypatch.setenv("FACEBOOK_PAGE_ACCESS_TOKEN", "EAAB_expired")
     graph_stub.add("POST", "/photos", status=400, json={"error": {"message": "Error validating access token: Session has expired", "code": 190}})
 
@@ -350,10 +339,10 @@ def test_facebook_token_update_validation(graph_stub):
 
     # Valid page token
     graph_stub.routes.clear()
-    graph_stub.add("GET", "/101728504668130", json={"id": "101728504668130", "name": "Mai boovoo"})
+    graph_stub.add("GET", "/1000000000001", json={"id": "1000000000001", "name": "Mai boovoo"})
     res_ok = client.post("/tools/facebook/update-token", json={
         "access_token": "EAAB_valid_access_token_123",
-        "page_id": "101728504668130"
+        "page_id": "1000000000001"
     })
     assert res_ok.status_code == 200
     data = res_ok.json()
@@ -369,9 +358,9 @@ def test_publish_meta_photo_pipeline():
     
     mock_photo_res = {
         "success": True,
-        "id": "101728504668130_1234567890",
+        "id": "1000000000001_1234567890",
         "photo_id": "1234567890",
-        "post_url": "https://www.facebook.com/101728504668130_1234567890",
+        "post_url": "https://www.facebook.com/1000000000001_1234567890",
         "confirmation_badge": "Published to Mai boovoo 🟢",
         "status_code": 200,
         "message": "Published to Mai boovoo 🟢",
@@ -390,8 +379,8 @@ def test_publish_meta_photo_pipeline():
         tasks = res.json()
         assert len(tasks) == 1
         assert tasks[0]["status"] == "published"
-        assert tasks[0]["post_url"] == "https://www.facebook.com/101728504668130_1234567890"
-        assert tasks[0]["external_post_id"] == "101728504668130_1234567890"
+        assert tasks[0]["post_url"] == "https://www.facebook.com/1000000000001_1234567890"
+        assert tasks[0]["external_post_id"] == "1000000000001_1234567890"
         assert "Published to Mai boovoo" in tasks[0]["confirmation_badge"]
         mock_photo.assert_called_once()
 
@@ -409,18 +398,18 @@ TINY_PNG_B64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HA
 
 def test_publish_facebook_endpoint_photo_success(graph_stub, monkeypatch):
     monkeypatch.setenv("FACEBOOK_PAGE_ACCESS_TOKEN", "valid_meta_test_token")
-    graph_stub.add("POST", "/photos", json={"id": "998877", "post_id": "101728504668130_998877"})
+    graph_stub.add("POST", "/photos", json={"id": "998877", "post_id": "1000000000001_998877"})
 
     res = client.post("/publish/facebook", json={
         "caption": "Photo creative caption",
         "image_base64": TINY_PNG_B64,
-        "page_id": "101728504668130"
+        "page_id": "1000000000001"
     })
     assert res.status_code == 200
     data = res.json()
     assert data["success"] is True
-    assert data["post_id"] == "101728504668130_998877"
-    assert data["post_url"] == "https://facebook.com/101728504668130_998877"
+    assert data["post_id"] == "1000000000001_998877"
+    assert data["post_url"] == "https://facebook.com/1000000000001_998877"
     assert len(graph_stub.calls) == 1
     assert "photos" in str(graph_stub.calls[0].url)
     assert "multipart/form-data" in graph_stub.calls[0].headers["content-type"]
@@ -428,17 +417,17 @@ def test_publish_facebook_endpoint_photo_success(graph_stub, monkeypatch):
 
 def test_publish_facebook_endpoint_feed_success(graph_stub, monkeypatch):
     monkeypatch.setenv("FACEBOOK_PAGE_ACCESS_TOKEN", "valid_meta_test_token")
-    graph_stub.add("POST", "/feed", json={"id": "101728504668130_554433"})
+    graph_stub.add("POST", "/feed", json={"id": "1000000000001_554433"})
 
     res = client.post("/publish/facebook", json={
         "caption": "Text only creative caption",
-        "page_id": "101728504668130"
+        "page_id": "1000000000001"
     })
     assert res.status_code == 200
     data = res.json()
     assert data["success"] is True
-    assert data["post_id"] == "101728504668130_554433"
-    assert data["post_url"] == "https://facebook.com/101728504668130_554433"
+    assert data["post_id"] == "1000000000001_554433"
+    assert data["post_url"] == "https://facebook.com/1000000000001_554433"
     assert len(graph_stub.calls) == 1
     assert "feed" in str(graph_stub.calls[0].url)
 
@@ -449,7 +438,7 @@ def test_publish_facebook_endpoint_api_error(graph_stub, monkeypatch):
 
     res = client.post("/publish/facebook", json={
         "caption": "Failing test post",
-        "page_id": "101728504668130"
+        "page_id": "1000000000001"
     })
     assert res.status_code == 200
     data = res.json()
@@ -461,43 +450,43 @@ def test_publish_facebook_endpoint_api_error(graph_stub, monkeypatch):
 def test_publish_facebook_endpoint_empty_env_page_id(graph_stub, monkeypatch):
     monkeypatch.setenv("FACEBOOK_PAGE_ACCESS_TOKEN", "valid_token")
     monkeypatch.setenv("FACEBOOK_PAGE_ID", "")
-    graph_stub.add("POST", "/feed", json={"id": "101728504668130_888"})
+    graph_stub.add("POST", "/feed", json={"id": "1000000000001_888"})
 
     res = client.post("/publish/facebook", json={
         "caption": "Empty env page id test",
-        "page_id": "101728504668130"
+        "page_id": "1000000000001"
     })
     assert res.status_code == 200
     assert res.json()["success"] is True
-    assert "101728504668130" in str(graph_stub.calls[0].url)
+    assert "1000000000001" in str(graph_stub.calls[0].url)
 
 
 def test_publish_facebook_endpoint_malformed_base64(graph_stub, monkeypatch):
     monkeypatch.setenv("FACEBOOK_PAGE_ACCESS_TOKEN", "valid_token")
-    graph_stub.add("POST", "/feed", json={"id": "101728504668130_777"})
+    graph_stub.add("POST", "/feed", json={"id": "1000000000001_777"})
 
     # Malformed base64 gracefully falls back to the feed endpoint without a 500 crash
     res = client.post("/publish/facebook", json={
         "caption": "Malformed base64 fallback test",
         "image_base64": "not_valid_base64_data_string_that_is_long_enough_to_trigger_photo_branch_1234567890",
-        "page_id": "101728504668130"
+        "page_id": "1000000000001"
     })
     assert res.status_code == 200
     data = res.json()
     assert data["success"] is True
-    assert data["post_id"] == "101728504668130_777"
+    assert data["post_id"] == "1000000000001_777"
     assert "feed" in str(graph_stub.calls[0].url)
 
 
 def test_publish_facebook_endpoint_raw_base64(graph_stub, monkeypatch):
     raw_b64 = TINY_PNG_B64.split(",", 1)[1]
     monkeypatch.setenv("FACEBOOK_PAGE_ACCESS_TOKEN", "valid_token")
-    graph_stub.add("POST", "/photos", json={"id": "666", "post_id": "101728504668130_666"})
+    graph_stub.add("POST", "/photos", json={"id": "666", "post_id": "1000000000001_666"})
 
     res = client.post("/publish/facebook", json={
         "caption": "Raw base64 test without data prefix",
         "image_base64": raw_b64,
-        "page_id": "101728504668130"
+        "page_id": "1000000000001"
     })
     assert res.status_code == 200
     assert res.json()["success"] is True
