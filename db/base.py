@@ -82,7 +82,7 @@ class Store(Protocol):
         full_name: str,
         password: str,
         role: str = "Brand Lead",
-        company: str = "Global Brand HQ",
+        company: str = "",
         avatar_url: str = "",
         *,
         tenant_id: str = DEFAULT_TENANT_ID,

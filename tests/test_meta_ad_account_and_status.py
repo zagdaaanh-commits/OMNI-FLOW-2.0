@@ -133,6 +133,7 @@ def test_status_ignores_api_keys_in_the_settings_file(fresh_store, monkeypatch):
         "xiaohongshu": "not_connected",
         "wechat": "not_connected",
         "meta_ads": "not_connected",
+        "webhook": "not_connected",
     }
     assert all(item["account_name"] is None and item["account_id"] is None for item in data.values())
 

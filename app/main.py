@@ -28,6 +28,7 @@ from app.routers.comments import router as comments_router
 from app.routers.health import router as health_router
 from app.routers.meta_oauth import router as meta_oauth_router
 from app.routers.meta_oauth import subscribe_page_webhooks
+from app.routers.notifications import router as notifications_router
 from app.scheduler import (
     MODE_EMBEDDED,
     SchedulerService,
@@ -144,6 +145,7 @@ app.include_router(meta_oauth_router)
 app.include_router(health_router)
 app.include_router(agency_router)
 app.include_router(comments_router)
+app.include_router(notifications_router)
 
 
 @app.exception_handler(Exception)
@@ -680,8 +682,8 @@ def test_settings_connection(_: TenantContext = Depends(_require_global_admin)):
 def register_user(payload: UserRegister):
     if store.get_user_by_email(payload.email):
         raise HTTPException(status_code=400, detail="An account with this email already exists.")
-    company = payload.company or "Global Brand HQ"
-    tenant = store.create_tenant(company)
+    company = (payload.company or "").strip()
+    tenant = store.create_tenant(company or "Workspace")
     try:
         user = store.create_user(
             email=payload.email,
@@ -788,6 +790,8 @@ def get_integrations_status(ctx: TenantContext = Depends(get_tenant_context)):
         "xiaohongshu": channel("xiaohongshu", "Xiaohongshu (RED) Open Platform", [], False),
         "wechat": channel("wechat", "WeChat Official Account", [], False),
         "meta_ads": channel("meta_ads", "Meta Ad Account", ["ads_management", "ads_read"], False),
+        # account_id holds a masked URL; the full webhook URL is never returned.
+        "webhook": channel("webhook", "通知 Webhook", [], False),
     }
 
 

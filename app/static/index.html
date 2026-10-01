@@ -6,7 +6,7 @@
   <title>OmniFlow</title>
   <link rel="icon" type="image/svg+xml" href="/static/assets/logos/omniflow_logo.svg"/>
   <script>
-    // Apply the saved (or system) theme before first paint to avoid a flash.
+    // Apply the saved (or system) theme and the interface language before first paint.
     (function () {
       var theme = null;
       try { theme = localStorage.getItem('omniflow_theme'); } catch (_) {}
@@ -15,6 +15,9 @@
       }
       document.documentElement.classList.remove('light', 'dark');
       document.documentElement.classList.add(theme);
+      var lang = null;
+      try { lang = localStorage.getItem('omniflow_lang'); } catch (_) {}
+      document.documentElement.lang = lang === 'en' ? 'en' : 'zh-CN';
     })();
   </script>
   
@@ -352,6 +355,33 @@
     }
     .option-card:hover { background: var(--surface-hover); border-color: var(--border-strong); }
 
+    .option-card[aria-expanded="true"] { border-color: var(--border-strong); background: var(--surface-hover); }
+    .option-card[aria-expanded="true"] .option-chevron { transform: rotate(180deg); }
+    .option-chevron { transition: transform 150ms ease; }
+    .tab-dot { display: none; width: 6px; height: 6px; margin-left: 6px; border-radius: 999px; background: #22c55e; vertical-align: middle; }
+    .tab-dot.on { display: inline-block; }
+    .avatar-btn {
+      width: 2.1rem; height: 2.1rem; border-radius: 999px; flex-shrink: 0;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 0.8rem; font-weight: 600; color: var(--ink);
+      background: var(--surface-muted); border: 1px solid var(--border);
+      transition: border-color 150ms ease;
+    }
+    .avatar-btn:hover { border-color: var(--border-strong); }
+
+    /* Language switch (🌐 中文 / EN): the active language is highlighted. */
+    .lang-btn {
+      display: inline-flex; align-items: center; gap: 0.3rem;
+      height: 2.1rem; padding: 0 0.6rem; border-radius: 999px;
+      font-size: 0.75rem; font-weight: 500; color: var(--muted); white-space: nowrap;
+      transition: background 150ms ease, color 150ms ease;
+    }
+    .lang-btn:hover { background: var(--surface-hover); }
+    .lang-opt.active { color: var(--ink); font-weight: 600; }
+    .lang-sep { opacity: 0.45; }
+    /* Phones: the header keeps the logo, globe, theme, 快速开户, settings and avatar (network status is in the drawer). */
+    @media (max-width: 640px) { .topbar .lang-opt, .topbar .lang-sep, .topbar .network-pill { display: none; } .topbar .lang-btn { padding: 0 0.45rem; } }
+
     /* While sign-in is required, the workspace behind the gate is not readable or clickable. */
     body.auth-locked #appMain, body.auth-locked #sidebar { filter: blur(8px); pointer-events: none; user-select: none; }
 
@@ -416,7 +446,7 @@
     .network-checking .network-dot { animation: ofPulse 1.4s ease-in-out infinite; }
   </style>
 </head>
-<body class="h-screen w-screen flex antialiased relative overflow-hidden">
+<body class="h-screen w-screen flex antialiased relative overflow-hidden auth-locked">
 
   <!-- ========================================================================= -->
   <!-- DRAWER (hidden by default): workspace, campaigns, account                 -->
@@ -428,50 +458,48 @@
         <img src="/static/assets/logos/omniflow_logo.svg" alt="" class="w-7 h-7 rounded-lg"/>
         <span class="font-semibold text-sm tracking-tight text-ink">OmniFlow</span>
       </button>
-      <button onclick="toggleSidebar(false)" class="icon-btn" title="Close"><span class="material-symbols-outlined text-lg">close</span></button>
+      <button onclick="toggleSidebar(false)" class="icon-btn" title="Close" data-i18n-title="common.close"><span class="material-symbols-outlined text-lg">close</span></button>
     </div>
 
     <button onclick="resetToNewChat(); toggleSidebar(false)" class="drawer-item mt-5 font-medium text-ink">
-      <span class="material-symbols-outlined text-base">edit_square</span><span class="flex-1">New prompt</span>
+      <span class="material-symbols-outlined text-base">edit_square</span><span class="flex-1" data-i18n="nav.newPrompt">New prompt</span>
     </button>
 
-    <div class="drawer-label">Workspace</div>
+    <div class="drawer-label" data-i18n="nav.workspace">Workspace</div>
     <button onclick="toggleSidebar(false); openIntegrationsModal()" class="drawer-item">
-      <span class="material-symbols-outlined text-base">hub</span><span class="flex-1">渠道集成 · Integrations</span>
-      <span id="sidebarMetaDot" class="w-1.5 h-1.5 rounded-full bg-zinc-400" title="Meta connection"></span>
+      <span class="material-symbols-outlined text-base">hub</span><span class="flex-1" data-i18n="nav.integrations">渠道与 API 接入</span>
+      <span id="sidebarMetaDot" class="w-1.5 h-1.5 rounded-full bg-zinc-400" title="Meta connection" data-i18n-title="nav.metaConnection"></span>
     </button>
     <button onclick="openSchedulesModal()" class="drawer-item">
-      <span class="material-symbols-outlined text-base">schedule</span><span class="flex-1">Schedule queue</span>
+      <span class="material-symbols-outlined text-base">schedule</span><span class="flex-1" data-i18n="nav.schedule">Schedule queue</span>
       <span id="scheduledBadgeCount" class="text-[11px] text-muted font-mono"></span>
     </button>
 
     <div class="drawer-label flex items-center justify-between">
-      <span>Campaigns</span>
-      <button onclick="openNewCampaignModal()" class="icon-btn !p-0.5" title="New campaign"><span class="material-symbols-outlined text-sm">add</span></button>
+      <span data-i18n="nav.campaigns">Campaigns</span>
+      <button onclick="openNewCampaignModal()" class="icon-btn !p-0.5" title="New campaign" data-i18n-title="nav.newCampaign"><span class="material-symbols-outlined text-sm">add</span></button>
     </div>
     <div id="sidebarCampaignsList" class="space-y-0.5 flex-1 min-h-0 overflow-y-auto">
-      <div class="p-4 text-xs text-zinc-500">No active campaigns yet</div>
+      <div class="p-4 text-xs text-zinc-500" data-i18n="nav.noCampaigns">No active campaigns yet</div>
     </div>
 
     <div class="pt-3 mt-3 border-t hairline space-y-1">
       <div class="drawer-item !cursor-default">
-        <span id="sidebarNetworkDot" class="w-1.5 h-1.5 rounded-full bg-zinc-400"></span><span class="flex-1 text-muted">Network</span>
-        <a href="/docs" target="_blank" rel="noopener" class="text-muted hover:text-ink text-xs">API docs</a>
+        <span id="sidebarNetworkDot" class="w-1.5 h-1.5 rounded-full bg-zinc-400"></span><span class="flex-1 text-muted" data-i18n="nav.network">Network</span>
+        <a href="/docs" target="_blank" rel="noopener" class="text-muted hover:text-ink text-xs" data-i18n="nav.apiDocs">API docs</a>
       </div>
       <div class="relative">
         <button onclick="toggleUserDropdown()" class="drawer-item">
-          <span id="sidebarUserInitials" class="w-7 h-7 rounded-full avatar flex items-center justify-center text-[11px] font-semibold">M</span>
+          <span id="sidebarUserInitials" class="w-7 h-7 rounded-full avatar flex items-center justify-center text-[11px] font-semibold"></span>
           <span class="flex-1 min-w-0 text-left">
-            <span id="sidebarUserName" class="block truncate text-ink text-xs font-medium">Merchant Workspace</span>
+            <span id="sidebarUserName" class="block truncate text-ink text-xs font-medium"></span>
             <span id="sidebarUserRole" class="block truncate text-muted text-[11px]"></span>
           </span>
           <span class="material-symbols-outlined text-sm text-muted">unfold_more</span>
         </button>
         <div id="userDropdown" class="hidden menu absolute bottom-full left-0 mb-2 w-full">
-          <div class="px-3 py-2 border-b hairline"><div id="dropdownUserEmail" class="text-xs font-medium text-ink truncate">Merchant Workspace</div><div id="dropdownUserCompany" class="text-[11px] text-muted truncate"></div></div>
-          <button onclick="openAuthModal('login')" class="menu-item"><span class="material-symbols-outlined text-base">login</span>Sign in</button>
-          <button onclick="openAuthModal('register')" class="menu-item"><span class="material-symbols-outlined text-base">person_add</span>Create account</button>
-          <button onclick="handleLogout()" class="menu-item text-rose-500"><span class="material-symbols-outlined text-base">logout</span>Sign out</button>
+          <div class="px-3 py-2 border-b hairline"><div id="dropdownUserEmail" class="text-xs font-medium text-ink truncate"></div><div id="dropdownUserCompany" class="text-[11px] text-muted truncate"></div></div>
+          <button onclick="handleLogout()" class="menu-item text-rose-500"><span class="material-symbols-outlined text-base">logout</span><span data-i18n="nav.logout">Log out</span></button>
         </div>
       </div>
     </div>
@@ -483,33 +511,45 @@
     <!-- ======================================================================= -->
     <header class="topbar">
       <div class="flex items-center gap-1.5 min-w-0">
-        <button onclick="toggleSidebar()" class="icon-btn" title="Menu"><span class="material-symbols-outlined text-xl">menu</span></button>
-        <button onclick="resetToNewChat()" class="flex items-center gap-2 px-1.5 py-1 rounded-lg" title="New prompt">
+        <button onclick="toggleSidebar()" class="icon-btn" title="Menu" data-i18n-title="nav.menu"><span class="material-symbols-outlined text-xl">menu</span></button>
+        <button onclick="resetToNewChat()" class="flex items-center gap-2 px-1.5 py-1 rounded-lg" title="New prompt" data-i18n-title="nav.newPrompt">
           <img src="/static/assets/logos/omniflow_logo.svg" alt="" class="w-6 h-6 rounded-md"/>
-          <span class="font-semibold text-[15px] tracking-tight text-ink">OmniFlow</span>
+          <span class="hidden sm:inline font-semibold text-[15px] tracking-tight text-ink">OmniFlow</span>
         </button>
         <span id="headerCampaignLabel" class="hidden"></span>
       </div>
 
       <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
-        <button id="networkStatusPill" onclick="checkNetworkHealth()" class="network-pill network-checking" title="Checking network…">
+        <button id="networkStatusPill" onclick="checkNetworkHealth()" class="network-pill network-checking" title="Checking network…" data-i18n-title="net.checking">
           <span id="networkStatusDot" class="network-dot"></span>
-          <span id="networkStatusLabel" class="sr-only">Checking network</span>
+          <span id="networkStatusLabel" class="sr-only" data-i18n="net.checking">Checking network</span>
           <span id="networkLatency" class="network-latency"></span>
         </button>
-        <button onclick="toggleTheme()" class="icon-btn" title="Toggle light / dark"><span id="themeIcon" class="material-symbols-outlined text-xl">light_mode</span></button>
-        <button onclick="openMetaAccountModal()" class="cta-btn" title="Meta 企业广告账户快速开户">
+        <button type="button" onclick="toggleLanguage()" class="lang-btn" title="切换语言 · Switch language" aria-label="切换语言 · Switch language">
+          <span class="material-symbols-outlined text-lg">language</span>
+          <span class="lang-opt" data-lang-opt="zh">中文</span><span class="lang-sep">/</span><span class="lang-opt" data-lang-opt="en">EN</span>
+        </button>
+        <button onclick="toggleTheme()" class="icon-btn" title="Toggle light / dark" data-i18n-title="header.theme"><span id="themeIcon" class="material-symbols-outlined text-xl">light_mode</span></button>
+        <button onclick="openMetaAccountModal()" class="cta-btn" title="Meta 企业广告账户快速开户" data-i18n-title="header.metaIntake">
           <img src="/static/assets/logos/meta.svg" class="w-4 h-4" alt=""/>
-          <span class="hidden sm:inline">Meta 企业广告账户快速开户</span><span class="sm:hidden">快速开户</span>
+          <span class="hidden md:inline" data-i18n="header.metaIntake">Meta 企业广告账户快速开户</span><span class="md:hidden" data-i18n="header.metaIntakeShort">快速开户</span>
         </button>
         <div class="relative">
-          <button onclick="toggleChannelsMenu(event)" class="icon-btn" title="Channels & settings"><span class="material-symbols-outlined text-xl">tune</span></button>
+          <button id="channelsMenuButton" onclick="toggleChannelsMenu(event)" class="icon-btn" title="Channels & settings" data-i18n-title="header.settings"><span class="material-symbols-outlined text-xl">tune</span></button>
           <div id="channelsMenu" class="hidden menu absolute right-0 top-full mt-2 w-60 z-50">
-            <button onclick="closeChannelsMenu(); openIntegrationsModal()" class="menu-item"><span class="material-symbols-outlined text-base">hub</span>渠道集成 · Integrations</button>
-            <button onclick="closeChannelsMenu(); openSchedulesModal()" class="menu-item"><span class="material-symbols-outlined text-base">calendar_month</span>发布队列 · Schedule</button>
-            <button onclick="closeChannelsMenu(); openNewCampaignModal()" class="menu-item"><span class="material-symbols-outlined text-base">add_circle</span>New campaign</button>
-            <div class="border-t hairline my-1"></div>
-            <button onclick="event.stopPropagation(); closeChannelsMenu(); toggleSidebar(true); toggleUserDropdown()" class="menu-item"><span class="material-symbols-outlined text-base">account_circle</span>Account</button>
+            <button onclick="closeChannelsMenu(); openIntegrationsModal()" class="menu-item"><span class="material-symbols-outlined text-base">hub</span><span data-i18n="nav.integrations">渠道与 API 接入</span></button>
+            <button onclick="closeChannelsMenu(); openSchedulesModal()" class="menu-item"><span class="material-symbols-outlined text-base">calendar_month</span><span data-i18n="nav.schedule">发布队列</span></button>
+            <button onclick="closeChannelsMenu(); openNewCampaignModal()" class="menu-item"><span class="material-symbols-outlined text-base">add_circle</span><span data-i18n="nav.newCampaign">New campaign</span></button>
+          </div>
+        </div>
+        <div class="relative">
+          <button id="accountButton" onclick="toggleAccountMenu(event)" class="avatar-btn" title="Account" data-i18n-title="header.account" aria-haspopup="menu"><span id="accountInitial"></span></button>
+          <div id="accountMenu" class="hidden menu absolute right-0 top-full mt-2 w-64 z-50" role="menu">
+            <div class="px-3 py-2 border-b hairline">
+              <div id="accountMenuEmail" class="text-xs font-medium text-ink truncate"></div>
+              <div id="accountMenuName" class="text-[11px] text-muted truncate"></div>
+            </div>
+            <button onclick="handleLogout()" class="menu-item text-rose-500" role="menuitem"><span class="material-symbols-outlined text-base">logout</span><span data-i18n="nav.logout">Log out</span></button>
           </div>
         </div>
       </div>
@@ -520,48 +560,48 @@
     <!-- ======================================================================= -->
     <div id="chatScrollArea" class="flex-1 overflow-y-auto px-4 sm:px-6">
       <div id="emptyHeroState" class="min-h-[80vh] flex flex-col items-center justify-center py-10 animate-fade-in">
-        <h1 class="hero-title">What campaign would you like to launch today?</h1>
-        <p class="hero-sub">AI-powered cross-border growth engine for global merchants.</p>
+        <h1 class="hero-title" data-i18n="hero.title">What campaign would you like to launch today?</h1>
+        <p class="hero-sub" data-i18n="hero.sub">AI-powered cross-border growth engine for global merchants.</p>
         <div id="heroComposerSlot" class="w-full max-w-3xl mt-8">
           <!-- Composer: moved between this slot and #dockComposerSlot by syncComposerPosition() -->
         <div id="composer" class="composer">
           <div id="attachedImagePreview" class="hidden flex items-center justify-between gap-3 mx-1 mb-2 p-2 rounded-2xl surface-muted">
             <div class="flex items-center gap-2.5 min-w-0">
               <img id="attachedThumb" src="" class="w-10 h-10 rounded-xl object-cover" alt="Attached media"/>
-              <div class="min-w-0"><span id="attachedFileName" class="text-xs text-ink font-medium block truncate max-w-[220px]"></span><span class="text-[11px] text-muted">Image attached</span></div>
+              <div class="min-w-0"><span id="attachedFileName" class="text-xs text-ink font-medium block truncate max-w-[220px]"></span><span class="text-[11px] text-muted" data-i18n="composer.imageAttached">Image attached</span></div>
             </div>
-            <button type="button" onclick="clearAttachedImage()" class="icon-btn" title="Remove attachment"><span class="material-symbols-outlined text-base">close</span></button>
+            <button type="button" onclick="clearAttachedImage()" class="icon-btn" title="Remove attachment" data-i18n-title="composer.removeAttachment"><span class="material-symbols-outlined text-base">close</span></button>
           </div>
 
-          <textarea id="chatInput" rows="1" onkeydown="handleInputKey(event)" oninput="autoGrowInput(this)" class="composer-input" placeholder="Ask OmniFlow to create copy, analyze ads, or schedule a campaign..."></textarea>
+          <textarea id="chatInput" rows="1" onkeydown="handleInputKey(event)" oninput="autoGrowInput(this)" class="composer-input" placeholder="Ask OmniFlow to create copy, analyze ads, or schedule a campaign..." data-i18n-placeholder="composer.placeholder"></textarea>
 
           <div class="flex items-center justify-between gap-2 mt-1">
             <div class="flex items-center gap-1.5 min-w-0">
               <input type="file" id="mediaFileInput" accept="image/*" class="hidden" onchange="handleMediaSelect(event)"/>
-              <button onclick="document.getElementById('mediaFileInput').click()" id="attachBtn" class="round-btn" title="Attach media">
-                <span class="material-symbols-outlined text-xl">add</span><span id="attachLabel" class="sr-only">Attach media</span>
+              <button onclick="document.getElementById('mediaFileInput').click()" id="attachBtn" class="round-btn" title="Attach media" data-i18n-title="composer.attach">
+                <span class="material-symbols-outlined text-xl">add</span><span id="attachLabel" class="sr-only" data-i18n="composer.attach">Attach media</span>
               </button>
 
               <div class="relative">
-                <button onclick="toggleChannelPicker(event)" class="channel-pill" title="Target channel">
+                <button onclick="toggleChannelPicker(event)" class="channel-pill" title="Target channel" data-i18n-title="composer.channel">
                   <span id="channelPillIcon" class="material-symbols-outlined text-base">public</span>
-                  <span id="channelPillLabel">All channels</span>
+                  <span id="channelPillLabel" data-i18n="channel.all">All channels</span>
                   <span class="material-symbols-outlined text-base opacity-60">expand_more</span>
                 </button>
                 <div id="platformChipsContainer" class="hidden menu absolute left-0 bottom-full mb-2 w-52 z-50">
-                  <button onclick="togglePlatformChip(this, 'all')" data-label="All channels" class="chip-btn active-chip menu-item"><span class="material-symbols-outlined text-base">public</span>All channels</button>
+                  <button onclick="togglePlatformChip(this, 'all')" data-label="All channels" class="chip-btn active-chip menu-item"><span class="material-symbols-outlined text-base">public</span><span data-i18n="channel.all">All channels</span></button>
                   <button onclick="togglePlatformChip(this, 'meta')" data-label="Meta" data-logo="/static/assets/logos/meta.svg" class="chip-btn menu-item"><img src="/static/assets/logos/meta.svg" class="w-4 h-4" alt=""/>Meta</button>
                   <button onclick="togglePlatformChip(this, 'x')" data-label="X" data-logo="/static/assets/logos/x.svg" class="chip-btn menu-item"><img src="/static/assets/logos/x.svg" class="w-4 h-4 logo-mono" alt=""/>X</button>
                   <button onclick="togglePlatformChip(this, 'tiktok')" data-label="TikTok" data-logo="/static/assets/logos/tiktok.svg" class="chip-btn menu-item"><img src="/static/assets/logos/tiktok.svg" class="w-4 h-4" alt=""/>TikTok</button>
-                  <div class="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-muted">More</div>
+                  <div class="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-muted" data-i18n="channel.more">More</div>
                   <button onclick="togglePlatformChip(this, 'instagram')" data-label="Instagram" data-logo="/static/assets/logos/instagram.svg" class="chip-btn menu-item"><img src="/static/assets/logos/instagram.svg" class="w-4 h-4" alt=""/>Instagram</button>
-                  <button onclick="togglePlatformChip(this, 'xiaohongshu')" data-label="RED" data-logo="/static/assets/logos/xiaohongshu.svg" class="chip-btn menu-item"><img src="/static/assets/logos/xiaohongshu.svg" class="w-4 h-4" alt=""/>小红书 RED</button>
-                  <button onclick="togglePlatformChip(this, 'wechat')" data-label="WeChat" data-logo="/static/assets/logos/wechat.svg" class="chip-btn menu-item"><img src="/static/assets/logos/wechat.svg" class="w-4 h-4" alt=""/>WeChat</button>
+                  <button onclick="togglePlatformChip(this, 'xiaohongshu')" data-label="RED" data-logo="/static/assets/logos/xiaohongshu.svg" class="chip-btn menu-item"><img src="/static/assets/logos/xiaohongshu.svg" class="w-4 h-4" alt=""/><span data-i18n="platform.xiaohongshu">小红书</span></button>
+                  <button onclick="togglePlatformChip(this, 'wechat')" data-label="WeChat" data-logo="/static/assets/logos/wechat.svg" class="chip-btn menu-item"><img src="/static/assets/logos/wechat.svg" class="w-4 h-4" alt=""/><span data-i18n="platform.wechat">WeChat</span></button>
                 </div>
               </div>
             </div>
 
-            <button onclick="submitChat()" id="sendBtn" class="send-btn" title="Send">
+            <button onclick="submitChat()" id="sendBtn" class="send-btn" title="Send" data-i18n-title="composer.send">
               <span class="material-symbols-outlined text-xl">arrow_upward</span>
             </button>
           </div>
@@ -585,14 +625,13 @@
       <div class="flex items-start gap-3">
         <span class="w-10 h-10 shrink-0 rounded-xl surface-muted flex items-center justify-center"><span class="material-symbols-outlined text-xl text-muted">info</span></span>
         <div class="min-w-0">
-          <h3 id="oauthNoticeTitle" class="text-base font-semibold text-ink">Facebook 授权暂不可用</h3>
-          <p class="text-sm text-ink mt-2 leading-relaxed">Meta App credentials not set in .env. Please use the 'System User Token' or Agency BM binding tab instead.</p>
-          <p class="text-xs text-muted mt-2 leading-relaxed">服务器尚未配置 META_APP_ID / META_APP_SECRET / META_REDIRECT_URI。请改用「已有企业账户绑定」中的 System User Token，或通过代理商 BM 绑定。</p>
+          <h3 id="oauthNoticeTitle" class="text-base font-semibold text-ink" data-i18n="oauth.title">Facebook 授权暂不可用</h3>
+          <p class="text-sm text-muted mt-2 leading-relaxed" data-i18n="oauth.body"></p>
         </div>
       </div>
       <div class="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <button onclick="closeOAuthNotice()" class="secondary-btn">关闭</button>
-        <button onclick="closeOAuthNotice(); openIntegrationsModal('bind')" class="primary-btn">绑定已有企业账户</button>
+        <button onclick="closeOAuthNotice()" class="secondary-btn" data-i18n="common.close">关闭</button>
+        <button onclick="closeOAuthNotice(); openIntegrationsModal('bind')" class="primary-btn" data-i18n="oauth.bind">绑定已有企业账户</button>
       </div>
     </div>
   </div>
@@ -606,55 +645,55 @@
         <div class="flex items-center gap-3">
           <span class="w-10 h-10 rounded-xl surface-muted flex items-center justify-center"><img src="/static/assets/logos/meta.svg" class="w-5 h-5" alt=""/></span>
           <div>
-            <h3 class="text-base font-semibold text-ink">Meta 企业广告账户快速开户</h3>
-            <p class="text-xs text-muted mt-0.5">Meta business ad account fast-track</p>
+            <h3 class="text-base font-semibold text-ink" data-i18n="header.metaIntake">Meta 企业广告账户快速开户</h3>
+            <p class="text-xs text-muted mt-0.5" data-i18n="agency.subtitle"></p>
           </div>
         </div>
-        <button onclick="closeMetaAccountModal()" class="icon-btn" title="Close"><span class="material-symbols-outlined text-lg">close</span></button>
+        <button onclick="closeMetaAccountModal()" class="icon-btn" title="Close" data-i18n-title="common.close"><span class="material-symbols-outlined text-lg">close</span></button>
       </div>
 
       <form id="metaPanelApply" class="mt-5 space-y-4" onsubmit="submitMetaAccountApplication(event)" novalidate>
         <div>
-          <h4 class="text-sm font-semibold text-ink">Meta 官方代理商绿色开户通道 (Meetsocial / YinoLink)</h4>
-          <p class="text-xs text-muted mt-1 leading-relaxed">提交营业执照信息与店铺链接，我们的开户顾问会协助您通过 Meta 官方授权代理商开通企业广告账户。</p>
+          <h4 class="text-sm font-semibold text-ink" data-i18n="agency.heading">Meta 官方代理商绿色开户通道 (Meetsocial / YinoLink)</h4>
+          <p class="text-xs text-muted mt-1 leading-relaxed" data-i18n="agency.intro">提交营业执照信息与店铺链接，我们的开户顾问会协助您通过 Meta 官方授权代理商开通企业广告账户。</p>
         </div>
 
         <div id="agencyFormError" class="form-alert hidden" role="alert"></div>
 
         <div class="space-y-3">
           <div>
-            <label for="agencyCompanyName" class="field-label">公司名称 <span class="text-muted">Company name</span></label>
-            <input id="agencyCompanyName" name="company_name" type="text" maxlength="200" autocomplete="organization" required class="field-input" placeholder="与营业执照一致，例如 深圳市某某贸易有限公司"/>
+            <label for="agencyCompanyName" class="field-label" data-i18n="agency.company">公司名称</label>
+            <input id="agencyCompanyName" name="company_name" type="text" maxlength="200" autocomplete="organization" required class="field-input" placeholder="与营业执照一致，例如 深圳市某某贸易有限公司" data-i18n-placeholder="agency.companyPh"/>
             <p class="field-error hidden" data-error-for="company_name"></p>
           </div>
           <div>
-            <label for="agencyCreditCode" class="field-label">统一社会信用代码 <span class="text-muted">Business license no.</span></label>
-            <input id="agencyCreditCode" name="credit_code" type="text" maxlength="18" autocomplete="off" spellcheck="false" required class="field-input font-mono uppercase tracking-wide" placeholder="18 位，营业执照上的代码"/>
+            <label for="agencyCreditCode" class="field-label" data-i18n="agency.creditCode">统一社会信用代码</label>
+            <input id="agencyCreditCode" name="credit_code" type="text" maxlength="18" autocomplete="off" spellcheck="false" required class="field-input font-mono uppercase tracking-wide" placeholder="18 位，营业执照上的代码" data-i18n-placeholder="agency.creditCodePh"/>
             <p class="field-error hidden" data-error-for="credit_code"></p>
           </div>
           <div>
-            <label for="agencyStoreUrl" class="field-label">独立站 / 店铺链接 <span class="text-muted">Store URL</span></label>
+            <label for="agencyStoreUrl" class="field-label" data-i18n="agency.storeUrl">独立站 / 店铺链接</label>
             <input id="agencyStoreUrl" name="store_url" type="text" inputmode="url" maxlength="500" autocomplete="url" spellcheck="false" required class="field-input" placeholder="https://shop.example.com"/>
             <p class="field-error hidden" data-error-for="store_url"></p>
           </div>
           <div>
-            <label for="agencyContact" class="field-label">联系方式 <span class="text-muted">WeChat / 手机 / 邮箱</span></label>
-            <input id="agencyContact" name="contact" type="text" maxlength="200" required class="field-input" placeholder="微信号、手机号或邮箱"/>
+            <label for="agencyContact" class="field-label" data-i18n="agency.contact">联系方式</label>
+            <input id="agencyContact" name="contact" type="text" maxlength="200" required class="field-input" placeholder="微信号、手机号或邮箱" data-i18n-placeholder="agency.contactPh"/>
             <p class="field-error hidden" data-error-for="contact"></p>
           </div>
           <div>
-            <label for="agencyRemarks" class="field-label">备注 <span class="text-muted">选填 · Optional</span></label>
-            <textarea id="agencyRemarks" name="remarks" rows="2" maxlength="2000" class="field-input resize-none" placeholder="例如预计月投放预算、目标市场"></textarea>
+            <label for="agencyRemarks" class="field-label"><span data-i18n="agency.remarks">备注</span> <span class="text-muted" data-i18n="agency.optional">选填</span></label>
+            <textarea id="agencyRemarks" name="remarks" rows="2" maxlength="2000" class="field-input resize-none" placeholder="例如预计月投放预算、目标市场" data-i18n-placeholder="agency.remarksPh"></textarea>
             <p class="field-error hidden" data-error-for="remarks"></p>
           </div>
         </div>
 
-        <button id="metaApplyBtn" type="submit" class="primary-btn w-full">立即提交开户申请</button>
+        <button id="metaApplyBtn" type="submit" class="primary-btn w-full" data-i18n="agency.submit">立即提交开户申请</button>
         <p id="metaApplyExternalWrap" class="hidden text-center text-xs">
-          <a id="metaApplyExternal" href="#" target="_blank" rel="noopener" class="text-muted hover:text-ink">或前往代理商官网申请 ↗</a>
+          <a id="metaApplyExternal" href="#" target="_blank" rel="noopener" class="text-muted hover:text-ink" data-i18n="agency.external">或前往代理商官网申请 ↗</a>
         </p>
-        <p class="text-center text-xs text-muted">已有企业广告账户？
-          <button type="button" onclick="closeMetaAccountModal(); openIntegrationsModal('bind')" class="text-ink underline underline-offset-2">前往渠道集成绑定</button>
+        <p class="text-center text-xs text-muted"><span data-i18n="agency.haveAccount">已有企业广告账户？</span>
+          <button type="button" onclick="closeMetaAccountModal(); openIntegrationsModal('bind')" class="text-ink underline underline-offset-2" data-i18n="agency.goBind">前往渠道与 API 接入绑定</button>
         </p>
       </form>
     </div>
@@ -671,7 +710,7 @@
             <span class="material-symbols-outlined text-base">rocket_launch</span>
           </div>
           <div>
-            <h3 class="text-sm font-bold text-white">Create Autonomous Campaign</h3>
+            <h3 class="text-sm font-bold text-white" data-i18n="camp.createTitle">Create Autonomous Campaign</h3>
             <p class="text-[11px] text-zinc-400">POST /campaign/create</p>
           </div>
         </div>
@@ -680,27 +719,27 @@
 
       <form id="campaignModalForm" onsubmit="handleCampaignModalSubmit(event)" class="space-y-3.5 text-xs">
         <div>
-          <label class="block text-zinc-300 font-medium mb-1">Campaign Name</label>
-          <input type="text" id="modalCampName" required value="" placeholder="Campaign name"
+          <label class="block text-zinc-300 font-medium mb-1" data-i18n="camp.name">Campaign Name</label>
+          <input type="text" id="modalCampName" required value="" placeholder="Campaign name" data-i18n-placeholder="camp.namePh"
             class="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500"/>
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-zinc-300 font-medium mb-1">Objective</label>
+            <label class="block text-zinc-300 font-medium mb-1" data-i18n="camp.objective">Objective</label>
             <select id="modalCampObj" class="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-zinc-200 focus:outline-none focus:border-indigo-500">
-              <option value="brand_awareness">Brand Awareness</option>
-              <option value="conversions">Conversions & Sales</option>
-              <option value="engagement">Community Engagement</option>
+              <option value="brand_awareness" data-i18n="camp.obj.awareness">Brand Awareness</option>
+              <option value="conversions" data-i18n="camp.obj.conversions">Conversions & Sales</option>
+              <option value="engagement" data-i18n="camp.obj.engagement">Community Engagement</option>
             </select>
           </div>
           <div>
-            <label class="block text-zinc-300 font-medium mb-1">Budget ($ USD)</label>
-            <input type="number" id="modalCampBudget" min="100" step="50" value="" placeholder="Set budget after strategy review"
+            <label class="block text-zinc-300 font-medium mb-1" data-i18n="camp.budget">Budget ($ USD)</label>
+            <input type="number" id="modalCampBudget" min="100" step="50" value="" placeholder="Set budget after strategy review" data-i18n-placeholder="camp.budgetPh"
               class="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500"/>
           </div>
         </div>
         <div>
-          <label class="block text-zinc-300 font-medium mb-1">Target Platforms</label>
+          <label class="block text-zinc-300 font-medium mb-1" data-i18n="camp.platforms">Target Platforms</label>
           <div class="grid grid-cols-3 gap-2 text-[11px]">
             <label class="flex items-center gap-2 glass-pill p-2 rounded-lg cursor-pointer hover:bg-white/10 transition">
               <input type="checkbox" name="mplatform" value="meta" checked class="rounded bg-black/40 border-white/20 text-indigo-600 focus:ring-0">
@@ -715,12 +754,12 @@
             <label class="flex items-center gap-2 glass-pill p-2 rounded-lg cursor-pointer hover:bg-white/10 transition">
               <input type="checkbox" name="mplatform" value="xiaohongshu" checked class="rounded bg-black/40 border-white/20 text-indigo-600 focus:ring-0">
               <img src="/static/assets/logos/xiaohongshu.svg" class="w-4 h-4 rounded-md"/>
-              <span>Xiaohongshu</span>
+              <span data-i18n="platform.xiaohongshu">Xiaohongshu</span>
             </label>
             <label class="flex items-center gap-2 glass-pill p-2 rounded-lg cursor-pointer hover:bg-white/10 transition">
               <input type="checkbox" name="mplatform" value="wechat" checked class="rounded bg-black/40 border-white/20 text-indigo-600 focus:ring-0">
               <img src="/static/assets/logos/wechat.svg" class="w-4 h-4 rounded-md"/>
-              <span>WeChat</span>
+              <span data-i18n="platform.wechat">WeChat</span>
             </label>
             <label class="flex items-center gap-2 glass-pill p-2 rounded-lg cursor-pointer hover:bg-white/10 transition">
               <input type="checkbox" name="mplatform" value="x" checked class="rounded bg-black/40 border-white/20 text-indigo-600 focus:ring-0">
@@ -735,13 +774,13 @@
           </div>
         </div>
         <div>
-          <label class="block text-zinc-300 font-medium mb-1">Product Description / Hook</label>
-          <textarea id="modalCampDesc" rows="2" placeholder="Describe the product, offer, audience, or launch context" class="w-full bg-black/40 border border-white/10 rounded-xl p-2 text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 resize-none"></textarea>
+          <label class="block text-zinc-300 font-medium mb-1" data-i18n="camp.desc">Product Description / Hook</label>
+          <textarea id="modalCampDesc" rows="2" placeholder="Describe the product, offer, audience, or launch context" data-i18n-placeholder="camp.descPh" class="w-full bg-black/40 border border-white/10 rounded-xl p-2 text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 resize-none"></textarea>
         </div>
         <div class="flex items-center justify-end gap-2.5 pt-2 border-t border-white/10">
-          <button type="button" onclick="closeNewCampaignModal()" class="px-3.5 py-1.5 rounded-xl text-zinc-400 hover:text-white transition">Cancel</button>
+          <button type="button" onclick="closeNewCampaignModal()" class="px-3.5 py-1.5 rounded-xl text-zinc-400 hover:text-white transition" data-i18n="common.cancel">Cancel</button>
           <button type="submit" id="modalCampSubmitBtn" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold shadow-lg shadow-indigo-600/30 transition flex items-center gap-1.5">
-            <span>Deploy Strategy</span>
+            <span data-i18n="camp.deploy">Deploy Strategy</span>
             <span class="material-symbols-outlined text-sm">arrow_forward</span>
           </button>
         </div>
@@ -760,10 +799,10 @@
           <div class="flex items-center gap-2">
             <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.7)] animate-pulse"></span>
             <span id="cdStatusBadge" class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold uppercase">ACTIVE</span>
-            <span id="cdIdLabel" class="text-[10px] font-mono text-zinc-500 bg-white/5 px-2 py-0.5 rounded">ID: loading...</span>
+            <span id="cdIdLabel" class="text-[10px] font-mono text-zinc-500 bg-white/5 px-2 py-0.5 rounded">ID: —</span>
           </div>
-          <h2 id="cdTitle" class="text-xl font-bold text-white tracking-tight">Campaign Details</h2>
-          <p id="cdObjective" class="text-xs text-zinc-400">Loading campaign strategy...</p>
+          <h2 id="cdTitle" class="text-xl font-bold text-white tracking-tight" data-i18n="cd.title">Campaign Details</h2>
+          <p id="cdObjective" class="text-xs text-zinc-400" data-i18n="cd.loading">Loading campaign strategy...</p>
         </div>
         <button onclick="closeCampaignDetailsModal()" class="w-8 h-8 rounded-full bg-white/5 hover:bg-white/15 flex items-center justify-center text-zinc-400 hover:text-white transition">✕</button>
       </div>
@@ -773,28 +812,28 @@
         <!-- Key Metrics Cards -->
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div class="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-1">
-            <span class="text-zinc-500 text-[10px] block uppercase font-medium">Budget</span>
-            <span id="cdBudget" class="text-lg font-bold text-white">$1,800 USD</span>
+            <span class="text-zinc-500 text-[10px] block uppercase font-medium" data-i18n="cd.budget">Budget</span>
+            <span id="cdBudget" class="text-lg font-bold text-white">—</span>
           </div>
           <div class="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-1">
-            <span class="text-zinc-500 text-[10px] block uppercase font-medium">Platforms</span>
-            <span id="cdPlatformsCount" class="text-lg font-bold text-indigo-400">7 Active</span>
+            <span class="text-zinc-500 text-[10px] block uppercase font-medium" data-i18n="cd.platforms">Platforms</span>
+            <span id="cdPlatformsCount" class="text-lg font-bold text-indigo-400">—</span>
           </div>
           <div class="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-1">
-            <span class="text-zinc-500 text-[10px] block uppercase font-medium">Generated Drafts</span>
-            <span id="cdDraftsCount" class="text-lg font-bold text-emerald-400">0 Drafts</span>
+            <span class="text-zinc-500 text-[10px] block uppercase font-medium" data-i18n="cd.drafts">Generated Drafts</span>
+            <span id="cdDraftsCount" class="text-lg font-bold text-emerald-400">—</span>
           </div>
           <div class="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-1">
-            <span class="text-zinc-500 text-[10px] block uppercase font-medium">Scheduled Tasks</span>
-            <span id="cdTasksCount" class="text-lg font-bold text-cyan-400">0 Tasks</span>
+            <span class="text-zinc-500 text-[10px] block uppercase font-medium" data-i18n="cd.tasks">Scheduled Tasks</span>
+            <span id="cdTasksCount" class="text-lg font-bold text-cyan-400">—</span>
           </div>
         </div>
 
         <!-- Strategy Allocation & Channels -->
         <div class="p-4 rounded-xl bg-white/[0.02] border border-white/10 space-y-3">
           <div class="flex items-center justify-between">
-            <span class="font-semibold text-white">Channel Budget Distribution</span>
-            <span class="text-[10px] text-emerald-400 font-mono">Dynamic Multi-Arm Bandit</span>
+            <span class="font-semibold text-white" data-i18n="cd.distribution">Channel Budget Distribution</span>
+            <span class="text-[10px] text-emerald-400 font-mono" data-i18n="cd.bandit">Dynamic Multi-Arm Bandit</span>
           </div>
           <div id="cdBudgetPills" class="flex flex-wrap gap-2">
             <!-- Populated via JS -->
@@ -804,13 +843,13 @@
         <!-- Content Pillars & Strategy Info -->
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div class="p-3.5 rounded-xl bg-white/[0.02] border border-white/10 space-y-2">
-            <span class="text-zinc-400 font-semibold block">Content Pillars</span>
+            <span class="text-zinc-400 font-semibold block" data-i18n="cd.pillars">Content Pillars</span>
             <div id="cdContentPillars" class="flex flex-wrap gap-1.5">
               <!-- Populated via JS -->
             </div>
           </div>
           <div class="p-3.5 rounded-xl bg-white/[0.02] border border-white/10 space-y-2">
-            <span class="text-zinc-400 font-semibold block">Target Audience & Voice</span>
+            <span class="text-zinc-400 font-semibold block" data-i18n="cd.voice">Target Audience & Voice</span>
             <p id="cdVoiceAndDesc" class="text-zinc-300 leading-relaxed text-[11px]"></p>
           </div>
         </div>
@@ -818,9 +857,9 @@
         <!-- Campaign Generated Drafts List -->
         <div class="space-y-2.5">
           <div class="flex items-center justify-between">
-            <span class="font-semibold text-white">Campaign Localized Drafts</span>
+            <span class="font-semibold text-white" data-i18n="cd.localized">Campaign Localized Drafts</span>
             <button onclick="writeMoreForCurrentCampaign()" class="text-indigo-400 hover:text-indigo-300 text-[11px] font-medium flex items-center gap-1">
-              <span>+ Generate New Copy</span>
+              <span data-i18n="cd.generateNew">+ Generate New Copy</span>
               <span class="material-symbols-outlined text-xs">arrow_forward</span>
             </button>
           </div>
@@ -831,7 +870,7 @@
 
         <!-- Campaign Publishing Tasks -->
         <div class="space-y-2.5">
-          <span class="font-semibold text-white">Pipeline Execution Tasks</span>
+          <span class="font-semibold text-white" data-i18n="cd.pipeline">Pipeline Execution Tasks</span>
           <div id="cdTasksList" class="space-y-2 max-h-40 overflow-y-auto pr-1">
             <!-- Populated via JS -->
           </div>
@@ -840,15 +879,15 @@
 
       <!-- Action Footer -->
       <div class="flex items-center justify-between pt-3 border-t border-white/10 shrink-0">
-        <button onclick="closeCampaignDetailsModal()" class="px-4 py-2 rounded-xl text-zinc-400 hover:text-white transition">Close</button>
+        <button onclick="closeCampaignDetailsModal()" class="px-4 py-2 rounded-xl text-zinc-400 hover:text-white transition" data-i18n="common.close">Close</button>
         <div class="flex items-center gap-2.5">
           <button onclick="dispatchCampaignImmediate()" id="btnDispatchCampaign" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white font-medium transition flex items-center gap-1.5">
             <span class="material-symbols-outlined text-sm">rocket_launch</span>
-            <span>Publish Next Post</span>
+            <span data-i18n="cd.publishNext">Publish Next Post</span>
           </button>
           <button onclick="writeMoreForCurrentCampaign()" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold shadow-lg shadow-indigo-600/30 transition flex items-center gap-1.5">
             <span class="material-symbols-outlined text-sm">chat</span>
-            <span>Open in Chat & Generate</span>
+            <span data-i18n="cd.openChat">Open in Chat & Generate</span>
           </button>
         </div>
       </div>
@@ -863,7 +902,7 @@
       <div class="flex items-center justify-between border-b border-white/10 pb-3">
         <div class="flex items-center gap-2">
           <span class="material-symbols-outlined text-indigo-400 text-lg">calendar_clock</span>
-          <h3 class="text-sm font-bold text-white">Scheduled Dispatch Queue & Tasks</h3>
+          <h3 class="text-sm font-bold text-white" data-i18n="sch.title">Scheduled Dispatch Queue & Tasks</h3>
         </div>
         <button onclick="closeSchedulesModal()" class="w-7 h-7 rounded-full bg-white/5 hover:bg-white/15 flex items-center justify-center text-zinc-400 hover:text-white transition">✕</button>
       </div>
@@ -871,8 +910,8 @@
         <!-- Will be populated dynamically via loadSchedulesList() -->
       </div>
       <div class="flex justify-between items-center pt-2 border-t border-white/10 text-xs text-zinc-400">
-        <span>Auto-sync with AsyncIOScheduler</span>
-        <button onclick="triggerImmediatePublishAll()" class="px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-medium transition">Publish Next in Queue</button>
+        <span data-i18n="sch.footer">Auto-sync with AsyncIOScheduler</span>
+        <button onclick="triggerImmediatePublishAll()" class="px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-medium transition" data-i18n="sch.publishNext">Publish Next in Queue</button>
       </div>
     </div>
   </div>
@@ -880,7 +919,7 @@
   <!-- Notification Toast -->
   <div id="toast" role="status" aria-live="polite" class="fixed bottom-24 right-6 z-50 glass-panel px-4 py-2.5 rounded-xl text-xs font-medium flex items-center gap-2 border border-white/20 shadow-2xl transition-all duration-300 opacity-0 pointer-events-none translate-y-2">
     <span id="toastIcon" class="material-symbols-outlined text-sm text-emerald-400">check_circle</span>
-    <span id="toastMsg" class="text-white">Action successful</span>
+    <span id="toastMsg" class="text-white"></span>
   </div>
 
   <!-- ========================================================================= -->
@@ -895,13 +934,363 @@
     let currentUser = null;
     let attachedImage = null;
 
+    // =========================================================================
+    // LANGUAGE: 简体中文 (default) / English, switched live without a reload.
+    // Static text carries data-i18n (and data-i18n-placeholder / -title / -aria-label)
+    // keys that applyLanguage() fills in; text written by scripts goes through
+    // t() (a string), msg() (a message that follows later switches) or i18nSpan().
+    // =========================================================================
+    const LANG_STORAGE_KEY = 'omniflow_lang';
+    const I18N = {
+      // key: [简体中文, English]
+      'nav.menu': ['菜单', 'Menu'],
+      'nav.newPrompt': ['新对话', 'New prompt'],
+      'nav.workspace': ['工作区', 'Workspace'],
+      'nav.integrations': ['渠道与 API 接入', 'Channels & APIs'],
+      'nav.schedule': ['发布队列', 'Schedule queue'],
+      'nav.campaigns': ['营销活动', 'Campaigns'],
+      'nav.newCampaign': ['新建营销活动', 'New campaign'],
+      'nav.noCampaigns': ['暂无营销活动', 'No active campaigns yet'],
+      'nav.channelsShort': ['{n} 个渠道', '{n} ch'],
+      'nav.network': ['网络', 'Network'],
+      'nav.apiDocs': ['API 文档', 'API docs'],
+      'nav.metaConnection': ['Meta 连接状态', 'Meta connection'],
+      'nav.logout': ['退出登录', 'Log out'],
+      'header.theme': ['切换浅色 / 深色', 'Toggle light / dark'],
+      'header.metaIntake': ['Meta 企业广告账户快速开户', 'Meta Enterprise BM Intake'],
+      'header.metaIntakeShort': ['快速开户', 'BM Intake'],
+      'header.settings': ['渠道与设置', 'Channels & settings'],
+      'header.account': ['账户', 'Account'],
+      'common.close': ['关闭', 'Close'],
+      'common.cancel': ['取消', 'Cancel'],
+      'common.save': ['保存', 'Save'],
+      'common.saving': ['正在保存…', 'Saving…'],
+      'common.verifying': ['正在验证…', 'Verifying…'],
+      'common.required': ['必填', 'Required'],
+      'common.badFormat': ['格式不正确，请检查后重试', 'Invalid format, please check and try again'],
+      'common.fixFields': ['请检查标红的字段后重试。', 'Please check the highlighted fields and try again.'],
+      'common.network': ['网络连接失败，请检查网络后重试。', 'Network error. Please check your connection and try again.'],
+      'common.requestFailed': ['请求失败（HTTP {status}）', 'Request failed (HTTP {status})'],
+
+      'hero.title': ['今天想启动什么营销活动？', 'What campaign would you like to launch today?'],
+      'hero.sub': ['面向全球商家的 AI 跨境增长引擎。', 'AI-powered cross-border growth engine for global merchants.'],
+      'composer.placeholder': ['输入产品卖点、受众，生成多平台广告文案...', 'Ask OmniFlow to create copy, analyze ads, or schedule a campaign...'],
+      'composer.attach': ['添加图片', 'Attach media'],
+      'composer.imageAttached': ['已添加图片', 'Image attached'],
+      'composer.attachedToast': ['已添加图片：{name}', 'Image attached: {name}'],
+      'composer.uploadedImage': ['已上传的图片', 'Uploaded image'],
+      'composer.removeAttachment': ['移除附件', 'Remove attachment'],
+      'composer.channel': ['目标渠道', 'Target channel'],
+      'composer.send': ['发送', 'Send'],
+      'channel.all': ['全部渠道', 'All channels'],
+      'channel.more': ['更多', 'More'],
+      'platform.xiaohongshu': ['小红书', 'Xiaohongshu (RED)'],
+      'platform.wechat': ['微信', 'WeChat'],
+      'platform.douyin': ['抖音', 'Douyin'],
+
+      'chat.you': ['你', 'You'],
+      'chat.justNow': ['刚刚', 'Just now'],
+      'chat.thinking': ['OmniFlow AI 正在思考…', 'OmniFlow AI is thinking...'],
+      'chat.thinkingSub': ['正在生成跨境营销策略与创意…', 'Synthesizing cross-border marketing strategy & multimodal creative...'],
+      'chat.errorTitle': ['生成失败', 'Generation Error'],
+      'chat.errorTag': ['提示', 'Pipeline Notice'],
+      'chat.errorHint': ['请检查服务器连接，或换一个提示词再试。', 'Please verify your server connection or try a different prompt.'],
+      'chat.genFailed': ['生成失败（HTTP {status}）', 'Generation failed (HTTP {status})'],
+      'chat.netError': ['生成请求网络错误：{error}', 'Network error in generation pipeline: {error}'],
+      'chat.noCopy': ['AI 没有返回任何文案，请尝试更具体的提示词。', 'The AI did not return any copy. Please try a more specific prompt.'],
+      'card.fallbackSource': ['AI 暂不可用 · 模板草稿', 'AI unavailable · template draft'],
+      'card.fallbackNotice': ['AI 模型当前不可用，以下是模板生成的草稿，可能包含不准确的描述。发布前请务必修改。', 'The AI model is currently unavailable. This is a template draft and may contain inaccurate wording. Please edit it before publishing.'],
+      'card.publish': ['发布到 Facebook', 'Publish to Facebook'],
+      'card.publishing': ['正在发布到 Meta…', 'Publishing to Meta...'],
+      'card.published': ['已发布到 Facebook', 'Published to Facebook'],
+      'card.copy': ['复制', 'Copy'],
+      'card.regenerate': ['重新生成', 'Regenerate'],
+      'card.copied': ['已复制到剪贴板', 'Copied to clipboard'],
+      'card.connectFirst': ['请先在「渠道与 API 接入」中连接 Facebook 主页。', 'Connect a Facebook Page in Channels & APIs first.'],
+      'card.publishFailed': ['发布失败：{error}', 'Publishing failed: {error}'],
+      'card.publishNetwork': ['网络连接失败：{error}', 'Network error: {error}'],
+      'card.publishedBanner': ['已成功发布到 Facebook！', 'Successfully published to Facebook!'],
+      'card.viewPost': ['在 Facebook 查看帖子', 'View Post on Facebook'],
+
+      'auth.title': ['欢迎使用 OmniFlow', 'Welcome to OmniFlow'],
+      'auth.subtitle': ['登录以管理您的跨境营销工作区', 'Sign in to manage your cross-border marketing workspace'],
+      'auth.signIn': ['登录', 'Sign In'],
+      'auth.signUp': ['注册', 'Sign Up'],
+      'auth.email': ['邮箱', 'Email'],
+      'auth.password': ['密码', 'Password'],
+      'auth.continue': ['继续', 'Continue'],
+      'auth.signingIn': ['正在登录…', 'Signing in…'],
+      'auth.creating': ['正在创建账户…', 'Creating account…'],
+      'auth.welcomeNew': ['账户已创建，欢迎使用 OmniFlow', 'Account created. Welcome to OmniFlow'],
+      'auth.welcomeBack': ['欢迎回来', 'Welcome back'],
+      'auth.err.expired': ['登录已过期，请重新登录。', 'Your session has expired. Please sign in again.'],
+      'auth.err.unverified': ['暂时无法验证登录状态，请稍后重试。', "Couldn't verify your session. Please try again shortly."],
+      'auth.err.offline': ['无法连接服务器，请检查网络后刷新页面。', "Can't reach the server. Check your connection and reload the page."],
+      'auth.err.email': ['请输入有效的邮箱地址。', 'Please enter a valid email address.'],
+      'auth.err.passwordShort': ['密码至少 8 位。', 'Password must be at least 8 characters.'],
+      'auth.err.passwordMissing': ['请输入密码。', 'Please enter your password.'],
+      'auth.err.registerFailed': ['注册失败，请稍后重试。', 'Sign-up failed. Please try again later.'],
+      'auth.err.credentials': ['邮箱或密码不正确。', 'Incorrect email or password.'],
+      'auth.err.exists': ['该邮箱已注册，请直接登录。', 'This email is already registered. Please sign in.'],
+      'auth.err.format': ['请检查邮箱和密码格式。', 'Please check your email and password.'],
+
+      'oauth.title': ['Facebook 授权暂不可用', 'Facebook authorization unavailable'],
+      'oauth.body': ['服务器尚未配置 Meta 应用凭证（META_APP_ID / META_APP_SECRET / META_REDIRECT_URI）。请改用 Page Token 或企业广告账户绑定。', 'Meta App credentials are not set on the server (META_APP_ID / META_APP_SECRET / META_REDIRECT_URI). Please use a Page Token or bind a business ad account instead.'],
+      'oauth.bind': ['绑定已有企业账户', 'Bind existing account'],
+      'oauth.unavailable': ['Facebook 授权暂不可用：{detail}', 'Facebook authorization unavailable: {detail}'],
+
+      'agency.subtitle': ['通过 Meta 官方授权代理商开户', 'Open an ad account through an official Meta agency'],
+      'agency.heading': ['Meta 官方代理商绿色开户通道 (Meetsocial / YinoLink)', 'Official Meta agency fast track (Meetsocial / YinoLink)'],
+      'agency.intro': ['提交营业执照信息与店铺链接，我们的开户顾问会协助您通过 Meta 官方授权代理商开通企业广告账户。', 'Submit your business license details and store link, and our account team will help you open a business ad account through an official Meta agency partner.'],
+      'agency.company': ['公司名称', 'Company Name'],
+      'agency.companyPh': ['与营业执照一致，例如 深圳市某某贸易有限公司', 'As shown on your business license'],
+      'agency.creditCode': ['统一社会信用代码', 'Credit Code'],
+      'agency.creditCodePh': ['18 位，营业执照上的代码', '18-character code on your business license'],
+      'agency.storeUrl': ['独立站 / 店铺链接', 'Store URL'],
+      'agency.contact': ['联系方式', 'Contact'],
+      'agency.contactPh': ['微信号、手机号或邮箱', 'WeChat ID, phone or email'],
+      'agency.remarks': ['备注', 'Remarks'],
+      'agency.optional': ['选填', 'Optional'],
+      'agency.remarksPh': ['例如预计月投放预算、目标市场', 'e.g. expected monthly budget, target markets'],
+      'agency.submit': ['立即提交开户申请', 'Submit application'],
+      'agency.submitting': ['提交中…', 'Submitting…'],
+      'agency.external': ['或前往代理商官网申请 ↗', "Or apply on the agency's website ↗"],
+      'agency.haveAccount': ['已有企业广告账户？', 'Already have a business ad account?'],
+      'agency.goBind': ['前往渠道与 API 接入绑定', 'Bind it in Channels & APIs'],
+      'agency.success': ['申请已成功提交，我们将在 1-2 个工作日内与您联系协助下户', "Application submitted. We'll contact you within 1-2 business days to help open your account."],
+      'agency.err.company_name': ['请填写公司名称（与营业执照一致）。', 'Enter the company name as shown on your business license.'],
+      'agency.err.credit_code': ['请输入有效的 18 位统一社会信用代码。', 'Enter a valid 18-character Unified Social Credit Code.'],
+      'agency.err.store_url': ['请输入有效的店铺链接，例如 https://shop.example.com', 'Enter a valid store URL, e.g. https://shop.example.com'],
+      'agency.err.contact': ['请填写微信号、手机号或邮箱。', 'Enter a WeChat ID, phone number or email.'],
+      'agency.err.remarks': ['备注不能超过 2000 字。', 'Remarks must be 2000 characters or fewer.'],
+      'agency.err.required': ['请填写所有必填信息。', 'Please fill in all required fields.'],
+      'agency.err.fields': ['请检查标红的字段后重新提交。', 'Please check the highlighted fields and submit again.'],
+      'agency.err.invalid': ['提交的信息有误，请检查后重试。', 'Some details are invalid. Please check and try again.'],
+      'agency.err.login': ['请先登录后再提交开户申请。', 'Please sign in before submitting an application.'],
+      'agency.err.rate': ['提交过于频繁，请稍后再试。', 'Too many submissions. Please try again later.'],
+      'agency.err.http': ['提交失败（HTTP {status}），请稍后重试或联系客服。', 'Submission failed (HTTP {status}). Please try again later or contact support.'],
+      'agency.err.httpDetail': ['提交失败（HTTP {status}）：{detail}', 'Submission failed (HTTP {status}): {detail}'],
+
+      'int.title': ['渠道与 API 接入', 'Channels & Official APIs'],
+      'int.subtitle': ['连接官方 API 密钥或授权账户，用于自动发布。', 'Connect your official API keys or authorize accounts for automated publishing.'],
+      'int.tabOther': ['TikTok / 其他', 'TikTok / Other'],
+      'int.oauthTitle': ['一键 OAuth 授权', 'One-click OAuth'],
+      'int.oauthDesc': ['使用 Facebook 官方登录授权主页（发布与评论管理）', 'Authorize your Pages with Facebook Login (publishing and comment management)'],
+      'int.tokenTitle': ['手动输入 Page Token', 'Enter a Page Token manually'],
+      'int.tokenDesc': ['Page ID + Page Access Token，保存前由 Meta 验证', 'Page ID + Page Access Token, verified with Meta before saving'],
+      'int.pageIdPh': ['Facebook 主页 ID', 'Facebook Page ID'],
+      'int.tokenPh': ['粘贴主页访问令牌', 'Paste the Page access token'],
+      'int.verifySave': ['验证并保存', 'Verify & Save'],
+      'int.adsTitle': ['企业广告账户绑定', 'Bind a business ad account'],
+      'int.adsDesc': ['Ad Account ID + System User Token（Meetsocial / YinoLink 已开通账户）', 'Ad Account ID + System User Token (accounts opened via Meetsocial / YinoLink)'],
+      'int.adsTokenPh': ['Business Manager → 系统用户 → 生成令牌', 'Business Manager → System users → Generate token'],
+      'int.adsConnect': ['绑定广告账户', 'Connect Ad Account'],
+      'int.xNote': ['凭证会保存到当前工作区，但暂不做在线校验；自动发布到 X 尚未开放。', "Credentials are saved to this workspace but aren't verified online. Automatic publishing to X isn't available yet."],
+      'int.otherHeading': ['TikTok / 其他渠道', 'TikTok / Other Channels'],
+      'int.platform': ['平台', 'Platform'],
+      'int.optXhs': ['小红书', 'Xiaohongshu (RED)'],
+      'int.optWechat': ['微信公众号', 'WeChat Official Account'],
+      'int.otherNote': ['凭证会保存到当前工作区，但暂不做在线校验；自动发布到这些平台尚未开放。', "Credentials are saved to this workspace but aren't verified online. Automatic publishing to these platforms isn't available yet."],
+      'int.webhookHeading': ['自定义 Webhook / 通知', 'Custom webhook / Notifications'],
+      'int.webhookLabel': ['飞书 / Lark / 自定义 Webhook 地址', 'Feishu / Lark / Custom Webhook URL'],
+      'int.webhookNote': ['保存前会发送一条测试消息；成功后，新的开户申请等通知会推送到这里。', 'A test message is sent before saving. Once saved, notifications such as new ad account applications are delivered here.'],
+      'int.testSave': ['测试并保存', 'Test & Save'],
+      'int.sendingTest': ['正在发送测试消息…', 'Sending test message…'],
+      'int.statusError': ['暂时无法加载连接状态，请稍后重试。', "Couldn't load connection status. Please try again shortly."],
+      'int.notConnected': ['未连接', 'Not connected'],
+      'int.connected': ['已连接', 'Connected'],
+      'int.disconnect': ['断开', 'Disconnect'],
+      'int.confirmDisconnect': ['确定要断开 {name} 吗？', 'Disconnect {name}?'],
+      'int.disconnected': ['已断开 {name}', 'Disconnected {name}'],
+      'int.disconnectError': ['断开失败：{error}', "Couldn't disconnect: {error}"],
+      'int.pageConnected': ['已验证并连接主页：{name}', 'Page verified and connected: {name}'],
+      'int.xSaved': ['X 凭证已保存（未在线校验）', 'X credentials saved (not verified online)'],
+      'int.otherSaved': ['{name} 凭证已保存（未在线校验）', '{name} credentials saved (not verified online)'],
+      'int.webhookSaved': ['测试消息已送达，Webhook 已保存', 'Test message delivered. Webhook saved.'],
+      'int.webhookInvalid': ['请输入以 https:// 开头的 Webhook 地址', 'Enter a webhook URL starting with https://'],
+      'int.adIdInvalid': ['请输入广告账户 ID，例如 act_1234567890', 'Enter an ad account ID, e.g. act_1234567890'],
+      'int.adTokenMissing': ['请粘贴 System User Token', 'Paste a System User Token'],
+      'int.adTokenFormat': ['令牌格式不正确，请完整粘贴一个令牌', 'Invalid token. Paste one complete token.'],
+      'int.adVerifyFailed': ['验证失败（HTTP {status}）', 'Verification failed (HTTP {status})'],
+      'int.adLogin': ['请先登录后再绑定广告账户。', 'Please sign in before binding an ad account.'],
+      'int.adBound': ['广告账户已验证并绑定：{name} · {id}{status}', 'Ad account verified and connected: {name} · {id}{status}'],
+      'int.adStatus': ['（状态：{status}）', ' (status: {status})'],
+      'channel.name.meta': ['Facebook 主页', 'Facebook Page'],
+      'channel.name.instagram': ['Instagram 专业账户', 'Instagram Professional'],
+      'channel.name.xiaohongshu': ['小红书', 'Xiaohongshu (RED)'],
+      'channel.name.wechat': ['微信公众号', 'WeChat Official Account'],
+      'channel.name.meta_ads': ['Meta 广告账户', 'Meta Ad Account'],
+      'channel.name.webhook': ['通知 Webhook', 'Notification webhook'],
+
+      'camp.createTitle': ['创建自动化营销活动', 'Create Autonomous Campaign'],
+      'camp.name': ['活动名称', 'Campaign Name'],
+      'camp.namePh': ['活动名称', 'Campaign name'],
+      'camp.objective': ['营销目标', 'Objective'],
+      'camp.obj.awareness': ['品牌认知', 'Brand Awareness'],
+      'camp.obj.conversions': ['转化与销售', 'Conversions & Sales'],
+      'camp.obj.engagement': ['社群互动', 'Community Engagement'],
+      'camp.budget': ['预算（美元）', 'Budget ($ USD)'],
+      'camp.budgetPh': ['策略评估后再设置预算', 'Set budget after strategy review'],
+      'camp.platforms': ['目标平台', 'Target Platforms'],
+      'camp.desc': ['产品描述 / 卖点', 'Product Description / Hook'],
+      'camp.descPh': ['描述产品、优惠、受众或发布背景', 'Describe the product, offer, audience, or launch context'],
+      'camp.deploy': ['部署策略', 'Deploy Strategy'],
+      'camp.deploying': ['部署中…', 'Deploying...'],
+      'camp.deployed': ['营销活动「{name}」已创建！', 'Campaign "{name}" deployed!'],
+      'camp.createFailed': ['创建营销活动失败', 'Failed to create campaign'],
+      'camp.createError': ['创建营销活动出错：{error}', 'Error creating campaign: {error}'],
+      'camp.current': ['当前营销活动', 'current campaign'],
+      'camp.defaultName': ['新的营销活动', 'New Autonomous Launch'],
+      'camp.synthesizePrompt': ['为营销活动「{name}」生成营销文案', 'Generate marketing drafts for campaign {name}'],
+      'camp.writeMorePrompt': ['为营销活动「{name}」生成创意文案和高互动配图', 'Generate creative copy and high-engagement visuals for campaign: {name}'],
+      'acc.deployed': ['策略已部署', 'Strategy Deployed'],
+      'acc.planned': ['状态：计划中', 'Status: Planned'],
+      'acc.totalBudget': ['总预算', 'Total Budget'],
+      'acc.channels': ['目标渠道', 'Target Channels'],
+      'acc.channelsCount': ['{n} 个渠道', '{n} Channels'],
+      'acc.id': ['活动 ID', 'Campaign ID'],
+      'acc.strategy': ['策略', 'Strategy'],
+      'acc.bandit': ['动态优化', 'Bandit Dynamic'],
+      'acc.synthesize': ['生成创意文案 →', 'Synthesize Creative Copies →'],
+      'cd.title': ['营销活动详情', 'Campaign Details'],
+      'cd.loading': ['正在加载营销策略…', 'Loading campaign strategy...'],
+      'cd.defaultTitle': ['营销策略', 'Campaign Strategy'],
+      'cd.defaultObjective': ['跨境自动化营销策略', 'Cross-border autonomous strategy'],
+      'cd.budget': ['预算', 'Budget'],
+      'cd.platforms': ['平台', 'Platforms'],
+      'cd.drafts': ['已生成文案', 'Generated Drafts'],
+      'cd.tasks': ['定时任务', 'Scheduled Tasks'],
+      'cd.platformsCount': ['{n} 个', '{n} Active'],
+      'cd.draftsCount': ['{n} 篇', '{n} Drafts'],
+      'cd.tasksCount': ['{n} 个', '{n} Tasks'],
+      'cd.distribution': ['渠道预算分配', 'Channel Budget Distribution'],
+      'cd.bandit': ['动态预算分配 (MAB)', 'Dynamic Multi-Arm Bandit'],
+      'cd.optimized': ['自动优化', 'Optimized'],
+      'cd.pillars': ['内容支柱', 'Content Pillars'],
+      'cd.voice': ['目标受众与语气', 'Target Audience & Voice'],
+      'cd.tone': ['语气：{tone}。', 'Tone: {tone}.'],
+      'cd.localized': ['本地化文案', 'Campaign Localized Drafts'],
+      'cd.generateNew': ['+ 生成新文案', '+ Generate New Copy'],
+      'cd.noDrafts': ['还没有文案，点击下方按钮生成。', 'No copies synthesized yet. Click below to generate drafts.'],
+      'cd.pipeline': ['发布任务', 'Pipeline Execution Tasks'],
+      'cd.noTasks': ['暂无排队任务。', 'No tasks queued.'],
+      'cd.publishNext': ['发布下一条', 'Publish Next Post'],
+      'cd.publishing': ['发布中…', 'Publishing...'],
+      'cd.openChat': ['在对话中生成', 'Open in Chat & Generate'],
+      'cd.dispatched': ['已成功发布！', 'Live post dispatched successfully!'],
+      'cd.dispatchFailed': ['发布失败', 'Dispatch failed'],
+      'cd.dispatchError': ['发布出错：{error}', 'Dispatch error: {error}'],
+      'sch.title': ['定时发布队列', 'Scheduled Dispatch Queue & Tasks'],
+      'sch.footer': ['与 AsyncIOScheduler 自动同步', 'Auto-sync with AsyncIOScheduler'],
+      'sch.publishNext': ['发布队列中的下一条', 'Publish Next in Queue'],
+      'sch.empty': ['暂无发布任务。创建营销活动或审批文案后即可排期发布。', 'No publishing tasks scheduled. Create a campaign or approve a creative draft to schedule posts.'],
+      'sch.task': ['任务 {id}', 'Task {id}'],
+      'sch.published': ['已发布 🟢', 'Published 🟢'],
+      'sch.queued': ['排队中 ⏳', 'Queued ⏳'],
+      'sch.channel': ['渠道', 'Channel'],
+      'sch.target': ['时间', 'Target'],
+      'sch.immediate': ['立即', 'Immediate'],
+      'sch.publishedAt': ['已发布', 'Published'],
+      'sch.dispatchNow': ['立即发布', 'Dispatch Now'],
+      'sch.live': ['已上线', 'Live'],
+      'sch.loadError': ['加载任务失败：{error}', 'Error loading tasks: {error}'],
+      'sch.dispatchedNext': ['已发布队列中的下一条！', 'Dispatched next task in queue!'],
+      'sch.queueEmpty': ['队列为空或发布出错', 'Queue empty or dispatch error'],
+      'sch.taskDispatched': ['任务已发布！', 'Task dispatched to live feed!'],
+      'sch.error': ['出错：{error}', 'Error: {error}'],
+
+      'net.checking': ['正在检查网络…', 'Checking network…'],
+      'net.healthy': ['网络正常', 'Network healthy'],
+      'net.degraded': ['网络较慢', 'Network degraded'],
+      'net.down': ['网络不可用', 'Network down'],
+      'net.unavailable': ['网络检测失败', 'Network unavailable'],
+      'net.allDown': ['Meta 与智谱 AI 均无法访问', 'Meta and Zhipu AI unreachable'],
+      'net.checkFailed': ['网络检测失败：{error}', 'Network check failed: {error}'],
+      'net.viaProxy': [' · 经代理', ' · via proxy'],
+      'net.unreachable': ['无法访问', 'unreachable'],
+      'net.zhipu': ['智谱 AI', 'Zhipu AI'],
+    };
+
+    let currentLang = (() => {
+      try { return localStorage.getItem(LANG_STORAGE_KEY) === 'en' ? 'en' : 'zh'; } catch (_) { return 'zh'; }
+    })();
+
+    function t(key, vars) {
+      const entry = I18N[key];
+      let text = entry ? entry[currentLang === 'en' ? 1 : 0] : key;
+      if (vars) text = text.replace(/\{(\w+)\}/g, (match, name) => (vars[name] != null ? String(vars[name]) : match));
+      return text;
+    }
+
+    // A message that is re-translated when the language changes. Plain strings
+    // (e.g. errors returned by the server) are shown as they are.
+    function msg(key, vars) {
+      return { i18n: key, vars: vars || null };
+    }
+
+    function setText(el, message) {
+      if (!el) return;
+      if (message && typeof message === 'object' && message.i18n) {
+        el.dataset.i18n = message.i18n;
+        if (message.vars) el.dataset.i18nVars = JSON.stringify(message.vars);
+        else delete el.dataset.i18nVars;
+        el.textContent = t(message.i18n, message.vars);
+      } else {
+        delete el.dataset.i18n;
+        delete el.dataset.i18nVars;
+        el.textContent = message == null ? '' : String(message);
+      }
+    }
+
+    // Markup for translatable text inside HTML templates.
+    function i18nSpan(key, vars, className) {
+      const varsAttr = vars ? ` data-i18n-vars="${escapeHtml(JSON.stringify(vars))}"` : '';
+      const classAttr = className ? ` class="${className}"` : '';
+      return `<span data-i18n="${key}"${varsAttr}${classAttr}>${escapeHtml(t(key, vars))}</span>`;
+    }
+
+    function msgHtml(message) {
+      return message && typeof message === 'object' && message.i18n ? i18nSpan(message.i18n, message.vars) : escapeHtml(message);
+    }
+
+    // Text-only buttons with a data-i18n label: show a busy label, or restore the normal one.
+    function setButtonBusy(button, busyKey) {
+      if (!button) return;
+      button.disabled = !!busyKey;
+      if (busyKey) button.dataset.i18nBusy = busyKey;
+      else delete button.dataset.i18nBusy;
+      button.textContent = t(busyKey || button.dataset.i18n);
+    }
+
+    function applyLanguage(lang) {
+      currentLang = lang === 'en' ? 'en' : 'zh';
+      try { localStorage.setItem(LANG_STORAGE_KEY, currentLang); } catch (_) {}
+      document.documentElement.lang = currentLang === 'en' ? 'en' : 'zh-CN';
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        let vars = null;
+        if (el.dataset.i18nVars) {
+          try { vars = JSON.parse(el.dataset.i18nVars); } catch (_) {}
+        }
+        el.textContent = t(el.dataset.i18nBusy || el.dataset.i18n, vars);
+      });
+      ['placeholder', 'title', 'aria-label'].forEach(attr => {
+        document.querySelectorAll(`[data-i18n-${attr}]`).forEach(el => el.setAttribute(attr, t(el.getAttribute(`data-i18n-${attr}`))));
+      });
+      document.querySelectorAll('[data-lang-opt]').forEach(el => el.classList.toggle('active', el.dataset.langOpt === currentLang));
+      renderNetworkHealth();
+    }
+
+    function toggleLanguage() {
+      applyLanguage(currentLang === 'en' ? 'zh' : 'en');
+    }
+
     // Toast helper. options.variant === 'success' renders the green style; options.duration in ms.
     let toastTimer = null;
-    function showToast(msg, isSuccess = true, options = {}) {
+    function showToast(message, isSuccess = true, options = {}) {
       const toast = document.getElementById('toast');
       const toastMsg = document.getElementById('toastMsg');
       const toastIcon = document.getElementById('toastIcon');
-      toastMsg.textContent = msg;
+      setText(toastMsg, message);
       toastIcon.textContent = isSuccess ? 'check_circle' : 'info';
       toastIcon.className = isSuccess ? 'material-symbols-outlined text-sm text-emerald-400' : 'material-symbols-outlined text-sm text-indigo-400';
       toast.classList.toggle('toast-success', options.variant === 'success');
@@ -959,7 +1348,8 @@
       currentPlatformFilter = platform;
 
       const label = document.getElementById('channelPillLabel');
-      if (label) label.textContent = btn.dataset.label || platform;
+      const labelKey = btn.querySelector('[data-i18n]')?.dataset.i18n;
+      if (label) setText(label, labelKey ? msg(labelKey) : (btn.dataset.label || platform));
       const icon = document.getElementById('channelPillIcon');
       if (icon) {
         const logo = btn.dataset.logo;
@@ -1019,8 +1409,6 @@
     // META 企业广告账户快速开户
     // =========================================================================
     // The optional agency website link (META_AGENCY_APPLY_URL) is shown under the form when configured.
-    let serverRequiresAuth = false;
-
     async function loadPublicConfig() {
       let url = null;
       try {
@@ -1028,7 +1416,6 @@
         if (res.ok) {
           const cfg = await res.json();
           url = cfg.meta_agency_apply_url || null;
-          serverRequiresAuth = cfg.require_auth === true;
         }
       } catch (_) {}
       const link = document.getElementById('metaApplyExternal');
@@ -1063,9 +1450,9 @@
           window.location.href = body.authorization_url;
           return;
         }
-        showToast('Facebook 授权暂不可用：' + ((body && body.detail) || 'HTTP ' + res.status), false);
+        showToast(msg('oauth.unavailable', { detail: (body && body.detail) || 'HTTP ' + res.status }), false);
       } catch (err) {
-        showToast('网络连接失败，请检查网络后重试。', false);
+        showToast(msg('common.network'), false);
       }
     }
 
@@ -1087,7 +1474,7 @@
         input.setAttribute('aria-invalid', message ? 'true' : 'false');
       }
       if (slot) {
-        slot.textContent = message || '';
+        setText(slot, message);
         slot.classList.toggle('hidden', !message);
       }
     }
@@ -1095,7 +1482,7 @@
     function setFormAlert(id, message) {
       const box = document.getElementById(id);
       if (!box) return;
-      box.textContent = message || '';
+      setText(box, message);
       box.classList.toggle('hidden', !message);
     }
 
@@ -1111,11 +1498,11 @@
       const token = form.elements.access_token.value.trim();
       let invalid = false;
       if (!/^(act_)?\d+$/i.test(adAccountId)) {
-        setFormFieldError(form, 'ad_account_id', '请输入广告账户 ID，例如 act_1234567890');
+        setFormFieldError(form, 'ad_account_id', msg('int.adIdInvalid'));
         invalid = true;
       }
       if (!token) {
-        setFormFieldError(form, 'access_token', '请粘贴 System User Token');
+        setFormFieldError(form, 'access_token', msg('int.adTokenMissing'));
         invalid = true;
       }
       if (invalid) {
@@ -1123,8 +1510,7 @@
         return;
       }
 
-      button.disabled = true;
-      button.textContent = '正在验证…';
+      setButtonBusy(button, 'common.verifying');
       try {
         const res = await fetch('/tools/meta/ad-account/connect', {
           method: 'POST',
@@ -1134,45 +1520,36 @@
         let body = null;
         try { body = await res.json(); } catch (_) {}
         if (res.ok && body && body.connected) {
-          form.reset();
-          showAdAccountForm(false);
+          resetIntegrationForm('adAccountForm');
+          showMetaOption(null);
           loadIntegrationsStatus();
-          const status = body.account_status_label && body.account_status_label !== 'active' ? `（状态：${body.account_status_label}）` : '';
-          showToast(`广告账户已验证并绑定：${body.name} · ${body.ad_account_id}${status}`, true, { variant: 'success', duration: 6000 });
+          const status = body.account_status_label && body.account_status_label !== 'active' ? t('int.adStatus', { status: body.account_status_label }) : '';
+          showToast(msg('int.adBound', { name: body.name, id: body.ad_account_id, status }), true, { variant: 'success', duration: 6000 });
           return;
         }
-        let message = `验证失败（HTTP ${res.status}）`;
+        let message = msg('int.adVerifyFailed', { status: res.status });
         if (res.status === 422 && Array.isArray(body?.detail)) {
           body.detail.forEach(item => {
             const field = Array.isArray(item.loc) ? item.loc[item.loc.length - 1] : null;
-            if (field === 'ad_account_id') setFormFieldError(form, field, '请输入广告账户 ID，例如 act_1234567890');
-            if (field === 'access_token') setFormFieldError(form, field, '令牌格式不正确，请完整粘贴一个令牌');
+            if (field === 'ad_account_id') setFormFieldError(form, field, msg('int.adIdInvalid'));
+            if (field === 'access_token') setFormFieldError(form, field, msg('int.adTokenFormat'));
           });
-          message = '请检查标红的字段后重试。';
+          message = msg('common.fixFields');
         } else if (typeof body?.detail === 'string') {
           message = body.detail;
         } else if (res.status === 401) {
-          message = '请先登录后再绑定广告账户。';
+          message = msg('int.adLogin');
         }
         setFormAlert('adAccountFormError', message);
       } catch (err) {
-        setFormAlert('adAccountFormError', '网络连接失败，请检查网络后重试。');
+        setFormAlert('adAccountFormError', msg('common.network'));
       } finally {
-        button.disabled = false;
-        button.textContent = 'Connect & Verify';
+        setButtonBusy(button, null);
       }
     }
 
     const AGENCY_FIELDS = ['company_name', 'credit_code', 'store_url', 'contact', 'remarks'];
-    const AGENCY_FIELD_MESSAGES = {
-      company_name: '请填写公司名称（与营业执照一致）。',
-      credit_code: '请输入有效的 18 位统一社会信用代码。',
-      store_url: '请输入有效的店铺链接，例如 https://shop.example.com',
-      contact: '请填写微信号、手机号或邮箱。',
-      remarks: '备注不能超过 2000 字。',
-    };
-    const AGENCY_SUBMIT_LABEL = '立即提交开户申请';
-    const AGENCY_SUCCESS_MESSAGE = '申请已成功提交，我们将在 1-2 个工作日内与您联系协助下户';
+    const AGENCY_FIELD_MESSAGES = Object.fromEntries(AGENCY_FIELDS.map(field => [field, msg('agency.err.' + field)]));
 
     function agencyForm() {
       return document.getElementById('metaPanelApply');
@@ -1188,7 +1565,7 @@
         input.setAttribute('aria-invalid', message ? 'true' : 'false');
       }
       if (slot) {
-        slot.textContent = message || '';
+        setText(slot, message);
         slot.classList.toggle('hidden', !message);
       }
     }
@@ -1196,7 +1573,7 @@
     function setAgencyFormError(message) {
       const box = document.getElementById('agencyFormError');
       if (!box) return;
-      box.textContent = message || '';
+      setText(box, message);
       box.classList.toggle('hidden', !message);
     }
 
@@ -1218,17 +1595,17 @@
             other.push(String(item.msg).replace(/^Value error,\s*/, ''));
           }
         });
-        const summary = Object.keys(fields).length ? '请检查标红的字段后重新提交。' : (other.join(' ') || '提交的信息有误，请检查后重试。');
+        const summary = Object.keys(fields).length ? msg('agency.err.fields') : (other.join(' ') || msg('agency.err.invalid'));
         return { fields, message: summary };
       }
-      if (status === 401) return { fields: {}, message: '请先登录后再提交开户申请。' };
-      if (status === 429) return { fields: {}, message: '提交过于频繁，请稍后再试。' };
+      if (status === 401) return { fields: {}, message: msg('agency.err.login') };
+      if (status === 429) return { fields: {}, message: msg('agency.err.rate') };
       const detail = typeof body?.detail === 'string' ? body.detail : '';
-      return { fields: {}, message: `提交失败（HTTP ${status}）${detail ? '：' + detail : '，请稍后重试或联系客服。'}` };
+      return { fields: {}, message: detail ? msg('agency.err.httpDetail', { status, detail }) : msg('agency.err.http', { status }) };
     }
 
     function showAgencyErrors(fields, message) {
-      Object.entries(fields).forEach(([field, msg]) => setAgencyFieldError(field, msg));
+      Object.entries(fields).forEach(([field, message]) => setAgencyFieldError(field, message));
       setAgencyFormError(message);
       const firstInvalid = AGENCY_FIELDS.map(f => agencyForm()?.elements[f]).find(el => el && el.classList.contains('is-invalid'));
       if (firstInvalid) firstInvalid.focus();
@@ -1257,12 +1634,11 @@
         if (!payload[field]) missing[field] = AGENCY_FIELD_MESSAGES[field];
       });
       if (Object.keys(missing).length) {
-        showAgencyErrors(missing, '请填写所有必填信息。');
+        showAgencyErrors(missing, msg('agency.err.required'));
         return;
       }
 
-      button.disabled = true;
-      button.textContent = '提交中…';
+      setButtonBusy(button, 'agency.submitting');
       try {
         const headers = { 'Content-Type': 'application/json' };
         let token = null;
@@ -1277,16 +1653,15 @@
           form.reset();
           clearAgencyErrors();
           closeMetaAccountModal();
-          showToast(AGENCY_SUCCESS_MESSAGE, true, { variant: 'success', duration: 6000 });
+          showToast(msg('agency.success'), true, { variant: 'success', duration: 6000 });
           return;
         }
         const { fields, message } = agencyErrorsFromResponse(res.status, body);
         showAgencyErrors(fields, message);
       } catch (err) {
-        showAgencyErrors({}, '网络连接失败，请检查网络后重试。');
+        showAgencyErrors({}, msg('common.network'));
       } finally {
-        button.disabled = false;
-        button.textContent = AGENCY_SUBMIT_LABEL;
+        setButtonBusy(button, null);
       }
     }
 
@@ -1311,7 +1686,7 @@
         reader.onload = function(evt) {
           attachedImageBase64 = evt.target.result;
           showAttachedImagePreview(attachedImageBase64, file.name);
-          showToast('Image attached: ' + file.name, true);
+          showToast(msg('composer.attachedToast', { name: file.name }), true);
         };
         reader.readAsDataURL(file);
       }
@@ -1323,11 +1698,11 @@
       const fname = document.getElementById('attachedFileName');
       if (previewBox && thumb) {
         thumb.src = base64;
-        if (fname) fname.textContent = name || 'Uploaded Image';
+        if (fname) setText(fname, name || msg('composer.uploadedImage'));
         previewBox.classList.remove('hidden');
       }
       const label = document.getElementById('attachLabel');
-      if (label) label.textContent = 'Image attached';
+      if (label) setText(label, msg('composer.imageAttached'));
     }
 
     function clearAttachedImage() {
@@ -1338,21 +1713,21 @@
       const previewBox = document.getElementById('attachedImagePreview');
       if (previewBox) previewBox.classList.add('hidden');
       const label = document.getElementById('attachLabel');
-      if (label) label.textContent = 'Attach media';
+      if (label) setText(label, msg('composer.attach'));
     }
 
     function appendUserMessage(text, imgSrc) {
       const msgArea = document.getElementById('messagesContainer');
       const userBubble = document.createElement('div');
       userBubble.className = 'flex justify-end animate-fade-in';
-      const userName = (currentUser && currentUser.full_name) ? currentUser.full_name : 'You';
+      const userName = (currentUser && currentUser.full_name) ? escapeHtml(currentUser.full_name) : i18nSpan('chat.you');
       userBubble.innerHTML = `
         <div class="max-w-2xl glass-panel bg-white/[0.04] border border-white/[0.12] rounded-3xl rounded-tr-sm p-4 shadow-xl text-zinc-100 space-y-2">
           <div class="flex items-center justify-between text-[11px] text-zinc-400 pb-1">
             <span class="font-medium text-indigo-300 flex items-center gap-1.5">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> ${escapeHtml(userName)}
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> ${userName}
             </span>
-            <span>Just now</span>
+            ${i18nSpan('chat.justNow')}
           </div>
           ${text ? `<p class="text-sm leading-relaxed text-zinc-100">${escapeHtml(text)}</p>` : ''}
           ${imgSrc ? `
@@ -1401,9 +1776,9 @@
         <div class="glass-panel p-3.5 rounded-2xl rounded-tl-sm border border-white/10 bg-white/[0.03] text-zinc-300 text-xs space-y-1.5 max-w-sm shadow-lg">
           <div class="flex items-center gap-2">
             <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-ping"></span>
-            <span class="font-semibold text-white text-xs">OmniFlow AI is thinking...</span>
+            ${i18nSpan('chat.thinking', null, 'font-semibold text-white text-xs')}
           </div>
-          <p class="text-[11px] text-zinc-400">Synthesizing cross-border marketing strategy & multimodal creative...</p>
+          <p class="text-[11px] text-zinc-400">${i18nSpan('chat.thinkingSub')}</p>
         </div>
       `;
       msgArea.appendChild(thinkingBubble);
@@ -1436,13 +1811,13 @@
           <div class="w-6 h-6 rounded-lg bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400">
             <span class="material-symbols-outlined text-sm">error</span>
           </div>
-          <span class="text-white font-medium">Generation Error</span>
+          ${i18nSpan('chat.errorTitle', null, 'text-white font-medium')}
           <span>•</span>
-          <span class="text-rose-400 font-mono text-[11px]">Pipeline Notice</span>
+          ${i18nSpan('chat.errorTag', null, 'text-rose-400 font-mono text-[11px]')}
         </div>
         <div class="glass-panel p-4 rounded-2xl border border-rose-500/25 bg-rose-950/20 text-rose-200 text-xs leading-relaxed max-w-xl">
-          <p class="font-medium">${escapeHtml(text)}</p>
-          <p class="text-[11px] text-zinc-400 mt-1">Please verify your server connection or try a different prompt.</p>
+          <p class="font-medium">${msgHtml(text)}</p>
+          <p class="text-[11px] text-zinc-400 mt-1">${i18nSpan('chat.errorHint')}</p>
         </div>
       `;
       msgArea.appendChild(errCard);
@@ -1527,7 +1902,7 @@
           const data = await res.json();
           renderDynamicCreativeCard(text, data, currentImage);
         } else {
-          let errDetail = 'Generation failed (HTTP ' + res.status + ')';
+          let errDetail = msg('chat.genFailed', { status: res.status });
           try {
             const errJson = await res.json();
             if (errJson && errJson.detail) errDetail = errJson.detail;
@@ -1538,7 +1913,7 @@
         }
       } catch (err) {
         console.error('submitChat network error:', err);
-        const errDetail = 'Network error in generation pipeline: ' + (err.message || 'Server unreachable');
+        const errDetail = msg('chat.netError', { error: err.message || 'Server unreachable' });
         appendAiErrorMessage(errDetail);
         showToast(errDetail, false);
       } finally {
@@ -1551,6 +1926,10 @@
     // AI RESPONSE VIEW: only what /content/generate actually returned
     // =========================================================================
     const PLATFORM_LABELS = { meta: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', x: 'X', xiaohongshu: '小红书', wechat: 'WeChat', douyin: '抖音' };
+
+    function platformLabelHtml(platform) {
+      return I18N['platform.' + platform] ? i18nSpan('platform.' + platform) : escapeHtml(PLATFORM_LABELS[platform] || platform);
+    }
 
     function normaliseGeneration(data) {
       // /content/generate returns {copy, hashtags, drafts, image_base64} for prompts, or a bare list of drafts.
@@ -1576,7 +1955,7 @@
       const cta = document.getElementById(`${cardId}-cta`);
       if (body) body.textContent = draft.body;
       if (tags) {
-        tags.innerHTML = draft.hashtags.map(t => `<span class="px-2 py-0.5 rounded-full surface-muted text-[11px] text-muted">${escapeHtml(t.startsWith('#') ? t : '#' + t)}</span>`).join('');
+        tags.innerHTML = draft.hashtags.map(tag => `<span class="px-2 py-0.5 rounded-full surface-muted text-[11px] text-muted">${escapeHtml(tag.startsWith('#') ? tag : '#' + tag)}</span>`).join('');
         tags.classList.toggle('hidden', !draft.hashtags.length);
       }
       if (cta) {
@@ -1588,7 +1967,7 @@
     function renderDynamicCreativeCard(userPrompt, data, userImageBase64) {
       const drafts = normaliseGeneration(data);
       if (!drafts.length) {
-        appendAiErrorMessage('The AI did not return any copy. Please try a more specific prompt.');
+        appendAiErrorMessage(msg('chat.noCopy'));
         return;
       }
       const cardId = 'card-' + Date.now();
@@ -1613,11 +1992,11 @@
       if (previewEl) previewEl.innerText = first.body;
 
       const source = isFallback
-        ? 'AI 暂不可用 · 模板草稿'
+        ? i18nSpan('card.fallbackSource')
         : (model ? `AI · ${escapeHtml(model)}` : 'AI');
       const tabs = drafts.length > 1 ? `
           <div class="segmented w-fit max-w-full overflow-x-auto">
-            ${drafts.map((d, idx) => `<button type="button" id="${cardId}-tab-${idx}" onclick="switchDynamicCardPlatform('${cardId}', ${idx})" class="seg-btn card-tab ${idx === 0 ? 'seg-active' : ''}">${escapeHtml(PLATFORM_LABELS[d.platform] || d.platform)}</button>`).join('')}
+            ${drafts.map((d, idx) => `<button type="button" id="${cardId}-tab-${idx}" onclick="switchDynamicCardPlatform('${cardId}', ${idx})" class="seg-btn card-tab ${idx === 0 ? 'seg-active' : ''}">${platformLabelHtml(d.platform)}</button>`).join('')}
           </div>` : '';
 
       const msgArea = document.getElementById('messagesContainer');
@@ -1628,7 +2007,7 @@
         <img src="/static/assets/logos/omniflow_logo.svg" alt="" class="w-7 h-7 rounded-lg shrink-0 mt-0.5"/>
         <div class="flex-1 min-w-0 space-y-3">
           <div class="text-xs text-muted">OmniFlow <span class="mx-1">·</span>${source}</div>
-          ${isFallback ? `<div class="form-alert">AI 模型当前不可用，以下是模板生成的草稿，可能包含不准确的描述。发布前请务必修改。</div>` : ''}
+          ${isFallback ? `<div class="form-alert">${i18nSpan('card.fallbackNotice')}</div>` : ''}
           ${tabs}
           <div class="rounded-2xl border hairline p-4 space-y-3">
             ${image ? `<img id="${cardId}-img" src="${image}" alt="Attached product image" class="max-h-64 rounded-xl object-contain"/>` : ''}
@@ -1639,10 +2018,10 @@
           <div id="${cardId}-bannerArea" class="hidden"></div>
           <div class="flex flex-wrap items-center gap-2">
             <button onclick="publishToFacebook('${cardId}')" id="publishBtn" class="primary-btn !h-9 !text-xs">
-              <span class="material-symbols-outlined text-base">send</span><span>发布到 Facebook</span>
+              <span class="material-symbols-outlined text-base">send</span>${i18nSpan('card.publish')}
             </button>
-            <button onclick="copyDraftText('${cardId}')" class="secondary-btn !h-9 !text-xs"><span class="material-symbols-outlined text-base">content_copy</span>复制</button>
-            <button onclick="regenerateCardDraft('${cardId}')" class="secondary-btn !h-9 !text-xs"><span class="material-symbols-outlined text-base">refresh</span>重新生成</button>
+            <button onclick="copyDraftText('${cardId}')" class="secondary-btn !h-9 !text-xs"><span class="material-symbols-outlined text-base">content_copy</span>${i18nSpan('card.copy')}</button>
+            <button onclick="regenerateCardDraft('${cardId}')" class="secondary-btn !h-9 !text-xs"><span class="material-symbols-outlined text-base">refresh</span>${i18nSpan('card.regenerate')}</button>
           </div>
         </div>
       `;
@@ -1692,14 +2071,19 @@
         || (typeof event !== 'undefined' ? (event?.target?.closest?.('button') || event?.target) : (typeof window !== 'undefined' && window.event ? window.event.target : null));
 
       if (!connectedFacebookPageId) {
-        showToast('请先在渠道集成中连接 Facebook 主页。', false);
+        showToast(msg('card.connectFirst'), false);
         openIntegrationsModal();
         return;
       }
 
-      const originalText = btn ? btn.innerText : "Publish";
+      // Only the button's label changes; its icon stays.
+      const btnLabel = (btn && btn.querySelector && btn.querySelector('[data-i18n]')) || null;
+      const setPublishLabel = (key) => {
+        if (btnLabel) setText(btnLabel, msg(key));
+        else if (btn) btn.innerText = t(key);
+      };
       if (btn) {
-        btn.innerText = "Publishing to Meta...";
+        setPublishLabel('card.publishing');
         btn.disabled = true;
       }
 
@@ -1743,9 +2127,9 @@
         console.log("[PUBLISH RESULT]", data);
 
         if (res.ok && data.success) {
-          showToast('已发布到 Facebook', true, { variant: 'success' });
+          showToast(msg('card.published'), true, { variant: 'success' });
           if (btn) {
-            btn.innerText = "Published to Facebook";
+            setPublishLabel('card.published');
             if (btn.classList && typeof btn.classList.remove === 'function') {
               btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-700');
               btn.classList.add('bg-green-700');
@@ -1758,10 +2142,10 @@
               <div class="p-3.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs flex flex-wrap items-center justify-between gap-2 shadow-lg animate-fade-in my-2">
                 <span class="font-semibold flex items-center gap-1.5">
                   <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                  <span>Successfully published to Facebook!</span>
+                  ${i18nSpan('card.publishedBanner')}
                 </span>
                 <a href="${postUrl}" target="_blank" rel="noopener noreferrer" class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition flex items-center gap-1 text-xs shadow-md">
-                  <span>View Post on Facebook</span>
+                  ${i18nSpan('card.viewPost')}
                   <span class="material-symbols-outlined text-xs">open_in_new</span>
                 </a>
               </div>
@@ -1769,17 +2153,17 @@
             bannerArea.classList.remove('hidden');
           }
         } else {
-          showToast('发布失败：' + (data.error || data.detail || ('HTTP ' + res.status)), false);
+          showToast(msg('card.publishFailed', { error: data.error || data.detail || ('HTTP ' + res.status) }), false);
           if (btn) {
-            btn.innerText = originalText;
+            setPublishLabel('card.publish');
             btn.disabled = false;
           }
         }
       } catch (err) {
         console.error(err);
-        showToast('网络连接失败：' + err.message, false);
+        showToast(msg('card.publishNetwork', { error: err.message }), false);
         if (btn) {
-          btn.innerText = originalText;
+          setPublishLabel('card.publish');
           btn.disabled = false;
         }
       }
@@ -1797,7 +2181,7 @@
     function copyDraftText(cardId) {
       const body = document.getElementById(`${cardId}-body`).textContent;
       navigator.clipboard.writeText(body);
-      showToast('已复制到剪贴板');
+      showToast(msg('card.copied'));
     }
 
     // Append Campaign Card from AI creation
@@ -1813,35 +2197,35 @@
           </div>
           <span class="text-white font-medium">Omni-Marketing 4.5</span>
           <span>•</span>
-          <span class="text-emerald-400 font-mono text-[11px]">POST /campaign/create · Strategy Deployed</span>
+          <span class="text-emerald-400 font-mono text-[11px]">POST /campaign/create · ${i18nSpan('acc.deployed')}</span>
         </div>
 
         <div class="glass-panel rounded-3xl p-6 space-y-4 border border-white/[0.08] shadow-2xl">
           <div class="flex items-center justify-between">
             <h3 class="text-base font-bold text-white">${escapeHtml(camp.name)}</h3>
-            <span class="px-2.5 py-0.5 rounded-full text-xs bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">Status: Planned</span>
+            <span class="px-2.5 py-0.5 rounded-full text-xs bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">${i18nSpan('acc.planned')}</span>
           </div>
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
             <div class="p-3 rounded-xl bg-white/[0.02] border border-white/5">
-              <span class="text-zinc-500 block text-[10px]">Total Budget</span>
+              <span class="text-zinc-500 block text-[10px]">${i18nSpan('acc.totalBudget')}</span>
               <span class="text-white font-bold text-sm">$${camp.budget} ${camp.currency || 'USD'}</span>
             </div>
             <div class="p-3 rounded-xl bg-white/[0.02] border border-white/5">
-              <span class="text-zinc-500 block text-[10px]">Target Channels</span>
-              <span class="text-indigo-400 font-bold text-sm">${(camp.platforms || []).length} Channels</span>
+              <span class="text-zinc-500 block text-[10px]">${i18nSpan('acc.channels')}</span>
+              <span class="text-indigo-400 font-bold text-sm">${i18nSpan('acc.channelsCount', { n: (camp.platforms || []).length })}</span>
             </div>
             <div class="p-3 rounded-xl bg-white/[0.02] border border-white/5">
-              <span class="text-zinc-500 block text-[10px]">Campaign ID</span>
+              <span class="text-zinc-500 block text-[10px]">${i18nSpan('acc.id')}</span>
               <span class="text-zinc-300 font-mono text-[11px] truncate block">${camp.id.substring(0, 8)}...</span>
             </div>
             <div class="p-3 rounded-xl bg-white/[0.02] border border-white/5">
-              <span class="text-zinc-500 block text-[10px]">Strategy</span>
-              <span class="text-emerald-400 font-medium">Bandit Dynamic</span>
+              <span class="text-zinc-500 block text-[10px]">${i18nSpan('acc.strategy')}</span>
+              <span class="text-emerald-400 font-medium">${i18nSpan('acc.bandit')}</span>
             </div>
           </div>
           <div class="flex items-center justify-end gap-2 pt-2">
             <button onclick="synthesizeDraftsForCampaign('${camp.id}')" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs shadow-md transition">
-              Synthesize Creative Copies →
+              ${i18nSpan('acc.synthesize')}
             </button>
           </div>
         </div>
@@ -1851,8 +2235,8 @@
 
     function synthesizeDraftsForCampaign(campId) {
       const camp = cachedCampaigns[campId];
-      const name = (camp && camp.name) ? camp.name : 'current campaign';
-      fillAndSend(`Generate marketing drafts for campaign ${name}`);
+      const name = (camp && camp.name) ? camp.name : t('camp.current');
+      fillAndSend(t('camp.synthesizePrompt', { name }));
     }
 
     // =========================================================================
@@ -1882,13 +2266,13 @@
         const sidebarList = document.getElementById('sidebarCampaignsList');
         if (sidebarList) {
           if (campaigns.length === 0) {
-            sidebarList.innerHTML = '<div class="p-4 text-xs text-zinc-500">No active campaigns yet</div>';
+            sidebarList.innerHTML = `<div class="p-4 text-xs text-zinc-500">${i18nSpan('nav.noCampaigns')}</div>`;
           } else {
             sidebarList.innerHTML = campaigns.map(c => `
               <div onclick="openCampaignDetailsModal('${c.id}')" class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-white hover:bg-white/[0.09] bg-white/[0.05] border border-white/5 shadow-sm cursor-pointer transition active:scale-[0.98]">
                 <span class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.7)] ${c.status === 'active' ? 'animate-pulse' : ''}"></span>
                 <span class="flex-1 truncate">${escapeHtml(c.name)}</span>
-                <span class="text-[10px] font-mono text-zinc-400">${(c.platforms || []).length} ch</span>
+                <span class="text-[10px] font-mono text-zinc-400">${i18nSpan('nav.channelsShort', { n: (c.platforms || []).length })}</span>
               </div>
             `).join('');
           }
@@ -1918,7 +2302,7 @@
 
       if (submitBtn) {
         submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="material-symbols-outlined text-sm animate-spin">progress_activity</span> Deploying...';
+        submitBtn.innerHTML = `<span class="material-symbols-outlined text-sm animate-spin">progress_activity</span> ${i18nSpan('camp.deploying')}`;
       }
 
       try {
@@ -1939,18 +2323,18 @@
           const camp = await res.json();
           currentCampaignId = camp.id;
           closeNewCampaignModal();
-          showToast(`Campaign "${camp.name}" deployed!`, true);
+          showToast(msg('camp.deployed', { name: camp.name }), true);
           appendAiCampaignCard(camp);
           await loadCampaigns();
         } else {
-          showToast('Failed to create campaign', false);
+          showToast(msg('camp.createFailed'), false);
         }
       } catch (err) {
-        showToast('Error creating campaign: ' + err.message, false);
+        showToast(msg('camp.createError', { error: err.message }), false);
       } finally {
         if (submitBtn) {
           submitBtn.disabled = false;
-          submitBtn.innerHTML = '<span>Deploy Strategy</span><span class="material-symbols-outlined text-sm">arrow_forward</span>';
+          submitBtn.innerHTML = `${i18nSpan('camp.deploy')}<span class="material-symbols-outlined text-sm">arrow_forward</span>`;
         }
       }
     }
@@ -1984,44 +2368,44 @@
       const tasks = data.tasks || [];
 
       const cdTitle = document.getElementById('cdTitle');
-      if (cdTitle) cdTitle.textContent = camp.name || 'Campaign Strategy';
+      if (cdTitle) setText(cdTitle, camp.name || msg('cd.defaultTitle'));
       const cdObjective = document.getElementById('cdObjective');
-      if (cdObjective) cdObjective.textContent = camp.objective || 'Cross-border autonomous strategy';
+      if (cdObjective) setText(cdObjective, camp.objective || msg('cd.defaultObjective'));
       const cdBudget = document.getElementById('cdBudget');
       if (cdBudget) cdBudget.textContent = '$' + (camp.budget || 0).toLocaleString() + ' ' + (camp.currency || 'USD');
       const cdPlatformsCount = document.getElementById('cdPlatformsCount');
-      if (cdPlatformsCount) cdPlatformsCount.textContent = (camp.platforms || []).length + ' Active';
+      if (cdPlatformsCount) setText(cdPlatformsCount, msg('cd.platformsCount', { n: (camp.platforms || []).length }));
       const cdDraftsCount = document.getElementById('cdDraftsCount');
-      if (cdDraftsCount) cdDraftsCount.textContent = drafts.length + ' Drafts';
+      if (cdDraftsCount) setText(cdDraftsCount, msg('cd.draftsCount', { n: drafts.length }));
       const cdTasksCount = document.getElementById('cdTasksCount');
-      if (cdTasksCount) cdTasksCount.textContent = tasks.length + ' Tasks';
+      if (cdTasksCount) setText(cdTasksCount, msg('cd.tasksCount', { n: tasks.length }));
       const cdIdLabel = document.getElementById('cdIdLabel');
       if (cdIdLabel) cdIdLabel.textContent = 'ID: ' + (camp.id ? camp.id.substring(0, 8) : '—');
       const cdStatusBadge = document.getElementById('cdStatusBadge');
       if (cdStatusBadge) cdStatusBadge.textContent = (camp.status || 'ACTIVE').toUpperCase();
       const cdVoiceAndDesc = document.getElementById('cdVoiceAndDesc');
-      if (cdVoiceAndDesc) cdVoiceAndDesc.textContent = (camp.brand_voice ? `Tone: ${camp.brand_voice}. ` : '') + (camp.product_description || '');
+      if (cdVoiceAndDesc) cdVoiceAndDesc.textContent = (camp.brand_voice ? t('cd.tone', { tone: camp.brand_voice }) + ' ' : '') + (camp.product_description || '');
 
       const cdBudgetPills = document.getElementById('cdBudgetPills');
       if (cdBudgetPills) {
         const alloc = camp.channel_allocation || {};
         const platforms = camp.platforms || Object.keys(alloc);
         cdBudgetPills.innerHTML = platforms.map(p => {
-          const share = alloc[p] != null ? Math.round(alloc[p] * 100) + '%' : 'Optimized';
+          const share = alloc[p] != null ? Math.round(alloc[p] * 100) + '%' : t('cd.optimized');
           return `<span class="px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/10 text-[11px] text-zinc-300 font-mono">${escapeHtml(p)}: ${share}</span>`;
         }).join('');
       }
 
       const cdContentPillars = document.getElementById('cdContentPillars');
       if (cdContentPillars) {
-        const pillars = camp.content_pillars && camp.content_pillars.length ? camp.content_pillars : ['Product Showcase', 'Lifestyle & Craft', 'Community & Perks'];
-        cdContentPillars.innerHTML = pillars.map(pil => `<span class="px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 text-[10px] font-mono">${escapeHtml(pil)}</span>`).join('');
+        const pillars = Array.isArray(camp.content_pillars) ? camp.content_pillars : [];
+        cdContentPillars.innerHTML = pillars.map(pil => `<span class="px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 text-[10px] font-mono">${escapeHtml(pil)}</span>`).join('') || '<span class="text-zinc-500 text-[11px]">—</span>';
       }
 
       const cdDraftsList = document.getElementById('cdDraftsList');
       if (cdDraftsList) {
         if (drafts.length === 0) {
-          cdDraftsList.innerHTML = '<div class="text-zinc-500 text-xs py-2">No copies synthesized yet. Click below to generate drafts.</div>';
+          cdDraftsList.innerHTML = `<div class="text-zinc-500 text-xs py-2">${i18nSpan('cd.noDrafts')}</div>`;
         } else {
           cdDraftsList.innerHTML = drafts.map(d => `
             <div class="p-3 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
@@ -2038,15 +2422,15 @@
       const cdTasksList = document.getElementById('cdTasksList');
       if (cdTasksList) {
         if (tasks.length === 0) {
-          cdTasksList.innerHTML = '<div class="text-zinc-500 text-xs py-2">No tasks queued.</div>';
+          cdTasksList.innerHTML = `<div class="text-zinc-500 text-xs py-2">${i18nSpan('cd.noTasks')}</div>`;
         } else {
-          cdTasksList.innerHTML = tasks.map(t => `
+          cdTasksList.innerHTML = tasks.map(task => `
             <div class="flex items-center justify-between p-2 rounded-xl bg-white/[0.02] border border-white/5 text-[11px]">
               <div class="flex items-center gap-2">
-                <span class="w-2 h-2 rounded-full ${t.status === 'published' ? 'bg-emerald-400' : 'bg-amber-400'}"></span>
-                <span class="text-white font-mono uppercase">${escapeHtml(t.platform || 'meta')}</span>
+                <span class="w-2 h-2 rounded-full ${task.status === 'published' ? 'bg-emerald-400' : 'bg-amber-400'}"></span>
+                <span class="text-white font-mono uppercase">${escapeHtml(task.platform || 'meta')}</span>
               </div>
-              <span class="text-zinc-400 font-mono text-[10px]">${escapeHtml(t.status || 'pending')}</span>
+              <span class="text-zinc-400 font-mono text-[10px]">${escapeHtml(task.status || 'pending')}</span>
             </div>
           `).join('');
         }
@@ -2062,7 +2446,7 @@
       const btn = document.getElementById('btnDispatchCampaign');
       if (btn) {
         btn.disabled = true;
-        btn.innerHTML = '<span class="material-symbols-outlined text-sm animate-spin">progress_activity</span> Publishing...';
+        btn.innerHTML = `<span class="material-symbols-outlined text-sm animate-spin">progress_activity</span> ${i18nSpan('cd.publishing')}`;
       }
       try {
         const res = await fetch('/publish/schedule', {
@@ -2076,19 +2460,19 @@
           })
         });
         if (res.ok) {
-          showToast('Live post dispatched successfully!', true);
+          showToast(msg('cd.dispatched'), true);
           if (currentCampaignId) {
             await openCampaignDetailsModal(currentCampaignId);
           }
         } else {
-          showToast('Dispatch failed', false);
+          showToast(msg('cd.dispatchFailed'), false);
         }
       } catch (err) {
-        showToast('Dispatch error: ' + err.message, false);
+        showToast(msg('cd.dispatchError', { error: err.message }), false);
       } finally {
         if (btn) {
           btn.disabled = false;
-          btn.innerHTML = '<span class="material-symbols-outlined text-sm">rocket_launch</span><span>Publish Next Post</span>';
+          btn.innerHTML = `<span class="material-symbols-outlined text-sm">rocket_launch</span>${i18nSpan('cd.publishNext')}`;
         }
       }
     }
@@ -2096,13 +2480,13 @@
     function writeMoreForCurrentCampaign() {
       closeCampaignDetailsModal();
       const campTitle = document.getElementById('cdTitle');
-      const name = campTitle ? campTitle.textContent : 'current campaign';
-      fillAndSend(`Generate creative copy and high-engagement visuals for campaign: ${name}`);
+      const name = campTitle ? campTitle.textContent : t('camp.current');
+      fillAndSend(t('camp.writeMorePrompt', { name }));
     }
 
     async function handleCreateCampaignIntent(prompt) {
       openNewCampaignModal();
-      document.getElementById('modalCampName').value = prompt.replace(/create|launch|campaign/gi, '').trim() || 'New Autonomous Launch';
+      document.getElementById('modalCampName').value = prompt.replace(/create|launch|campaign/gi, '').trim() || t('camp.defaultName');
     }
 
     // =========================================================================
@@ -2122,45 +2506,47 @@
         if (!listEl) return;
 
         if (!tasks || tasks.length === 0) {
-          listEl.innerHTML = '<div class="text-center py-6 text-zinc-500 text-xs">No publishing tasks scheduled. Create a campaign or approve a creative draft to schedule posts.</div>';
+          listEl.innerHTML = `<div class="text-center py-6 text-zinc-500 text-xs">${i18nSpan('sch.empty')}</div>`;
           return;
         }
 
-        listEl.innerHTML = tasks.map(t => {
-          const isPub = t.status === 'published';
-          const timeStr = t.scheduled_at ? new Date(t.scheduled_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (isPub ? 'Published' : 'Immediate');
+        listEl.innerHTML = tasks.map(task => {
+          const isPub = task.status === 'published';
+          const timeStr = task.scheduled_at
+            ? escapeHtml(new Date(task.scheduled_at).toLocaleTimeString(currentLang === 'en' ? 'en' : 'zh-CN', { hour: '2-digit', minute: '2-digit' }))
+            : i18nSpan(isPub ? 'sch.publishedAt' : 'sch.immediate');
           return `
             <div class="flex items-center justify-between p-3 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-white/10 transition">
               <div class="flex items-center gap-3">
                 <div class="w-8 h-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center font-mono text-[10px] text-zinc-300 uppercase">
-                  ${escapeHtml((t.platform || 'meta').slice(0, 3))}
+                  ${escapeHtml((task.platform || 'meta').slice(0, 3))}
                 </div>
                 <div>
                   <div class="text-xs font-semibold text-white flex items-center gap-2">
-                    <span>Task ${t.id ? t.id.substring(0, 8) : ''}</span>
+                    ${i18nSpan('sch.task', { id: task.id ? task.id.substring(0, 8) : '' })}
                     <span class="text-[10px] px-2 py-0.2 rounded-full font-mono ${isPub ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'}">
-                      ${isPub ? 'Published 🟢' : 'Queued ⏳'}
+                      ${i18nSpan(isPub ? 'sch.published' : 'sch.queued')}
                     </span>
                   </div>
                   <div class="text-[10px] text-zinc-400 mt-0.5">
-                    Channel: <span class="text-zinc-200 capitalize">${escapeHtml(t.platform || 'meta')}</span> · Target: ${timeStr}
+                    ${i18nSpan('sch.channel')}: <span class="text-zinc-200 capitalize">${escapeHtml(task.platform || 'meta')}</span> · ${i18nSpan('sch.target')}: ${timeStr}
                   </div>
                 </div>
               </div>
               ${!isPub ? `
-                <button onclick="publishSingleTaskNow('${t.id}')" class="px-3 py-1 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-300 text-[11px] font-semibold transition">
-                  Dispatch Now
+                <button onclick="publishSingleTaskNow('${escapeHtml(task.id)}')" class="px-3 py-1 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-300 text-[11px] font-semibold transition">
+                  ${i18nSpan('sch.dispatchNow')}
                 </button>
               ` : `
                 <span class="text-[11px] text-emerald-400 flex items-center gap-1 font-mono">
-                  <span class="material-symbols-outlined text-xs">verified</span> Live
+                  <span class="material-symbols-outlined text-xs">verified</span> ${i18nSpan('sch.live')}
                 </span>
               `}
             </div>
           `;
         }).join('');
       } catch (err) {
-        if (listEl) listEl.innerHTML = `<div class="text-rose-400 text-xs py-4">Error loading tasks: ${err.message}</div>`;
+        if (listEl) listEl.innerHTML = `<div class="text-rose-400 text-xs py-4">${i18nSpan('sch.loadError', { error: err.message })}</div>`;
       }
     }
 
@@ -2177,13 +2563,13 @@
           })
         });
         if (res.ok) {
-          showToast('Dispatched next task in queue!', true);
+          showToast(msg('sch.dispatchedNext'), true);
           loadSchedulesList();
         } else {
-          showToast('Queue empty or dispatch error', false);
+          showToast(msg('sch.queueEmpty'), false);
         }
       } catch (err) {
-        showToast('Dispatch error: ' + err.message, false);
+        showToast(msg('cd.dispatchError', { error: err.message }), false);
       }
     }
 
@@ -2200,11 +2586,11 @@
           })
         });
         if (res.ok) {
-          showToast('Task dispatched to live feed!', true);
+          showToast(msg('sch.taskDispatched'), true);
           loadSchedulesList();
         }
       } catch (e) {
-        showToast('Error: ' + e.message, false);
+        showToast(msg('sch.error', { error: e.message }), false);
       }
     }
 
@@ -2247,109 +2633,116 @@
     // =========================================================================
     let authMode = 'login'; // 'login' or 'register'
 
-    // Only a real session shows a person; anonymous visitors work in the shared merchant workspace.
-    // (Anonymous /auth/me may return another account in development, so it is never displayed.)
-    async function checkAuthSession() {
-      let token = null;
-      try { token = localStorage.getItem('omniflow_auth_token'); } catch (_) {}
-      if (token) {
-        try {
-          const res = await fetch('/auth/me');
-          if (res.ok) {
-            currentUser = await res.json();
-            updateSidebarUserProfile(currentUser);
-            closeAuthModal(true);
-            return;
-          }
-          if (res.status === 401) {
-            try { localStorage.removeItem('omniflow_auth_token'); } catch (_) {}
-          }
-        } catch (err) {
-          console.warn('Could not load session:', err);
-        }
-      }
-      currentUser = null;
-      showMerchantWorkspace();
-      if (serverRequiresAuth) openAuthModal('login', { required: true });
-    }
+    // Every visit needs a signed-in account: the workspace stays blurred behind the gate
+    // (body starts with .auth-locked) until a session is confirmed.
+    let authGateOpen = false;
 
-    function showMerchantWorkspace() {
-      const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
-      set('sidebarUserInitials', 'M');
-      set('sidebarUserName', 'Merchant Workspace');
-      set('sidebarUserRole', '');
-      set('dropdownUserEmail', 'Merchant Workspace');
-      set('dropdownUserCompany', '登录后同步您的账户');
-    }
-
-    function updateSidebarUserProfile(user) {
-      if (!user) return;
-      try {
-        const initials = (user.full_name || user.email || 'M').split(/[\s@]+/).filter(Boolean).map(n => n[0]).join('').toUpperCase().slice(0, 2);
-        const initEl = document.getElementById('sidebarUserInitials');
-        if (initEl) initEl.textContent = initials;
-        const nameEl = document.getElementById('sidebarUserName');
-        if (nameEl) nameEl.textContent = user.full_name || 'Merchant Workspace';
-        const roleEl = document.getElementById('sidebarUserRole');
-        if (roleEl) roleEl.textContent = user.company || user.role || 'Merchant workspace';
-        
-        const emailEl = document.getElementById('dropdownUserEmail');
-        const compEl = document.getElementById('dropdownUserCompany');
-        if (emailEl) emailEl.textContent = user.email || 'Merchant Workspace';
-        if (compEl) compEl.textContent = user.role ? `Role: ${user.role}` : 'Connect an account to personalize';
-      } catch (e) {
-        console.warn('Error updating sidebar profile:', e);
-      }
-    }
-
-    function toggleUserDropdown() {
-      const dd = document.getElementById('userDropdown');
-      if (dd) dd.classList.toggle('hidden');
-    }
-
-    // Close dropdown on click outside
-    document.addEventListener('click', (e) => {
-      const dd = document.getElementById('userDropdown');
-      if (!dd) return;
-      if (!e.target.closest('#userDropdown') && !e.target.closest('[onclick="toggleUserDropdown()"]')) {
-        dd.classList.add('hidden');
-      }
-    });
-
-    // Sign-in is a required gate when the server sets REQUIRE_AUTH; otherwise it is optional.
-    let authRequired = false;
-
-    function openAuthModal(mode = 'login', options = {}) {
-      authRequired = !!options.required;
-      switchAuthTab(mode);
-      setFormAlert('authFormError', options.message || '');
-      document.getElementById('userDropdown')?.classList.add('hidden');
-      document.getElementById('authCloseBtn')?.classList.toggle('hidden', authRequired);
-      document.body.classList.toggle('auth-locked', authRequired);
+    function openAuthGate(message) {
+      authGateOpen = true;
+      switchAuthTab(authMode);
+      setFormAlert('authFormError', message || '');
+      document.body.classList.add('auth-locked');
       document.getElementById('authModal')?.classList.add('open');
-      setTimeout(() => document.getElementById(mode === 'register' ? 'authNameInput' : 'authEmailInput')?.focus(), 50);
+      setTimeout(() => document.getElementById('authEmailInput')?.focus(), 50);
+    }
+
+    function closeAuthGate() {
+      authGateOpen = false;
+      document.body.classList.remove('auth-locked');
+      document.getElementById('authModal')?.classList.remove('open');
+      const pwd = document.getElementById('authPasswordInput');
+      if (pwd) pwd.value = '';
+    }
+
+    // Kept for existing callers; the gate can only be closed by signing in.
+    function openAuthModal(mode = 'login', options = {}) {
+      switchAuthTab(mode);
+      openAuthGate(options.message);
     }
 
     function closeAuthModal(force) {
-      if (authRequired && !force) return;  // the gate stays until the visitor signs in
-      authRequired = false;
-      document.body.classList.remove('auth-locked');
-      document.getElementById('authModal')?.classList.remove('open');
+      if (force === true) closeAuthGate();
     }
+
+    // Returns true when a valid session exists.
+    async function checkAuthSession() {
+      let token = null;
+      try { token = localStorage.getItem('omniflow_auth_token'); } catch (_) {}
+      if (!token) {
+        openAuthGate();
+        return false;
+      }
+      try {
+        const res = await fetch('/auth/me');
+        if (res.ok) {
+          currentUser = await res.json();
+          updateSidebarUserProfile(currentUser);
+          closeAuthGate();
+          return true;
+        }
+        if (res.status === 401) {
+          try { localStorage.removeItem('omniflow_auth_token'); } catch (_) {}
+          openAuthGate(msg('auth.err.expired'));
+          return false;
+        }
+        openAuthGate(msg('auth.err.unverified'));
+      } catch (err) {
+        openAuthGate(msg('auth.err.offline'));
+      }
+      return false;
+    }
+
+    // Loads the signed-in workspace's data.
+    function startWorkspace() {
+      loadCampaigns();
+      checkFacebookLiveStatus();
+    }
+
+    function updateSidebarUserProfile(user) {
+      const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+      const email = (user && user.email) || '';
+      const name = (user && user.full_name) || '';
+      const initial = (email || name).trim().charAt(0).toUpperCase();
+      set('accountInitial', initial);
+      set('accountMenuEmail', email);
+      set('accountMenuName', name && name !== email ? name : '');
+      set('sidebarUserInitials', initial);
+      set('sidebarUserName', name || email);
+      set('sidebarUserRole', name ? email : '');
+      set('dropdownUserEmail', email);
+      set('dropdownUserCompany', name && name !== email ? name : '');
+    }
+
+    function toggleUserDropdown() {
+      document.getElementById('userDropdown')?.classList.toggle('hidden');
+    }
+
+    function toggleAccountMenu(e) {
+      if (e) e.stopPropagation();
+      closeChannelsMenu();
+      document.getElementById('accountMenu')?.classList.toggle('hidden');
+    }
+
+    function closeAccountMenu() {
+      document.getElementById('accountMenu')?.classList.add('hidden');
+    }
+
+    // Close account menus on click outside
+    document.addEventListener('click', (e) => {
+      const dd = document.getElementById('userDropdown');
+      if (dd && !e.target.closest('#userDropdown') && !e.target.closest('[onclick="toggleUserDropdown()"]')) {
+        dd.classList.add('hidden');
+      }
+      if (!e.target.closest('#accountMenu')) closeAccountMenu();
+    });
 
     function switchAuthTab(mode) {
       authMode = mode === 'register' ? 'register' : 'login';
       const register = authMode === 'register';
       document.getElementById('authTabLogin')?.classList.toggle('seg-active', !register);
       document.getElementById('authTabRegister')?.classList.toggle('seg-active', register);
-      document.getElementById('authNameField')?.classList.toggle('hidden', !register);
-      document.getElementById('authCompanyField')?.classList.toggle('hidden', !register);
       const pwd = document.getElementById('authPasswordInput');
       if (pwd) pwd.autocomplete = register ? 'new-password' : 'current-password';
-      const title = document.getElementById('authModalTitle');
-      if (title) title.textContent = register ? '创建 OmniFlow 账户' : '登录 OmniFlow';
-      const submit = document.getElementById('authSubmitBtn');
-      if (submit) submit.textContent = register ? '注册并进入' : '登录';
       setFormAlert('authFormError', '');
     }
 
@@ -2357,12 +2750,12 @@
       switchAuthTab(authMode === 'login' ? 'register' : 'login');
     }
 
-    // Any API call rejected for a missing/expired session brings the gate back (REQUIRE_AUTH only).
+    // Any API call rejected for an expired/invalid session returns to the gate.
     window.onApiUnauthorized = function () {
-      if (!serverRequiresAuth) return;
+      if (authGateOpen) return;
       try { localStorage.removeItem('omniflow_auth_token'); } catch (_) {}
-      currentUser = null;
-      if (!authRequired) openAuthModal('login', { required: true, message: '登录已过期，请重新登录。' });
+      resetWorkspaceState();
+      openAuthGate(msg('auth.err.expired'));
     };
 
     async function handleAuthSubmit(e) {
@@ -2370,65 +2763,102 @@
       const email = (document.getElementById('authEmailInput')?.value || '').trim();
       const password = document.getElementById('authPasswordInput')?.value || '';
       const register = authMode === 'register';
-      const fullName = (document.getElementById('authNameInput')?.value || '').trim();
-      const company = (document.getElementById('authCompanyInput')?.value || '').trim();
       const submitBtn = document.getElementById('authSubmitBtn');
       setFormAlert('authFormError', '');
 
-      if (!email || !password || (register && !fullName)) {
-        setFormAlert('authFormError', register ? '请填写姓名、邮箱和密码。' : '请输入邮箱和密码。');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        setFormAlert('authFormError', msg('auth.err.email'));
+        return;
+      }
+      if (!password || (register && password.length < 8)) {
+        setFormAlert('authFormError', msg(register ? 'auth.err.passwordShort' : 'auth.err.passwordMissing'));
         return;
       }
       if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.textContent = register ? '正在注册…' : '正在登录…';
+        setButtonBusy(submitBtn, register ? 'auth.creating' : 'auth.signingIn');
       }
       try {
+        // Sign Up asks only for email + password; the name defaults to the email's local part.
+        const body = register
+          ? { email, password, full_name: email.split('@')[0], company: '' }
+          : { email, password };
         const res = await fetch(register ? '/auth/register' : '/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(register ? { email, password, full_name: fullName, company } : { email, password }),
+          body: JSON.stringify(body),
         });
         let data = null;
         try { data = await res.json(); } catch (_) {}
         if (!res.ok || !data || !data.token) {
-          let message = register ? '注册失败，请稍后重试。' : '邮箱或密码不正确。';
-          if (res.status === 422) message = register ? '请检查邮箱格式，密码至少 4 位。' : '请检查邮箱和密码格式。';
-          else if (typeof data?.detail === 'string' && res.status === 400) message = data.detail;
-          setFormAlert('authFormError', message);
+          let key = register ? 'auth.err.registerFailed' : 'auth.err.credentials';
+          if (register && res.status === 400) key = 'auth.err.exists';
+          if (res.status === 422) key = 'auth.err.format';
+          setFormAlert('authFormError', msg(key));
           return;
         }
         try { localStorage.setItem('omniflow_auth_token', data.token); } catch (_) {}
-        // Reload so every view is fetched again inside the signed-in workspace (no data from the previous one).
-        window.location.reload();
+        currentUser = data.user;
+        updateSidebarUserProfile(currentUser);
+        document.getElementById('authForm')?.reset();
+        closeAuthGate();
+        startWorkspace();
+        showToast(msg(register ? 'auth.welcomeNew' : 'auth.welcomeBack'), true, { variant: 'success' });
       } catch (err) {
-        setFormAlert('authFormError', '网络连接失败，请检查网络后重试。');
+        setFormAlert('authFormError', msg('common.network'));
       } finally {
         if (submitBtn) {
-          submitBtn.disabled = false;
-          submitBtn.textContent = register ? '注册并进入' : '登录';
+          setButtonBusy(submitBtn, null);
         }
       }
     }
 
+    // Forget everything from the previous account before showing the gate again.
+    function resetWorkspaceState() {
+      currentUser = null;
+      currentCampaignId = null;
+      connectedFacebookPageId = '';
+      cachedDrafts = {};
+      cachedCampaigns = {};
+      cachedPlatforms = {};
+      integrationStatus = {};
+      resetToNewChat();
+      const list = document.getElementById('sidebarCampaignsList');
+      if (list) list.innerHTML = `<div class="p-4 text-xs text-zinc-500">${i18nSpan('nav.noCampaigns')}</div>`;
+      const badge = document.getElementById('scheduledBadgeCount');
+      if (badge) badge.textContent = '';
+      renderMetaConnectionState(false);
+      updateSidebarUserProfile(null);
+      ['closeIntegrationsModal', 'closeMetaAccountModal', 'closeOAuthNotice', 'closeSchedulesModal',
+       'closeNewCampaignModal', 'closeCampaignDetailsModal', 'closeChannelsMenu', 'closeAccountMenu'].forEach(fn => {
+        try { if (typeof window[fn] === 'function') window[fn](); } catch (_) {}
+      });
+      document.getElementById('userDropdown')?.classList.add('hidden');
+      toggleSidebar(false);
+    }
+
     async function handleLogout() {
-      try {
-        await fetch('/auth/logout', { method: 'POST' });
-      } catch (e) {}
-      localStorage.removeItem('omniflow_auth_token');
-      showToast('Signed out of session');
-      setTimeout(() => {
-        location.reload();
-      }, 500);
+      try { await fetch('/auth/logout', { method: 'POST' }); } catch (_) {}
+      try { localStorage.removeItem('omniflow_auth_token'); } catch (_) {}
+      resetWorkspaceState();
+      switchAuthTab('login');
+      openAuthGate();
     }
 
     // =========================================================================
     // SOCIAL INTEGRATIONS & OAUTH MANAGEMENT
     // =========================================================================
-    // 渠道集成: two ways to connect (OAuth, verified business ad account) + what is connected.
-    function openIntegrationsModal(view) {
+    // 渠道与 API 接入: Meta (OAuth / Page token / ad account), X, TikTok & others, notification webhook.
+    const INTEGRATION_TABS = ['meta', 'x', 'other', 'webhook'];
+    const TAB_PLATFORMS = { meta: ['meta', 'instagram', 'meta_ads'], x: ['x'], other: ['tiktok', 'xiaohongshu', 'wechat'], webhook: ['webhook'] };
+    const INTEGRATION_FORMS = ['pageTokenForm', 'adAccountForm', 'xForm', 'otherForm', 'webhookForm'];
+    let integrationStatus = {};
+
+    function openIntegrationsModal(tab = 'meta', option = null) {
+      if (tab === 'bind') { tab = 'meta'; option = 'ads'; }  // older entry points
       closeChannelsMenu();
-      showAdAccountForm(view === 'bind');
+      INTEGRATION_FORMS.forEach(id => resetIntegrationForm(id));
+      switchIntegrationTab(INTEGRATION_TABS.includes(tab) ? tab : 'meta');
+      showMetaOption(option);
       document.getElementById('integrationsModal')?.classList.add('open');
       loadIntegrationsStatus();
     }
@@ -2437,64 +2867,224 @@
       document.getElementById('integrationsModal')?.classList.remove('open');
     }
 
+    function switchIntegrationTab(tab) {
+      document.querySelectorAll('[data-int-tab]').forEach(b => b.classList.toggle('seg-active', b.dataset.intTab === tab));
+      document.querySelectorAll('[data-int-panel]').forEach(p => p.classList.toggle('hidden', p.dataset.intPanel !== tab));
+    }
+
+    // Meta options B (Page token) and C (ad account) expand inline; one at a time.
+    function showMetaOption(option) {
+      const current = document.querySelector('[data-meta-option][aria-expanded="true"]')?.dataset.metaOption || null;
+      const next = option === current ? null : option;
+      document.querySelectorAll('[data-meta-option]').forEach(card => card.setAttribute('aria-expanded', String(card.dataset.metaOption === next)));
+      document.getElementById('pageTokenForm')?.classList.toggle('hidden', next !== 'token');
+      document.getElementById('adAccountForm')?.classList.toggle('hidden', next !== 'ads');
+      const focusId = next === 'token' ? 'pageTokenPageId' : next === 'ads' ? 'adAccountId' : null;
+      if (focusId) setTimeout(() => document.getElementById(focusId)?.focus(), 30);
+    }
+
+    // Kept for older callers.
     function showAdAccountForm(show) {
-      const form = document.getElementById('adAccountForm');
-      const options = document.getElementById('integrationsOptions');
-      if (!form || !options) return;
-      ['ad_account_id', 'access_token'].forEach(f => setFormFieldError(form, f, ''));
-      setFormAlert('adAccountFormError', '');
-      form.classList.toggle('hidden', !show);
-      options.classList.toggle('hidden', !!show);
-      if (show) document.getElementById('adAccountId')?.focus();
+      showMetaOption(show ? 'ads' : null);
+    }
+
+    function resetIntegrationForm(id) {
+      const form = document.getElementById(id);
+      if (!form) return;
+      form.reset();
+      form.querySelectorAll('[name]').forEach(el => setFormFieldError(form, el.name, ''));
+      setFormAlert(id + 'Error', '');
     }
 
     async function loadIntegrationsStatus() {
-      const container = document.getElementById('integrationsListContainer');
-      if (!container) return;
       try {
         const res = await fetch('/integrations/status');
         if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data = await res.json();
-        const connected = Object.entries(data).filter(([, item]) => item.status === 'connected');
-        connected.forEach(([key, item]) => { cachedPlatforms[key] = item; });
-        if (!connected.length) {
-          container.innerHTML = '<div class="text-xs text-muted">尚未连接任何渠道</div>';
-          return;
-        }
-        container.innerHTML = connected.map(([key, item]) => {
-          const logo = key === 'meta_ads' ? 'meta.svg' : (key + '.svg');
-          const account = [item.account_name, item.account_id].filter(Boolean).map(v => escapeHtml(v)).join(' · ');
-          return `
-            <div class="flex items-center justify-between gap-3 p-3 rounded-2xl border hairline">
-              <div class="flex items-center gap-3 min-w-0">
-                <img src="/static/assets/logos/${logo}" alt="" class="w-8 h-8 rounded-lg shrink-0" onerror="this.src='/static/assets/logos/omniflow_logo.svg'"/>
-                <div class="min-w-0">
-                  <div class="text-xs font-semibold text-ink">${escapeHtml(item.name)}</div>
-                  <div class="text-[11px] text-muted truncate">${account}</div>
-                </div>
-              </div>
-              <button onclick="disconnectChannel('${key}')" class="secondary-btn !h-8 !text-xs !px-3 shrink-0">断开</button>
-            </div>`;
-        }).join('');
+        integrationStatus = await res.json();
+        Object.entries(integrationStatus).forEach(([key, item]) => { cachedPlatforms[key] = item; });
       } catch (err) {
-        container.innerHTML = '<div class="text-xs text-muted">暂时无法加载连接状态，请稍后重试。</div>';
+        integrationStatus = null;
+      }
+      INTEGRATION_TABS.forEach(renderIntegrationStatus);
+    }
+
+    function renderIntegrationStatus(tab) {
+      const box = document.getElementById('intStatus-' + tab);
+      const dot = document.getElementById('intDot-' + tab);
+      if (!box) return;
+      if (integrationStatus === null) {
+        box.innerHTML = `<div class="text-xs text-muted">${i18nSpan('int.statusError')}</div>`;
+        if (dot) dot.classList.remove('on');
+        return;
+      }
+      const connected = TAB_PLATFORMS[tab]
+        .map(key => [key, integrationStatus[key]])
+        .filter(([, item]) => item && item.status === 'connected');
+      if (dot) dot.classList.toggle('on', connected.length > 0);
+      if (!connected.length) {
+        box.innerHTML = `<div class="text-xs text-muted">${i18nSpan('int.notConnected')}</div>`;
+        return;
+      }
+      box.innerHTML = connected.map(([key, item]) => {
+        const logo = key === 'meta_ads' ? 'meta.svg' : (key + '.svg');
+        const account = [item.account_name, item.account_id].filter(Boolean).map(v => escapeHtml(v)).join(' · ');
+        return `
+          <div class="flex items-center justify-between gap-3 p-3 rounded-2xl border hairline">
+            <div class="flex items-center gap-3 min-w-0">
+              <img src="/static/assets/logos/${logo}" alt="" class="w-7 h-7 rounded-lg shrink-0" onerror="this.src='/static/assets/logos/omniflow_logo.svg'"/>
+              <div class="min-w-0">
+                <div class="text-xs font-semibold text-ink flex items-center gap-1.5">${channelNameHtml(key, item.name)}${i18nSpan('int.connected', null, 'text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 border border-emerald-500/30')}</div>
+                <div class="text-[11px] text-muted truncate">${account}</div>
+              </div>
+            </div>
+            <button onclick="disconnectChannel('${key}')" class="secondary-btn !h-8 !text-xs !px-3 shrink-0">${i18nSpan('int.disconnect')}</button>
+          </div>`;
+      }).join('');
+    }
+
+    // Channel names shown in the status rows follow the interface language.
+    function channelName(key, fallback) {
+      return I18N['channel.name.' + key] ? t('channel.name.' + key) : (fallback || key);
+    }
+
+    function channelNameHtml(key, fallback) {
+      return I18N['channel.name.' + key] ? i18nSpan('channel.name.' + key) : escapeHtml(fallback || key);
+    }
+
+    // POST a form's payload; shows per-field (422) or summary errors inline, returns the JSON on success.
+    async function submitIntegration(form, buttonId, busyKey, url, payload, fieldMap = {}) {
+      const button = document.getElementById(buttonId);
+      if (!button || button.disabled) return null;
+      setButtonBusy(button, busyKey);
+      try {
+        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        let body = null;
+        try { body = await res.json(); } catch (_) {}
+        if (res.ok) return body || {};
+        let message = msg('common.requestFailed', { status: res.status });
+        if (res.status === 422 && Array.isArray(body?.detail)) {
+          body.detail.forEach(item => {
+            const field = Array.isArray(item.loc) ? item.loc[item.loc.length - 1] : null;
+            const target = fieldMap[field] || field;
+            if (target && form.elements[target]) setFormFieldError(form, target, msg('common.badFormat'));
+          });
+          message = msg('common.fixFields');
+        } else if (typeof body?.detail === 'string') {
+          message = body.detail;
+        }
+        setFormAlert(form.id + 'Error', message);
+        return null;
+      } catch (err) {
+        setFormAlert(form.id + 'Error', msg('common.network'));
+        return null;
+      } finally {
+        setButtonBusy(button, null);
       }
     }
 
+    function requireFields(form, fields, message) {
+      let ok = true;
+      fields.forEach(name => {
+        const empty = !(form.elements[name]?.value || '').trim();
+        setFormFieldError(form, name, empty ? message : '');
+        if (empty) ok = false;
+      });
+      if (!ok) form.querySelector('.is-invalid')?.focus();
+      return ok;
+    }
+
+    const lastFour = value => '…' + String(value).trim().slice(-4);
+
+    async function submitPageToken(event) {
+      event?.preventDefault();
+      const form = document.getElementById('pageTokenForm');
+      setFormAlert('pageTokenFormError', '');
+      if (!requireFields(form, ['page_id', 'access_token'], msg('common.required'))) return;
+      const body = await submitIntegration(form, 'pageTokenSubmitBtn', 'common.verifying', '/tools/facebook/update-token', {
+        page_id: form.elements.page_id.value.trim(),
+        access_token: form.elements.access_token.value.trim(),
+      });
+      if (!body) return;
+      resetIntegrationForm('pageTokenForm');
+      showMetaOption(null);
+      showToast(msg('int.pageConnected', { name: body.page_name || body.page_id }), true, { variant: 'success' });
+      loadIntegrationsStatus();
+      checkFacebookLiveStatus();
+    }
+
+    async function submitXKeys(event) {
+      event?.preventDefault();
+      const form = document.getElementById('xForm');
+      setFormAlert('xFormError', '');
+      const names = ['api_key', 'api_secret', 'access_token', 'access_token_secret'];
+      if (!requireFields(form, names, msg('common.required'))) return;
+      const creds = Object.fromEntries(names.map(n => [n, form.elements[n].value.trim()]));
+      const body = await submitIntegration(form, 'xSubmitBtn', 'common.saving', '/integrations/connect', {
+        platform: 'x',
+        account_id: 'API Key ' + lastFour(creds.api_key),
+        account_name: 'X API v2',
+        access_token: JSON.stringify(creds),
+        permissions: ['tweet.read', 'tweet.write'],
+      });
+      if (!body) return;
+      resetIntegrationForm('xForm');
+      showToast(msg('int.xSaved'), true, { variant: 'success' });
+      loadIntegrationsStatus();
+    }
+
+    const OTHER_LABELS = { tiktok: 'TikTok', xiaohongshu: '小红书 RED', wechat: '微信公众号' };
+
+    async function submitOtherKeys(event) {
+      event?.preventDefault();
+      const form = document.getElementById('otherForm');
+      setFormAlert('otherFormError', '');
+      if (!requireFields(form, ['client_key', 'client_secret'], msg('common.required'))) return;
+      const platform = form.elements.platform.value;
+      const clientKey = form.elements.client_key.value.trim();
+      const body = await submitIntegration(form, 'otherSubmitBtn', 'common.saving', '/integrations/connect', {
+        platform,
+        account_id: clientKey,
+        account_name: OTHER_LABELS[platform] || platform,
+        access_token: JSON.stringify({ client_key: clientKey, client_secret: form.elements.client_secret.value.trim() }),
+      });
+      if (!body) return;
+      resetIntegrationForm('otherForm');
+      showToast(msg('int.otherSaved', { name: channelName(platform, OTHER_LABELS[platform]) }), true, { variant: 'success' });
+      loadIntegrationsStatus();
+    }
+
+    async function submitWebhook(event) {
+      event?.preventDefault();
+      const form = document.getElementById('webhookForm');
+      setFormAlert('webhookFormError', '');
+      const url = form.elements.url.value.trim();
+      if (!/^https?:\/\/\S+$/i.test(url)) {
+        setFormFieldError(form, 'url', msg('int.webhookInvalid'));
+        form.elements.url.focus();
+        return;
+      }
+      setFormFieldError(form, 'url', '');
+      const body = await submitIntegration(form, 'webhookSubmitBtn', 'int.sendingTest', '/integrations/webhook', { url });
+      if (!body) return;
+      resetIntegrationForm('webhookForm');
+      showToast(msg('int.webhookSaved'), true, { variant: 'success' });
+      loadIntegrationsStatus();
+    }
+
     async function disconnectChannel(platform) {
-      const name = (cachedPlatforms[platform] && cachedPlatforms[platform].name) || platform;
-      if (!confirm(`确定要断开 ${name} 吗？`)) return;
+      const name = channelName(platform, cachedPlatforms[platform] && cachedPlatforms[platform].name);
+      if (!confirm(t('int.confirmDisconnect', { name }))) return;
       try {
         await fetch('/integrations/disconnect', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ platform })
         });
-        showToast(`已断开 ${name}`);
+        showToast(msg('int.disconnected', { name }));
         loadIntegrationsStatus();
         checkFacebookLiveStatus();
       } catch (err) {
-        showToast('Error disconnecting: ' + err.message, false);
+        showToast(msg('int.disconnectError', { error: err.message }), false);
       }
     }
 
@@ -2540,40 +3130,53 @@
       if (dot) dot.className = connected ? 'w-1.5 h-1.5 rounded-full bg-emerald-500' : 'w-1.5 h-1.5 rounded-full bg-zinc-400';
     }
 
+    // Last /health/network result, kept so a language switch can redraw the status text.
+    let lastNetworkCheck = null;
+
     async function checkNetworkHealth() {
+      try {
+        const res = await fetch('/health/network', { cache: 'no-store' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        lastNetworkCheck = { payload: await res.json() };
+      } catch (err) {
+        lastNetworkCheck = { error: err.message };
+      }
+      renderNetworkHealth();
+    }
+
+    function renderNetworkHealth() {
       const pill = document.getElementById('networkStatusPill');
       const label = document.getElementById('networkStatusLabel');
       const latency = document.getElementById('networkLatency');
       const sidebarDot = document.getElementById('sidebarNetworkDot');
-      if (!pill) return;
+      if (!pill || !lastNetworkCheck) return;
       const setState = (cls, text, ms, tooltip, dotCls) => {
         pill.classList.remove('network-checking', 'network-healthy', 'network-degraded', 'network-offline');
         pill.classList.add(cls);
-        if (label) label.textContent = text;
+        if (label) setText(label, text);
         if (latency) latency.textContent = ms;
+        pill.removeAttribute('data-i18n-title');
         pill.title = tooltip;
         if (sidebarDot) sidebarDot.className = 'w-1.5 h-1.5 rounded-full ' + dotCls;
       };
-      try {
-        const res = await fetch('/health/network', { cache: 'no-store' });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const payload = await res.json();
-        const targets = Array.isArray(payload.targets) ? payload.targets : [];
-        const names = { meta_graph: 'Meta', zhipu_bigmodel: 'Zhipu AI' };
-        const lines = targets.map(t => `${names[t.name] || t.name}: ${t.reachable ? Math.round(t.latency_ms) + ' ms' : 'unreachable'}`);
-        const reachable = targets.filter(t => t.reachable && typeof t.latency_ms === 'number');
-        const worst = reachable.length ? Math.round(Math.max(...reachable.map(t => t.latency_ms))) + 'ms' : '';
-        const NL = String.fromCharCode(10);
-        const mode = payload.mode === 'proxy' ? ' · via proxy' : '';
-        if (payload.status === 'ok') {
-          setState('network-healthy', 'Network healthy', worst, `Network healthy${mode}${NL}${lines.join(NL)}`, 'bg-emerald-500');
-        } else if (payload.status === 'degraded') {
-          setState('network-degraded', 'Network degraded', worst, `Network degraded${mode}${NL}${lines.join(NL)}`, 'bg-amber-500');
-        } else {
-          setState('network-offline', 'Network down', '', `Meta and Zhipu AI unreachable${mode}${NL}${lines.join(NL)}`, 'bg-rose-500');
-        }
-      } catch (err) {
-        setState('network-offline', 'Network unavailable', '', 'Network check failed: ' + err.message, 'bg-rose-500');
+      if (lastNetworkCheck.error) {
+        setState('network-offline', t('net.unavailable'), '', t('net.checkFailed', { error: lastNetworkCheck.error }), 'bg-rose-500');
+        return;
+      }
+      const payload = lastNetworkCheck.payload || {};
+      const targets = Array.isArray(payload.targets) ? payload.targets : [];
+      const names = { meta_graph: 'Meta', zhipu_bigmodel: t('net.zhipu') };
+      const lines = targets.map(target => `${names[target.name] || target.name}: ${target.reachable ? Math.round(target.latency_ms) + ' ms' : t('net.unreachable')}`);
+      const reachable = targets.filter(target => target.reachable && typeof target.latency_ms === 'number');
+      const worst = reachable.length ? Math.round(Math.max(...reachable.map(target => target.latency_ms))) + 'ms' : '';
+      const NL = String.fromCharCode(10);
+      const mode = payload.mode === 'proxy' ? t('net.viaProxy') : '';
+      if (payload.status === 'ok') {
+        setState('network-healthy', t('net.healthy'), worst, `${t('net.healthy')}${mode}${NL}${lines.join(NL)}`, 'bg-emerald-500');
+      } else if (payload.status === 'degraded') {
+        setState('network-degraded', t('net.degraded'), worst, `${t('net.degraded')}${mode}${NL}${lines.join(NL)}`, 'bg-amber-500');
+      } else {
+        setState('network-offline', t('net.down'), '', `${t('net.allDown')}${mode}${NL}${lines.join(NL)}`, 'bg-rose-500');
       }
     }
 
@@ -2624,6 +3227,8 @@
     window.togglePlatformChip = togglePlatformChip;
     window.toggleSidebar = toggleSidebar;
     window.toggleTheme = toggleTheme;
+    window.applyLanguage = applyLanguage;
+    window.toggleLanguage = toggleLanguage;
     window.showToast = showToast;
     window.openNewCampaignModal = openNewCampaignModal;
     window.closeNewCampaignModal = closeNewCampaignModal;
@@ -2646,6 +3251,8 @@
     window.toggleAuthMode = toggleAuthMode;
     window.switchAuthTab = switchAuthTab;
     window.handleLogout = handleLogout;
+    window.toggleAccountMenu = toggleAccountMenu;
+    window.closeAccountMenu = closeAccountMenu;
     window.scrollToBottom = scrollToBottom;
     window.escapeHtml = escapeHtml;
     window.checkFacebookLiveStatus = checkFacebookLiveStatus;
@@ -2659,13 +3266,10 @@
       const hero = document.getElementById('emptyHeroState');
       if (hero) new MutationObserver(syncComposerPosition).observe(hero, { attributes: true, attributeFilter: ['class'] });
       renderMetaConnectionState(false);
-      await loadPublicConfig();
-      await checkAuthSession();
-      if (authRequired) return;
-      loadCampaigns();
-      checkFacebookLiveStatus();
       checkNetworkHealth();
       window.setInterval(checkNetworkHealth, 30000);
+      loadPublicConfig();
+      if (await checkAuthSession()) startWorkspace();
 
       const pubBtn = document.querySelector("#publishBtn");
       if (pubBtn) {
@@ -2682,111 +3286,211 @@
     });
   </script>
   <!-- ========================================================================= -->
-  <!-- 9. SIGN IN / SIGN UP (a required gate when the server sets REQUIRE_AUTH)  -->
+  <!-- 9. AUTH GATE: every visit needs a signed-in account (not dismissible)     -->
   <!-- ========================================================================= -->
-  <div id="authModal" class="fixed inset-0 z-[70] hidden items-center justify-center p-4 modal-scrim" onclick="if (event.target === this) closeAuthModal()">
+  <div id="authModal" class="fixed inset-0 z-[70] hidden items-center justify-center p-4 modal-scrim">
     <div class="sheet w-full max-w-sm" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
-      <div class="flex items-start justify-between gap-4">
-        <div class="flex items-center gap-3">
-          <img src="/static/assets/logos/omniflow_logo.svg" alt="" class="w-9 h-9 rounded-xl"/>
-          <div>
-            <h3 id="authModalTitle" class="text-base font-semibold text-ink">登录 OmniFlow</h3>
-            <p class="text-xs text-muted mt-0.5">AI-powered cross-border growth engine</p>
-          </div>
-        </div>
-        <button id="authCloseBtn" onclick="closeAuthModal()" class="icon-btn" title="Close"><span class="material-symbols-outlined text-lg">close</span></button>
+      <div class="flex flex-col items-center text-center">
+        <img src="/static/assets/logos/omniflow_logo.svg" alt="" class="w-11 h-11 rounded-2xl"/>
+        <h3 id="authModalTitle" class="text-lg font-semibold text-ink mt-4" data-i18n="auth.title">Welcome to OmniFlow</h3>
+        <p class="text-xs text-muted mt-1" data-i18n="auth.subtitle">Sign in to manage your cross-border marketing workspace</p>
       </div>
 
-      <div class="segmented mt-5">
-        <button id="authTabLogin" type="button" onclick="switchAuthTab('login')" class="seg-btn seg-active">登录 Sign in</button>
-        <button id="authTabRegister" type="button" onclick="switchAuthTab('register')" class="seg-btn">注册 Sign up</button>
+      <div class="segmented mt-5" role="tablist">
+        <button id="authTabLogin" type="button" role="tab" onclick="switchAuthTab('login')" class="seg-btn seg-active" data-i18n="auth.signIn">Sign In</button>
+        <button id="authTabRegister" type="button" role="tab" onclick="switchAuthTab('register')" class="seg-btn" data-i18n="auth.signUp">Sign Up</button>
       </div>
 
       <form id="authForm" onsubmit="handleAuthSubmit(event)" class="mt-5 space-y-3" novalidate>
         <div id="authFormError" class="form-alert hidden" role="alert"></div>
-        <div id="authNameField" class="hidden">
-          <label for="authNameInput" class="field-label">姓名 <span class="text-muted">Name</span></label>
-          <input type="text" id="authNameInput" autocomplete="name" maxlength="100" class="field-input" placeholder="Your name"/>
+        <div>
+          <label for="authEmailInput" class="field-label" data-i18n="auth.email">Email</label>
+          <input type="email" id="authEmailInput" name="email" value="" autocomplete="email" required maxlength="100" class="field-input" placeholder="name@company.com"/>
         </div>
         <div>
-          <label for="authEmailInput" class="field-label">邮箱 <span class="text-muted">Email</span></label>
-          <input type="email" id="authEmailInput" autocomplete="email" required maxlength="100" class="field-input" placeholder="name@company.com"/>
+          <label for="authPasswordInput" class="field-label" data-i18n="auth.password">Password</label>
+          <input type="password" id="authPasswordInput" name="password" value="" autocomplete="current-password" required maxlength="100" class="field-input" placeholder="••••••••"/>
         </div>
-        <div>
-          <label for="authPasswordInput" class="field-label">密码 <span class="text-muted">Password</span></label>
-          <input type="password" id="authPasswordInput" autocomplete="current-password" required maxlength="100" class="field-input" placeholder="••••••••"/>
-        </div>
-        <div id="authCompanyField" class="hidden">
-          <label for="authCompanyInput" class="field-label">公司 / 品牌 <span class="text-muted">选填 · Optional</span></label>
-          <input type="text" id="authCompanyInput" autocomplete="organization" maxlength="200" class="field-input" placeholder="Company or brand"/>
-        </div>
-        <button type="submit" id="authSubmitBtn" class="primary-btn w-full">登录</button>
+        <button type="submit" id="authSubmitBtn" class="primary-btn w-full" data-i18n="auth.continue">Continue</button>
       </form>
+      <div class="mt-4 flex justify-center">
+        <button type="button" onclick="toggleLanguage()" class="lang-btn" title="切换语言 · Switch language" aria-label="切换语言 · Switch language">
+          <span class="material-symbols-outlined text-lg">language</span>
+          <span class="lang-opt" data-lang-opt="zh">中文</span><span class="lang-sep">/</span><span class="lang-opt" data-lang-opt="en">EN</span>
+        </button>
+      </div>
     </div>
   </div>
 
   <!-- ========================================================================= -->
-  <!-- 10. 渠道集成 · INTEGRATIONS (OAuth or verified business ad account)        -->
+  <!-- 10. 渠道与 API 接入 · CHANNELS & OFFICIAL APIS                               -->
   <!-- ========================================================================= -->
   <div id="integrationsModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 modal-scrim" onclick="if (event.target === this) closeIntegrationsModal()">
-    <div class="sheet w-full max-w-lg max-h-[calc(100vh-2rem)] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="integrationsTitle">
+    <div class="sheet w-full max-w-xl max-h-[calc(100vh-2rem)] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="integrationsTitle">
       <div class="flex items-start justify-between gap-4">
         <div class="flex items-center gap-3">
-          <span class="w-10 h-10 rounded-xl surface-muted flex items-center justify-center"><span class="material-symbols-outlined text-xl text-muted">hub</span></span>
+          <span class="w-10 h-10 rounded-xl surface-muted flex items-center justify-center shrink-0"><span class="material-symbols-outlined text-xl text-muted">hub</span></span>
           <div>
-            <h3 id="integrationsTitle" class="text-base font-semibold text-ink">渠道集成 · Integrations</h3>
-            <p class="text-xs text-muted mt-0.5">连接 Facebook 主页或已开通的企业广告账户</p>
+            <h3 id="integrationsTitle" class="text-base font-semibold text-ink" data-i18n="int.title">渠道与 API 接入</h3>
+            <p class="text-xs text-muted mt-0.5" data-i18n="int.subtitle">Connect your official API keys or authorize accounts for automated publishing.</p>
           </div>
         </div>
-        <button onclick="closeIntegrationsModal()" class="icon-btn" title="Close"><span class="material-symbols-outlined text-lg">close</span></button>
+        <button onclick="closeIntegrationsModal()" class="icon-btn" title="Close" data-i18n-title="common.close"><span class="material-symbols-outlined text-lg">close</span></button>
       </div>
 
-      <div id="integrationsOptions" class="mt-5 grid gap-2">
+      <div class="segmented mt-5 overflow-x-auto" role="tablist">
+        <button type="button" role="tab" data-int-tab="meta" onclick="switchIntegrationTab('meta')" class="seg-btn whitespace-nowrap">Meta<span class="tab-dot" id="intDot-meta"></span></button>
+        <button type="button" role="tab" data-int-tab="x" onclick="switchIntegrationTab('x')" class="seg-btn whitespace-nowrap">X<span class="tab-dot" id="intDot-x"></span></button>
+        <button type="button" role="tab" data-int-tab="other" onclick="switchIntegrationTab('other')" class="seg-btn whitespace-nowrap"><span data-i18n="int.tabOther">TikTok / 其他</span><span class="tab-dot" id="intDot-other"></span></button>
+        <button type="button" role="tab" data-int-tab="webhook" onclick="switchIntegrationTab('webhook')" class="seg-btn whitespace-nowrap">Webhook<span class="tab-dot" id="intDot-webhook"></span></button>
+      </div>
+
+      <!-- ---------------------------------------------------------------- Meta -->
+      <section data-int-panel="meta" class="mt-5 space-y-3">
+        <div class="text-[11px] uppercase tracking-wider text-muted">Meta (Facebook / Instagram)</div>
+        <div id="intStatus-meta" class="space-y-2"></div>
+
         <button type="button" onclick="startMetaOAuth()" class="option-card">
           <img src="/static/assets/logos/meta.svg" class="w-8 h-8 rounded-lg shrink-0" alt=""/>
           <span class="min-w-0 text-left">
-            <span class="block text-sm font-semibold text-ink">OAuth 授权连接</span>
-            <span class="block text-xs text-muted mt-0.5">使用 Facebook 官方登录，一键授权主页用于发布与评论管理</span>
+            <span class="block text-sm font-semibold text-ink" data-i18n="int.oauthTitle">一键 OAuth 授权</span>
+            <span class="block text-xs text-muted mt-0.5" data-i18n="int.oauthDesc">使用 Facebook 官方登录授权主页（发布与评论管理）</span>
           </span>
-          <span class="material-symbols-outlined text-muted ml-auto">chevron_right</span>
+          <span class="material-symbols-outlined text-muted ml-auto">open_in_new</span>
         </button>
-        <button type="button" onclick="showAdAccountForm(true)" class="option-card">
+
+        <button type="button" onclick="showMetaOption('token')" data-meta-option="token" class="option-card">
+          <span class="w-8 h-8 rounded-lg surface-muted flex items-center justify-center shrink-0"><span class="material-symbols-outlined text-lg text-muted">key</span></span>
+          <span class="min-w-0 text-left">
+            <span class="block text-sm font-semibold text-ink" data-i18n="int.tokenTitle">手动输入 Page Token</span>
+            <span class="block text-xs text-muted mt-0.5" data-i18n="int.tokenDesc">Page ID + Page Access Token，保存前由 Meta 验证</span>
+          </span>
+          <span class="material-symbols-outlined text-muted ml-auto option-chevron">expand_more</span>
+        </button>
+        <form id="pageTokenForm" class="hidden space-y-3 pl-1" onsubmit="submitPageToken(event)" novalidate>
+          <div id="pageTokenFormError" class="form-alert hidden" role="alert"></div>
+          <div>
+            <label for="pageTokenPageId" class="field-label">Page ID</label>
+            <input id="pageTokenPageId" name="page_id" type="text" value="" inputmode="numeric" maxlength="40" autocomplete="off" spellcheck="false" class="field-input font-mono" placeholder="Facebook 主页 ID" data-i18n-placeholder="int.pageIdPh"/>
+            <p class="field-error hidden" data-error-for="page_id"></p>
+          </div>
+          <div>
+            <label for="pageTokenToken" class="field-label">Page Access Token</label>
+            <textarea id="pageTokenToken" name="access_token" rows="3" maxlength="1000" autocomplete="off" spellcheck="false" class="field-input font-mono resize-none" placeholder="粘贴主页访问令牌" data-i18n-placeholder="int.tokenPh"></textarea>
+            <p class="field-error hidden" data-error-for="access_token"></p>
+          </div>
+          <button id="pageTokenSubmitBtn" type="submit" class="primary-btn w-full" data-i18n="int.verifySave">Verify &amp; Save</button>
+        </form>
+
+        <button type="button" onclick="showMetaOption('ads')" data-meta-option="ads" class="option-card">
           <span class="w-8 h-8 rounded-lg surface-muted flex items-center justify-center shrink-0"><span class="material-symbols-outlined text-lg text-muted">badge</span></span>
           <span class="min-w-0 text-left">
-            <span class="block text-sm font-semibold text-ink">绑定已有企业账户</span>
-            <span class="block text-xs text-muted mt-0.5">Ad Account ID + System User Token（适用于 Meetsocial / YinoLink 已开通账户）</span>
+            <span class="block text-sm font-semibold text-ink" data-i18n="int.adsTitle">企业广告账户绑定</span>
+            <span class="block text-xs text-muted mt-0.5" data-i18n="int.adsDesc">Ad Account ID + System User Token（Meetsocial / YinoLink 已开通账户）</span>
           </span>
-          <span class="material-symbols-outlined text-muted ml-auto">chevron_right</span>
+          <span class="material-symbols-outlined text-muted ml-auto option-chevron">expand_more</span>
         </button>
-      </div>
-
-      <form id="adAccountForm" class="mt-5 space-y-4 hidden" onsubmit="submitAdAccountBinding(event)" novalidate>
-        <button type="button" onclick="showAdAccountForm(false)" class="text-xs text-muted hover:text-ink inline-flex items-center gap-1"><span class="material-symbols-outlined text-sm">arrow_back</span>返回</button>
-        <p class="text-xs text-muted leading-relaxed">填写广告账户 ID 与 System User Token，OmniFlow 会先通过 Meta Graph API 验证，再保存到当前工作区。</p>
-        <div id="adAccountFormError" class="form-alert hidden" role="alert"></div>
-        <div class="space-y-3">
+        <form id="adAccountForm" class="hidden space-y-3 pl-1" onsubmit="submitAdAccountBinding(event)" novalidate>
+          <div id="adAccountFormError" class="form-alert hidden" role="alert"></div>
           <div>
-            <label for="adAccountId" class="field-label">广告账户 ID <span class="text-muted">Ad Account ID</span></label>
-            <input id="adAccountId" name="ad_account_id" type="text" value="" maxlength="40" autocomplete="off" spellcheck="false" required class="field-input font-mono" placeholder="act_…"/>
+            <label for="adAccountId" class="field-label">Ad Account ID</label>
+            <input id="adAccountId" name="ad_account_id" type="text" value="" maxlength="40" autocomplete="off" spellcheck="false" class="field-input font-mono" placeholder="act_…"/>
             <p class="field-error hidden" data-error-for="ad_account_id"></p>
           </div>
           <div>
-            <label for="adAccountToken" class="field-label">System User Token <span class="text-muted">Business Manager → 系统用户</span></label>
-            <input id="adAccountToken" name="access_token" type="password" value="" maxlength="1000" autocomplete="off" spellcheck="false" required class="field-input font-mono" placeholder="粘贴系统用户访问令牌"/>
+            <label for="adAccountToken" class="field-label">System User Token</label>
+            <input id="adAccountToken" name="access_token" type="password" value="" maxlength="1000" autocomplete="off" spellcheck="false" class="field-input font-mono" placeholder="Business Manager → 系统用户 → 生成令牌" data-i18n-placeholder="int.adsTokenPh"/>
             <p class="field-error hidden" data-error-for="access_token"></p>
           </div>
-        </div>
-        <button id="adAccountSubmitBtn" type="submit" class="primary-btn w-full">Connect &amp; Verify</button>
-      </form>
+          <button id="adAccountSubmitBtn" type="submit" class="primary-btn w-full" data-i18n="int.adsConnect">Connect Ad Account</button>
+        </form>
+      </section>
 
-      <div class="mt-6">
-        <div class="text-[11px] uppercase tracking-wider text-muted mb-2">已连接 · Connected</div>
-        <div id="integrationsListContainer" class="space-y-2">
-          <div class="text-xs text-muted">正在加载…</div>
-        </div>
-      </div>
+      <!-- ------------------------------------------------------------------- X -->
+      <section data-int-panel="x" class="mt-5 space-y-3 hidden">
+        <div class="text-[11px] uppercase tracking-wider text-muted">X (Twitter API v2)</div>
+        <div id="intStatus-x" class="space-y-2"></div>
+        <form id="xForm" class="space-y-3" onsubmit="submitXKeys(event)" novalidate>
+          <div id="xFormError" class="form-alert hidden" role="alert"></div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label for="xApiKey" class="field-label">API Key</label>
+              <input id="xApiKey" name="api_key" type="text" value="" autocomplete="off" spellcheck="false" maxlength="200" class="field-input font-mono"/>
+              <p class="field-error hidden" data-error-for="api_key"></p>
+            </div>
+            <div>
+              <label for="xApiSecret" class="field-label">API Secret</label>
+              <input id="xApiSecret" name="api_secret" type="password" value="" autocomplete="off" spellcheck="false" maxlength="200" class="field-input font-mono"/>
+              <p class="field-error hidden" data-error-for="api_secret"></p>
+            </div>
+            <div>
+              <label for="xAccessToken" class="field-label">Access Token</label>
+              <input id="xAccessToken" name="access_token" type="password" value="" autocomplete="off" spellcheck="false" maxlength="300" class="field-input font-mono"/>
+              <p class="field-error hidden" data-error-for="access_token"></p>
+            </div>
+            <div>
+              <label for="xTokenSecret" class="field-label">Token Secret</label>
+              <input id="xTokenSecret" name="access_token_secret" type="password" value="" autocomplete="off" spellcheck="false" maxlength="200" class="field-input font-mono"/>
+              <p class="field-error hidden" data-error-for="access_token_secret"></p>
+            </div>
+          </div>
+          <p class="text-xs text-muted leading-relaxed" data-i18n="int.xNote">凭证会保存到当前工作区，但暂不做在线校验；自动发布到 X 尚未开放。</p>
+          <button id="xSubmitBtn" type="submit" class="primary-btn w-full" data-i18n="common.save">Save</button>
+        </form>
+      </section>
+
+      <!-- ------------------------------------------------------- TikTok / other -->
+      <section data-int-panel="other" class="mt-5 space-y-3 hidden">
+        <div class="text-[11px] uppercase tracking-wider text-muted" data-i18n="int.otherHeading">TikTok / Other Channels</div>
+        <div id="intStatus-other" class="space-y-2"></div>
+        <form id="otherForm" class="space-y-3" onsubmit="submitOtherKeys(event)" novalidate>
+          <div id="otherFormError" class="form-alert hidden" role="alert"></div>
+          <div>
+            <label for="otherPlatform" class="field-label" data-i18n="int.platform">平台</label>
+            <select id="otherPlatform" name="platform" class="field-input">
+              <option value="tiktok">TikTok</option>
+              <option value="xiaohongshu" data-i18n="int.optXhs">小红书</option>
+              <option value="wechat" data-i18n="int.optWechat">微信公众号</option>
+            </select>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label for="otherClientKey" class="field-label">Client Key / App ID</label>
+              <input id="otherClientKey" name="client_key" type="text" value="" autocomplete="off" spellcheck="false" maxlength="200" class="field-input font-mono"/>
+              <p class="field-error hidden" data-error-for="client_key"></p>
+            </div>
+            <div>
+              <label for="otherClientSecret" class="field-label">App Secret</label>
+              <input id="otherClientSecret" name="client_secret" type="password" value="" autocomplete="off" spellcheck="false" maxlength="200" class="field-input font-mono"/>
+              <p class="field-error hidden" data-error-for="client_secret"></p>
+            </div>
+          </div>
+          <p class="text-xs text-muted leading-relaxed" data-i18n="int.otherNote">凭证会保存到当前工作区，但暂不做在线校验；自动发布到这些平台尚未开放。</p>
+          <button id="otherSubmitBtn" type="submit" class="primary-btn w-full" data-i18n="common.save">Save</button>
+        </form>
+      </section>
+
+      <!-- ------------------------------------------------------------- Webhook -->
+      <section data-int-panel="webhook" class="mt-5 space-y-3 hidden">
+        <div class="text-[11px] uppercase tracking-wider text-muted" data-i18n="int.webhookHeading">自定义 Webhook / 通知</div>
+        <div id="intStatus-webhook" class="space-y-2"></div>
+        <form id="webhookForm" class="space-y-3" onsubmit="submitWebhook(event)" novalidate>
+          <div id="webhookFormError" class="form-alert hidden" role="alert"></div>
+          <div>
+            <label for="webhookUrl" class="field-label" data-i18n="int.webhookLabel">Feishu / Lark / Custom Webhook URL</label>
+            <input id="webhookUrl" name="url" type="url" value="" inputmode="url" autocomplete="off" spellcheck="false" maxlength="1000" class="field-input font-mono" placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/…"/>
+            <p class="field-error hidden" data-error-for="url"></p>
+          </div>
+          <p class="text-xs text-muted leading-relaxed" data-i18n="int.webhookNote">保存前会发送一条测试消息；成功后，新的开户申请等通知会推送到这里。</p>
+          <button id="webhookSubmitBtn" type="submit" class="primary-btn w-full" data-i18n="int.testSave">Test &amp; Save</button>
+        </form>
+      </section>
     </div>
   </div>
 
+  <script>
+    // Every element above exists now: show it in the saved language (简体中文 by default).
+    applyLanguage(currentLang);
+  </script>
 </body>
 </html>

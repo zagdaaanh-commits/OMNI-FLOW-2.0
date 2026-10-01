@@ -305,7 +305,7 @@ class UserRegister(BaseModel):
     email: str = Field(..., min_length=3, max_length=100)
     password: str = Field(..., min_length=4, max_length=100)
     full_name: str = Field(..., min_length=1, max_length=100)
-    company: Optional[str] = Field(default="Global Brand HQ")
+    company: Optional[str] = Field(default=None, max_length=200)
     role: Optional[str] = Field(default="Brand Director")
 
 
@@ -431,6 +431,11 @@ class AgencyApplicationRequest(BaseModel):
     def _remarks(cls, value: Optional[str]) -> Optional[str]:
         value = (value or "").strip()
         return value or None
+
+
+# ------------------------------------------------------ notification webhook
+class WebhookSaveRequest(BaseModel):
+    url: str = Field(..., min_length=8, max_length=1000, description="Feishu / Lark bot or custom HTTPS webhook URL")
 
 
 # --------------------------------------------------------- meta ad accounts
