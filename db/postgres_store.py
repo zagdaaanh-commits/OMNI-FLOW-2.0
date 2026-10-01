@@ -28,7 +28,7 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
-from app.config import env_int, is_production
+from app.config import env_int
 from db.base import DEFAULT_TENANT_ID, CrossTenantWriteError, mask_token, slugify, utcnow
 from db.passwords import hash_password, needs_rehash, verify_password
 from models.schemas import Campaign, ContentDraft, PublishStatus, PublishTask
@@ -59,7 +59,6 @@ class PostgresStore:
         )
         self.pool.wait(timeout=30)
         self.ensure_tenant(DEFAULT_TENANT_ID, "Default Workspace")
-        self._seed_default_user()
 
     # ------------------------------------------------------------ connection
     @contextmanager
@@ -103,23 +102,6 @@ class PostgresStore:
             return _stringify(conn.execute("SELECT * FROM tenants WHERE id = %s", (tenant_id,)).fetchone())
 
     # ----------------------------------------------------------------- users
-    def _seed_default_user(self) -> None:
-        if is_production():
-            return
-        with self._tx(None) as conn:
-            exists = conn.execute(
-                "SELECT 1 FROM users WHERE tenant_id = %s OR lower(email) = 'admin@omniflow.ai' LIMIT 1", (DEFAULT_TENANT_ID,)
-            ).fetchone()
-            if not exists:
-                conn.execute(
-                    """
-                    INSERT INTO users (id, tenant_id, email, full_name, password_hash, role, company, avatar_url)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    """,
-                    (str(uuid4()), DEFAULT_TENANT_ID, "admin@omniflow.ai", "Alex Rivera", hash_password("admin123"),
-                     "Brand Director", "Global Brand HQ", ""),
-                )
-
     def create_user(
         self,
         email: str,

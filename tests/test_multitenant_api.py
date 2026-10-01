@@ -53,7 +53,9 @@ def test_duplicate_registration_is_rejected():
 
 def test_stale_legacy_token_is_401_but_anonymous_still_works():
     assert client.get("/auth/me", headers={"Authorization": "Bearer omt_" + "a" * 32}).status_code == 401
-    assert client.get("/auth/me").status_code == 200  # anonymous -> default workspace (dashboard demo mode)
+    # Anonymous callers fall back to the default workspace; with no account there they must sign in.
+    anon = client.get("/auth/me")
+    assert anon.status_code == 200 or (anon.status_code == 401 and anon.json()["detail"] == "Not signed in.")
 
 
 def test_campaigns_drafts_tasks_are_isolated_between_tenants():
@@ -249,3 +251,8 @@ def test_cors_is_wildcard_without_credentials_by_default():
     res = client.get("/health", headers={"Origin": "https://example.com"})
     assert res.headers["access-control-allow-origin"] == "*"
     assert "access-control-allow-credentials" not in res.headers
+
+
+def test_new_workspace_starts_with_no_campaigns():
+    _, headers = _register("Fresh Co")
+    assert client.get("/campaigns", headers=headers).json() == []

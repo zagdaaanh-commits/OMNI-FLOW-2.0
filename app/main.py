@@ -240,6 +240,15 @@ def dashboard_view():
     return HTMLResponse(content=get_dashboard_html())
 
 
+@app.get("/config/public")
+def public_config():
+    """Non-secret settings the browser needs before sign-in."""
+    apply_url = (os.getenv("META_AGENCY_APPLY_URL") or "").strip()
+    if not apply_url.lower().startswith(("https://", "http://")):
+        apply_url = ""
+    return {"meta_agency_apply_url": apply_url or None}
+
+
 @app.get("/health")
 def health():
     mode = scheduler_mode()
@@ -273,13 +282,7 @@ def create_campaign(payload: CampaignCreate, ctx: TenantContext = Depends(get_te
 
 @app.get("/campaigns", response_model=List[Campaign])
 def list_campaigns(ctx: TenantContext = Depends(get_tenant_context)) -> List[Campaign]:
-    campaigns = store.list_campaigns(tenant_id=ctx.tenant_id)
-    if not campaigns:
-        data = CampaignCreate().model_dump()
-        data["tenant_id"] = ctx.tenant_id
-        demo = store.save_campaign(planner.build_strategy(Campaign(**data)))
-        campaigns = [demo]
-    return campaigns
+    return store.list_campaigns(tenant_id=ctx.tenant_id)
 
 
 @app.api_route("/boost", methods=["GET", "POST"])
@@ -694,9 +697,6 @@ def get_current_user(ctx: TenantContext = Depends(get_tenant_context)):
             raise HTTPException(status_code=401, detail="Account no longer exists.")
         return user
     users = store.list_users(tenant_id=ctx.tenant_id)
-    if not users and not is_production():
-        store._seed_default_user()
-        users = store.list_users(tenant_id=ctx.tenant_id)
     if not users:
         raise HTTPException(status_code=401, detail="Not signed in.")
     return users[0]

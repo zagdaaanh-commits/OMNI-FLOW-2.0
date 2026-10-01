@@ -193,8 +193,8 @@ def test_auth_flow():
     login_data = res_login.json()
     assert login_data["user"]["email"] == unique_email
 
-    # 3. /auth/me
-    res_me = client.get("/auth/me")
+    # 3. /auth/me with the issued token
+    res_me = client.get("/auth/me", headers={"Authorization": f"Bearer {login_data['token']}"})
     assert res_me.status_code == 200
     assert "email" in res_me.json()
 
@@ -491,3 +491,14 @@ def test_publish_facebook_endpoint_raw_base64(graph_stub, monkeypatch):
     assert res.status_code == 200
     assert res.json()["success"] is True
     assert "photos" in str(graph_stub.calls[0].url)
+
+
+def test_public_config_agency_url(monkeypatch):
+    monkeypatch.delenv("META_AGENCY_APPLY_URL", raising=False)
+    assert client.get("/config/public").json() == {"meta_agency_apply_url": None}
+
+    monkeypatch.setenv("META_AGENCY_APPLY_URL", "javascript:alert(1)")
+    assert client.get("/config/public").json() == {"meta_agency_apply_url": None}
+
+    monkeypatch.setenv("META_AGENCY_APPLY_URL", "https://agency.example.com/apply")
+    assert client.get("/config/public").json() == {"meta_agency_apply_url": "https://agency.example.com/apply"}

@@ -15,7 +15,6 @@ from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
 from uuid import uuid4
 
-from app.config import is_production
 from db.base import (
     DEFAULT_TENANT_ID,
     CrossTenantWriteError,
@@ -110,7 +109,6 @@ class SQLiteStore:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
-        self._seed_default_user()
 
     # ----------------------------------------------------------- connections
     @contextmanager
@@ -222,34 +220,6 @@ class SQLiteStore:
             return dict(row) if row else None
 
     # ----------------------------------------------------------------- users
-    def _seed_default_user(self) -> None:
-        if is_production():
-            return
-        with self._conn() as conn:
-            row = conn.execute(
-                "SELECT COUNT(*) FROM users WHERE tenant_id = ?", (DEFAULT_TENANT_ID,)
-            ).fetchone()
-            if row[0] == 0 and not conn.execute(
-                "SELECT 1 FROM users WHERE lower(email) = 'admin@omniflow.ai'"
-            ).fetchone():
-                conn.execute(
-                    """
-                    INSERT INTO users (id, email, full_name, password_hash, role, company, avatar_url, created_at, tenant_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        str(uuid4()),
-                        "admin@omniflow.ai",
-                        "Alex Rivera",
-                        hash_password("admin123"),
-                        "Brand Director",
-                        "Global Brand HQ",
-                        "",
-                        iso_utc(utcnow()),
-                        DEFAULT_TENANT_ID,
-                    ),
-                )
-
     def create_user(
         self,
         email: str,

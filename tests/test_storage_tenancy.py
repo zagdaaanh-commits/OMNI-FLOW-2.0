@@ -379,10 +379,12 @@ def test_old_single_tenant_database_is_migrated_in_place(tmp_path):
         assert check.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
 
 
-def test_sqlite_default_admin_is_seeded_only_outside_production(tmp_path, monkeypatch):
-    assert SQLiteStore(str(tmp_path / "dev.db")).get_user_by_email("admin@omniflow.ai") is not None
-    monkeypatch.setenv("APP_ENV", "production")
-    assert SQLiteStore(str(tmp_path / "prod.db")).get_user_by_email("admin@omniflow.ai") is None
+def test_sqlite_starts_without_any_seeded_user(tmp_path, monkeypatch):
+    for env in ("development", "production"):
+        monkeypatch.setenv("APP_ENV", env)
+        store = SQLiteStore(str(tmp_path / f"{env}.db"))
+        assert store.get_user_by_email("admin@omniflow.ai") is None
+        assert store.list_users(tenant_id="default") == []
 
 
 def test_storage_module_still_exports_sqlitestore():

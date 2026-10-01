@@ -3,7 +3,20 @@
 <head>
   <meta charset="utf-8"/>
   <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-  <title>OmniFlow AI 2.0 — Conversational Marketing Suite</title>
+  <title>OmniFlow</title>
+  <link rel="icon" type="image/svg+xml" href="/static/assets/logos/omniflow_logo.svg"/>
+  <script>
+    // Apply the saved (or system) theme before first paint to avoid a flash.
+    (function () {
+      var theme = null;
+      try { theme = localStorage.getItem('omniflow_theme'); } catch (_) {}
+      if (theme !== 'light' && theme !== 'dark') {
+        theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      }
+      document.documentElement.classList.remove('light', 'dark');
+      document.documentElement.classList.add(theme);
+    })();
+  </script>
   
   <!-- Fonts: Inter & Apple system -->
   <link href="https://fonts.googleapis.com" rel="preconnect"/>
@@ -79,398 +92,475 @@
   </script>
 
   <style>
+    /* ========================================================================= */
+    /* DESIGN TOKENS — light (Notion / Apple) is the base, dark (Grok / Linear)  */
+    /* ========================================================================= */
+    :root {
+      color-scheme: light;
+      --bg: #FFFFFF;
+      --surface: #FFFFFF;
+      --surface-muted: #F4F4F5;
+      --surface-hover: #F4F4F5;
+      --border: #E4E4E7;
+      --border-strong: #D4D4D8;
+      --ink: #18181B;
+      --muted: #71717A;
+      --accent: #18181B;
+      --accent-ink: #FFFFFF;
+      --scrim: rgba(24, 24, 27, 0.32);
+      --shadow: 0 1px 2px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06);
+    }
+    html.dark {
+      color-scheme: dark;
+      --bg: #0A0A0A;
+      --surface: #141414;
+      --surface-muted: rgba(255, 255, 255, 0.05);
+      --surface-hover: rgba(255, 255, 255, 0.07);
+      --border: rgba(255, 255, 255, 0.08);
+      --border-strong: rgba(255, 255, 255, 0.14);
+      --ink: #EDEDED;
+      --muted: #8B8B8B;
+      --accent: #EDEDED;
+      --accent-ink: #0A0A0A;
+      --scrim: rgba(0, 0, 0, 0.66);
+      --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 12px 32px rgba(0,0,0,0.35);
+    }
+
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      background-color: #0A0B10;
-      color: #E4E4E7;
+      background-color: var(--bg);
+      color: var(--ink);
       overflow: hidden;
+      transition: background-color 200ms ease, color 200ms ease;
     }
-    ::selection {
-      background-color: rgba(99, 102, 241, 0.3);
-    }
-    ::-moz-selection {
-      background-color: rgba(99, 102, 241, 0.3);
-    }
-    .glass-panel {
-      background: rgba(255, 255, 255, 0.03);
-      backdrop-filter: blur(28px);
-      -webkit-backdrop-filter: blur(28px);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-    }
-    .glass-island {
-      background: rgba(16, 18, 27, 0.82);
-      backdrop-filter: blur(32px);
-      -webkit-backdrop-filter: blur(32px);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.05);
-    }
-    .glass-card {
-      background: rgba(255, 255, 255, 0.025);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.07);
-    }
-    .glass-pill {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-    }
-    .ambient-glow {
-      position: absolute;
-      width: 650px;
-      height: 650px;
-      border-radius: 50%;
-      pointer-events: none;
-      filter: blur(130px);
-      z-index: 0;
-      opacity: 0.16;
-    }
+    ::selection { background-color: rgba(99, 102, 241, 0.25); }
     .material-symbols-outlined {
       font-variation-settings: 'FILL' 0, 'wght' 350, 'GRAD' 0, 'opsz' 24;
       display: inline-block;
       vertical-align: middle;
       line-height: 1;
     }
-    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 9999px; }
-    ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.22); }
+    ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 9999px; }
 
-    /* ========================================================================= */
-    /* APPLE CUPERTINO LIGHT MODE THEME OVERRIDES                               */
-    /* ========================================================================= */
-    html.light body {
-      background-color: #F5F5F7 !important;
-      color: #1D1D1F !important;
-    }
-    html.light aside {
-      background-color: rgba(255, 255, 255, 0.88) !important;
-      border-right-color: rgba(0, 0, 0, 0.08) !important;
-      color: #1D1D1F !important;
-    }
-    html.light main {
-      background: linear-gradient(to bottom, #F8F8FA, #EFEFF3) !important;
-    }
-    html.light header {
-      background-color: rgba(255, 255, 255, 0.82) !important;
-      border-bottom-color: rgba(0, 0, 0, 0.08) !important;
-    }
-    html.light .glass-panel {
-      background: rgba(255, 255, 255, 0.8) !important;
-      border: 1px solid rgba(0, 0, 0, 0.08) !important;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04) !important;
-      color: #1D1D1F !important;
-    }
-    html.light .glass-island {
-      background: rgba(255, 255, 255, 0.92) !important;
-      border: 1px solid rgba(0, 0, 0, 0.1) !important;
-      box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05) !important;
-    }
-    html.light .glass-pill {
-      background: rgba(0, 0, 0, 0.04) !important;
-      border: 1px solid rgba(0, 0, 0, 0.08) !important;
-      color: #374151 !important;
-    }
-    html.light .glass-pill:hover {
-      background: rgba(0, 0, 0, 0.08) !important;
-      color: #111827 !important;
-    }
-    html.light input, html.light select, html.light textarea {
-      color: #111827 !important;
-    }
-    html.light input::placeholder {
-      color: #9CA3AF !important;
-    }
-    html.light .text-white {
-      color: #111827 !important;
-    }
-    html.light .text-zinc-100 {
-      color: #111827 !important;
-    }
-    html.light .text-zinc-200 {
-      color: #1F2937 !important;
-    }
-    html.light .text-zinc-300 {
-      color: #374151 !important;
-    }
-    html.light .text-zinc-400 {
-      color: #4B5563 !important;
-    }
-    html.light .text-zinc-500 {
-      color: #6B7280 !important;
-    }
-    html.light .bg-black\/40, html.light .bg-black\/50, html.light .bg-black\/60 {
-      background-color: rgba(243, 244, 246, 0.85) !important;
-    }
-    html.light .border-white\/5, html.light .border-white\/10, html.light .border-white\/15, html.light .border-white\/\[0\.08\], html.light .border-white\/\[0\.06\], html.light .border-white\/\[0\.04\] {
-      border-color: rgba(0, 0, 0, 0.08) !important;
-    }
-    html.light .ambient-glow {
-      opacity: 0.07 !important;
-    }
-    html.light #userDropdown {
-      background-color: rgba(255, 255, 255, 0.98) !important;
-      border-color: rgba(0, 0, 0, 0.12) !important;
-      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15) !important;
-    }
+    .text-ink { color: var(--ink); }
+    .text-muted { color: var(--muted); }
+    .hairline { border-color: var(--border); }
+    .surface-muted { background: var(--surface-muted); }
+    .avatar { background: var(--surface-muted); color: var(--ink); border: 1px solid var(--border); }
 
-    /* ========================================================================= */
-    /* MERCHANT WORKSPACE POLISH                                                 */
-    /* ========================================================================= */
-    body {
-      background-image: radial-gradient(circle at 20% -10%, rgba(99, 102, 241, 0.12), transparent 28%), radial-gradient(circle at 90% 100%, rgba(16, 185, 129, 0.06), transparent 30%);
-    }
-    .text-gradient {
-      background: linear-gradient(100deg, #a5b4fc 0%, #c4b5fd 42%, #6ee7b7 100%);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
-    }
-    .onboarding-step {
-      min-height: 286px;
-      padding: 1rem;
-      border-radius: 1.25rem;
-      background: linear-gradient(145deg, rgba(255,255,255,0.045), rgba(255,255,255,0.018));
-      border: 1px solid rgba(255,255,255,0.075);
-      transition: transform 180ms ease, border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
-    }
-    .onboarding-step:hover,
-    .onboarding-step.active-step {
-      transform: translateY(-2px);
-      border-color: rgba(129,140,248,0.32);
-      background: linear-gradient(145deg, rgba(99,102,241,0.12), rgba(255,255,255,0.025));
-      box-shadow: 0 18px 42px rgba(0,0,0,0.16);
-    }
-    .step-number {
-      display: inline-flex;
+    /* ------------------------------------------------------------- shell --- */
+    .topbar {
+      height: 56px;
+      padding: 0 0.75rem;
+      display: flex;
       align-items: center;
-      justify-content: center;
-      width: 2rem;
-      height: 2rem;
-      border-radius: 0.75rem;
-      color: #c7d2fe;
-      background: rgba(99,102,241,0.16);
-      border: 1px solid rgba(129,140,248,0.24);
-      font: 600 0.7rem/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+      justify-content: space-between;
+      gap: 0.75rem;
+      flex-shrink: 0;
     }
-    .step-state {
-      color: #71717a;
-      font-size: 0.65rem;
+    .icon-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 0.45rem; border-radius: 0.6rem;
+      color: var(--muted);
+      transition: background 150ms ease, color 150ms ease;
+    }
+    .icon-btn:hover { background: var(--surface-hover); color: var(--ink); }
+    .cta-btn {
+      display: inline-flex; align-items: center; gap: 0.45rem;
+      height: 2.1rem; padding: 0 0.8rem; border-radius: 999px;
+      font-size: 0.78rem; font-weight: 500; white-space: nowrap;
+      color: var(--ink); border: 1px solid var(--border);
+      background: var(--surface);
+      transition: background 150ms ease, border-color 150ms ease;
+    }
+    .cta-btn:hover { background: var(--surface-hover); border-color: var(--border-strong); }
+
+    .menu {
+      padding: 0.35rem; border-radius: 0.9rem;
+      background: var(--surface); border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+    }
+    .menu-item {
+      width: 100%; display: flex; align-items: center; gap: 0.6rem;
+      padding: 0.5rem 0.65rem; border-radius: 0.6rem;
+      font-size: 0.8rem; color: var(--ink); text-align: left;
+      transition: background 120ms ease;
+    }
+    .menu-item:hover, .menu-item.active-chip { background: var(--surface-hover); }
+    .menu-item .material-symbols-outlined { color: var(--muted); }
+    html.dark .logo-mono { filter: invert(1); }
+
+    /* ------------------------------------------------------- center stage --- */
+    .hero-title {
+      font-size: clamp(1.6rem, 4vw, 2.4rem);
       font-weight: 600;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+      text-align: center;
+      color: var(--ink);
     }
-    .wizard-input {
+    .hero-sub { margin-top: 0.6rem; font-size: 0.95rem; color: var(--muted); text-align: center; }
+
+    .composer {
       width: 100%;
-      border-radius: 0.75rem;
-      border: 1px solid rgba(255,255,255,0.09);
-      background: rgba(0,0,0,0.18);
-      color: #f4f4f5;
-      padding: 0.6rem 0.7rem;
-      font-size: 0.7rem;
-      outline: none;
-      transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+      padding: 0.75rem 0.75rem 0.6rem;
+      border-radius: 1.6rem;
+      background: var(--surface);
+      border: 1px solid var(--border-strong);
+      box-shadow: var(--shadow);
+      transition: border-color 150ms ease, box-shadow 150ms ease;
     }
-    .wizard-input::placeholder { color: #71717a; }
-    .wizard-input:focus {
-      border-color: rgba(129,140,248,0.62);
-      background: rgba(0,0,0,0.28);
-      box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+    html.dark .composer { background: #121212; border-color: rgba(255,255,255,0.10); }
+    .composer:focus-within { border-color: var(--muted); }
+    .composer-input {
+      width: 100%; resize: none; max-height: 200px;
+      background: transparent; border: 0; outline: none; box-shadow: none !important;
+      padding: 0.35rem 0.5rem; font-size: 0.95rem; line-height: 1.5; color: var(--ink);
     }
-    .network-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.42rem;
-      min-height: 2rem;
-      padding: 0.45rem 0.7rem;
-      border-radius: 999px;
-      border: 1px solid rgba(255,255,255,0.09);
-      background: rgba(255,255,255,0.035);
-      color: #a1a1aa;
-      font-size: 0.65rem;
-      font-weight: 600;
-      letter-spacing: 0.02em;
+    .composer-input::placeholder { color: var(--muted); }
+    @media (max-width: 640px) { .composer-input { min-height: 3.2rem; } }
+    .round-btn {
+      width: 2.1rem; height: 2.1rem; border-radius: 999px;
+      display: inline-flex; align-items: center; justify-content: center;
+      color: var(--ink); border: 1px solid var(--border);
+      transition: background 150ms ease;
+    }
+    .round-btn:hover { background: var(--surface-hover); }
+    .channel-pill {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      height: 2.1rem; padding: 0 0.7rem; border-radius: 999px;
+      font-size: 0.8rem; color: var(--ink); border: 1px solid var(--border);
       white-space: nowrap;
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-      transition: border-color 180ms ease, color 180ms ease, background 180ms ease;
+      transition: background 150ms ease;
     }
-    .network-dot { width: 0.42rem; height: 0.42rem; border-radius: 999px; background: #fbbf24; box-shadow: 0 0 0 3px rgba(251,191,36,0.10); }
-    .network-latency { color: #71717a; font: 500 0.6rem/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
-    .network-healthy { color: #a7f3d0; border-color: rgba(52,211,153,0.26); background: rgba(16,185,129,0.08); }
-    .network-healthy .network-dot { background: #34d399; box-shadow: 0 0 0 3px rgba(52,211,153,0.12), 0 0 12px rgba(52,211,153,0.7); }
-    .network-degraded { color: #fde68a; border-color: rgba(251,191,36,0.25); background: rgba(245,158,11,0.08); }
-    .network-degraded .network-dot { background: #fbbf24; }
-    .network-offline { color: #fecaca; border-color: rgba(251,113,133,0.24); background: rgba(244,63,94,0.08); }
-    .network-offline .network-dot { background: #fb7185; }
-    @media (max-width: 760px) {
-      #sidebar { width: 220px; }
-      .network-pill { padding-inline: 0.55rem; }
-      .network-latency { display: none; }
+    .channel-pill:hover { background: var(--surface-hover); }
+    .send-btn {
+      width: 2.25rem; height: 2.25rem; border-radius: 999px; flex-shrink: 0;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--accent); color: var(--accent-ink);
+      transition: opacity 150ms ease, transform 100ms ease;
     }
+    .send-btn:hover { opacity: 0.85; }
+    .send-btn:active { transform: scale(0.94); }
 
+    /* ------------------------------------------------------------- drawer --- */
+    .drawer {
+      position: fixed; inset: 0 auto 0 0; z-index: 45;
+      width: min(288px, 86vw);
+      display: flex; flex-direction: column;
+      padding: 0.9rem 0.75rem;
+      background: var(--bg); border-right: 1px solid var(--border);
+      transform: translateX(-100%);
+      transition: transform 220ms ease;
+    }
+    .drawer.open { transform: translateX(0); box-shadow: var(--shadow); }
+    .drawer-backdrop {
+      position: fixed; inset: 0; z-index: 44; background: var(--scrim);
+      opacity: 0; pointer-events: none; transition: opacity 220ms ease;
+    }
+    .drawer-backdrop.open { opacity: 1; pointer-events: auto; }
+    .drawer-label { margin: 1.1rem 0 0.3rem; padding: 0 0.65rem; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+    .drawer-item {
+      width: 100%; display: flex; align-items: center; gap: 0.65rem;
+      padding: 0.5rem 0.65rem; border-radius: 0.6rem;
+      font-size: 0.82rem; color: var(--ink); text-align: left;
+      transition: background 120ms ease;
+    }
+    .drawer-item:hover { background: var(--surface-hover); }
+    .drawer-item .material-symbols-outlined { color: var(--muted); }
+
+    /* -------------------------------------------------- new modal (开户) --- */
+    .modal-scrim { background: var(--scrim); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+    .modal-scrim.open { display: flex; }
+    .sheet {
+      padding: 1.5rem; border-radius: 1.4rem;
+      background: var(--surface); border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+    }
+    .segmented { display: flex; gap: 0.25rem; padding: 0.25rem; border-radius: 0.8rem; background: var(--surface-muted); }
+    .seg-btn { flex: 1; padding: 0.45rem 0.5rem; border-radius: 0.6rem; font-size: 0.78rem; font-weight: 500; color: var(--muted); transition: background 150ms ease, color 150ms ease; }
+    .seg-btn.seg-active { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+    html.dark .seg-btn.seg-active { background: rgba(255,255,255,0.1); }
+    .primary-btn, .secondary-btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+      height: 2.6rem; padding: 0 1rem; border-radius: 0.8rem;
+      font-size: 0.85rem; font-weight: 600;
+      transition: opacity 150ms ease, background 150ms ease;
+    }
+    .primary-btn { background: var(--accent); color: var(--accent-ink); }
+    .primary-btn:hover { opacity: 0.88; }
+    .primary-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .secondary-btn { color: var(--ink); border: 1px solid var(--border); }
+    .secondary-btn:hover { background: var(--surface-hover); }
+
+    /* ------------------------------------------------------ network status --- */
+    .network-pill {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      height: 2.1rem; padding: 0 0.6rem; border-radius: 999px;
+      color: var(--muted); transition: background 150ms ease;
+    }
+    .network-pill:hover { background: var(--surface-hover); }
+    .network-dot { width: 0.5rem; height: 0.5rem; border-radius: 999px; background: #a1a1aa; }
+    .network-latency { font: 500 0.7rem/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .network-healthy .network-dot { background: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,0.15); }
+    .network-degraded .network-dot { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.15); }
+    .network-offline .network-dot { background: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,0.15); }
+    @media (max-width: 640px) { .network-latency { display: none; } }
+
+    /* ========================================================================= */
+    /* EXISTING MODALS & CHAT CARDS (dark-authored utility markup)               */
+    /* ========================================================================= */
+    .glass-panel { background: #111111; border: 1px solid rgba(255,255,255,0.08); }
+    .glass-island { background: #121212; border: 1px solid rgba(255,255,255,0.10); }
+    .glass-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); }
+    .glass-pill { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); }
+    .text-gradient { color: var(--ink); }
+
+    /* Light-mode remap for the dark-authored markup inside modals and cards. */
+    html.light .glass-panel, html.light .glass-island {
+      background: #FFFFFF !important; border-color: var(--border) !important; box-shadow: var(--shadow) !important; color: var(--ink) !important;
+    }
+    html.light .glass-card, html.light .glass-pill { background: var(--surface-muted) !important; border-color: var(--border) !important; }
+    html.light input, html.light select, html.light textarea { color: var(--ink) !important; }
+    html.light input::placeholder, html.light textarea::placeholder { color: #A1A1AA !important; }
+    html.light .text-white, html.light .text-zinc-100 { color: #18181B !important; }
+    html.light .text-zinc-200 { color: #27272A !important; }
+    html.light .text-zinc-300 { color: #3F3F46 !important; }
+    html.light .text-zinc-400 { color: #52525B !important; }
+    html.light .text-zinc-500 { color: #71717A !important; }
+    html.light .text-indigo-200, html.light .text-indigo-300 { color: #4F46E5 !important; }
+    html.light .text-emerald-300, html.light .text-emerald-400 { color: #059669 !important; }
+    html.light .text-blue-200, html.light .text-blue-300 { color: #2563EB !important; }
+    /* Solid coloured buttons keep white text in both themes. */
+    html.light :is([class*="bg-indigo-5"], [class*="bg-indigo-6"], [class*="bg-blue-5"], [class*="bg-blue-6"], [class*="bg-emerald-5"], [class*="bg-emerald-6"], [class*="bg-rose-5"], [class*="bg-rose-6"], [class*="from-indigo"], [class*="from-emerald"], [class*="from-blue"]):not([class*="/"]).text-white,
+    html.light :is([class*="bg-indigo-5"], [class*="bg-indigo-6"], [class*="bg-blue-5"], [class*="bg-blue-6"], [class*="from-indigo"], [class*="from-emerald"], [class*="from-blue"]):not([class*="/"]) .text-white { color: #FFFFFF !important; }
+    html.light .bg-black\/30, html.light .bg-black\/40, html.light .bg-black\/50, html.light .bg-black\/60 { background-color: var(--surface-muted) !important; }
+    html.light .bg-black\/75, html.light .bg-black\/80, html.light .bg-black\/85 { background-color: var(--scrim) !important; }
+    html.light .bg-neutral-900\/95 { background-color: #FFFFFF !important; }
+    html.light .bg-white\/5, html.light .bg-white\/10, html.light .bg-white\/\[0\.02\], html.light .bg-white\/\[0\.025\], html.light .bg-white\/\[0\.03\], html.light .bg-white\/\[0\.04\], html.light .bg-white\/\[0\.05\], html.light .bg-white\/\[0\.06\] { background-color: var(--surface-muted) !important; }
+    html.light .border-white\/5, html.light .border-white\/10, html.light .border-white\/15, html.light .border-white\/20, html.light .border-white\/\[0\.04\], html.light .border-white\/\[0\.05\], html.light .border-white\/\[0\.06\], html.light .border-white\/\[0\.07\], html.light .border-white\/\[0\.08\], html.light .border-white\/\[0\.09\], html.light .border-white\/\[0\.10\] { border-color: var(--border) !important; }
+    html.light .hover\:bg-white\/5:hover, html.light .hover\:bg-white\/10:hover, html.light .hover\:bg-white\/\[0\.05\]:hover, html.light .hover\:bg-white\/\[0\.09\]:hover { background-color: var(--surface-hover) !important; }
+    html.light .hover\:text-white:hover { color: #18181B !important; }
+    html.light [class*="bg-[#0"], html.light [class*="bg-[#1"] { background-color: #FFFFFF !important; }
+    @keyframes ofFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    @keyframes ofPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+    .animate-fade-in { animation: ofFadeIn 220ms ease-out both; }
+    .network-checking .network-dot { animation: ofPulse 1.4s ease-in-out infinite; }
   </style>
 </head>
-<body class="h-screen w-screen flex bg-[#070A12] text-zinc-100 antialiased select-none relative overflow-hidden">
+<body class="h-screen w-screen flex antialiased relative overflow-hidden">
 
-  <div class="ambient-glow -top-40 left-1/4 bg-indigo-600"></div>
-  <div class="ambient-glow -bottom-32 right-1/4 bg-emerald-600/70"></div>
-  <div class="ambient-glow top-1/2 left-3/4 bg-blue-600/30"></div>
-
-  <aside id="sidebar" class="w-[264px] h-full flex flex-col justify-between p-4 z-20 shrink-0 bg-[#090C14]/80 backdrop-blur-2xl border-r border-white/[0.08] shadow-2xl transition-all duration-300">
-    <div class="space-y-6">
-      <div class="flex items-center justify-between px-2 pt-1">
-        <div class="flex items-center gap-2.5 cursor-pointer" onclick="resetToNewChat()">
-          <img src="/static/assets/logos/omniflow_logo.svg" alt="OmniFlow AI" class="w-9 h-9 rounded-xl shadow-lg shadow-indigo-500/25"/>
-          <div>
-            <span class="font-bold text-sm tracking-tight text-white block leading-tight">OmniFlow AI</span>
-            <span class="text-[10px] text-zinc-500 font-medium">Merchant workspace</span>
-          </div>
-        </div>
-        <button onclick="toggleSidebar()" class="p-1.5 rounded-lg hover:bg-white/5 text-zinc-400 hover:text-white transition" title="Collapse navigation">
-          <span class="material-symbols-outlined text-sm">left_panel_close</span>
-        </button>
-      </div>
-
-      <button onclick="resetToNewChat()" class="w-full flex items-center justify-between px-3.5 py-3 rounded-2xl bg-indigo-500/10 hover:bg-indigo-500/15 border border-indigo-400/20 hover:border-indigo-300/35 text-white text-xs font-semibold tracking-tight shadow-lg shadow-indigo-950/40 transition-all duration-200 active:scale-[0.98] group">
-        <div class="flex items-center gap-2.5">
-          <span class="material-symbols-outlined text-indigo-300 text-base group-hover:rotate-90 transition-transform duration-200">add</span>
-          <span>New workspace prompt</span>
-        </div>
-        <kbd class="text-[10px] text-indigo-200/70 bg-indigo-300/10 px-1.5 py-0.5 rounded border border-indigo-300/15 font-mono">⌘N</kbd>
+  <!-- ========================================================================= -->
+  <!-- DRAWER (hidden by default): workspace, campaigns, account                 -->
+  <!-- ========================================================================= -->
+  <div id="drawerBackdrop" class="drawer-backdrop" onclick="toggleSidebar(false)"></div>
+  <aside id="sidebar" class="drawer" aria-label="Workspace drawer">
+    <div class="flex items-center justify-between px-1">
+      <button onclick="resetToNewChat(); toggleSidebar(false)" class="flex items-center gap-2.5">
+        <img src="/static/assets/logos/omniflow_logo.svg" alt="" class="w-7 h-7 rounded-lg"/>
+        <span class="font-semibold text-sm tracking-tight text-ink">OmniFlow</span>
       </button>
-
-      <div class="space-y-1">
-        <div class="px-2 pb-2 text-[10px] font-semibold tracking-[0.18em] text-zinc-500 uppercase">Workspace</div>
-        <button onclick="openFacebookTokenModal()" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/[0.05] transition text-left group">
-          <span class="w-7 h-7 rounded-lg bg-blue-500/10 border border-blue-400/20 flex items-center justify-center"><img src="/static/assets/logos/meta.svg" class="w-4 h-4" alt="Meta"/></span>
-          <span class="flex-1">Connect Meta</span>
-          <span id="sidebarMetaDot" class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-        </button>
-        <button onclick="openIntegrationsModal()" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/[0.05] transition text-left">
-          <span class="w-7 h-7 rounded-lg bg-indigo-500/10 border border-indigo-400/20 flex items-center justify-center"><span class="material-symbols-outlined text-indigo-300 text-base">hub</span></span>
-          <span class="flex-1">Channels & APIs</span>
-          <span class="material-symbols-outlined text-zinc-600 text-sm">chevron_right</span>
-        </button>
-        <button onclick="openSchedulesModal()" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/[0.05] transition text-left">
-          <span class="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-400/20 flex items-center justify-center"><span class="material-symbols-outlined text-emerald-300 text-base">schedule</span></span>
-          <span class="flex-1">Schedule queue</span>
-          <span id="scheduledBadgeCount" class="text-[10px] text-zinc-500 font-mono">—</span>
-        </button>
-      </div>
-
-      <div class="space-y-2">
-        <div class="flex items-center justify-between px-2">
-          <span class="text-[10px] font-semibold tracking-[0.18em] text-zinc-500 uppercase">Campaigns</span>
-          <button onclick="openNewCampaignModal()" class="text-zinc-500 hover:text-zinc-300 p-0.5 rounded hover:bg-white/5" title="New campaign">
-            <span class="material-symbols-outlined text-xs">add</span>
-          </button>
-        </div>
-        <div id="sidebarCampaignsList" class="space-y-1 max-h-48 overflow-y-auto pr-1">
-          <div class="p-3 rounded-xl bg-white/[0.025] border border-dashed border-white/[0.10] text-[11px] leading-relaxed text-zinc-500">Your campaigns will appear here after Meta is connected.</div>
-        </div>
-        <button onclick="openNewCampaignModal()" class="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.03] transition mt-1">
-          <span class="material-symbols-outlined text-sm">add_circle</span>
-          <span>Create campaign</span>
-        </button>
-      </div>
+      <button onclick="toggleSidebar(false)" class="icon-btn" title="Close"><span class="material-symbols-outlined text-lg">close</span></button>
     </div>
 
-    <div class="pt-4 border-t border-white/[0.07] space-y-3">
-      <div class="flex items-center justify-between px-2.5 py-2 rounded-xl bg-white/[0.025] border border-white/[0.05] text-[10px] text-zinc-500">
-        <div class="flex items-center gap-2"><span id="sidebarNetworkDot" class="w-1.5 h-1.5 rounded-full bg-amber-400"></span><span>Network monitored</span></div>
-        <a href="/docs" target="_blank" class="text-zinc-500 hover:text-white transition">API docs</a>
+    <button onclick="resetToNewChat(); toggleSidebar(false)" class="drawer-item mt-5 font-medium text-ink">
+      <span class="material-symbols-outlined text-base">edit_square</span><span class="flex-1">New prompt</span>
+    </button>
+
+    <div class="drawer-label">Workspace</div>
+    <button onclick="openFacebookTokenModal()" class="drawer-item">
+      <img src="/static/assets/logos/meta.svg" class="w-4 h-4" alt=""/><span class="flex-1">Meta Page</span>
+      <span id="sidebarMetaDot" class="w-1.5 h-1.5 rounded-full bg-zinc-400"></span>
+    </button>
+    <button onclick="openIntegrationsModal()" class="drawer-item">
+      <span class="material-symbols-outlined text-base">hub</span><span class="flex-1">Channels</span>
+    </button>
+    <button onclick="openSchedulesModal()" class="drawer-item">
+      <span class="material-symbols-outlined text-base">schedule</span><span class="flex-1">Schedule queue</span>
+      <span id="scheduledBadgeCount" class="text-[11px] text-muted font-mono"></span>
+    </button>
+
+    <div class="drawer-label flex items-center justify-between">
+      <span>Campaigns</span>
+      <button onclick="openNewCampaignModal()" class="icon-btn !p-0.5" title="New campaign"><span class="material-symbols-outlined text-sm">add</span></button>
+    </div>
+    <div id="sidebarCampaignsList" class="space-y-0.5 flex-1 min-h-0 overflow-y-auto">
+      <div class="px-3 py-2 text-xs text-muted">No campaigns yet.</div>
+    </div>
+
+    <div class="pt-3 mt-3 border-t hairline space-y-1">
+      <div class="drawer-item !cursor-default">
+        <span id="sidebarNetworkDot" class="w-1.5 h-1.5 rounded-full bg-zinc-400"></span><span class="flex-1 text-muted">Network</span>
+        <a href="/docs" target="_blank" rel="noopener" class="text-muted hover:text-ink text-xs">API docs</a>
       </div>
       <div class="relative">
-        <div onclick="toggleUserDropdown()" class="flex items-center justify-between p-1.5 rounded-xl hover:bg-white/[0.04] transition cursor-pointer group">
-          <div class="flex items-center gap-2.5">
-            <div class="w-8 h-8 rounded-full ring-1 ring-white/20 p-0.5 relative shrink-0">
-              <div id="sidebarUserInitials" class="w-full h-full rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center font-bold text-xs text-white">WS</div>
-              <div class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-amber-400 rounded-full ring-2 ring-[#090C14]"></div>
-            </div>
-            <div class="text-left overflow-hidden">
-              <div id="sidebarUserName" class="text-xs font-medium text-zinc-200 group-hover:text-white truncate max-w-[130px]">Your workspace</div>
-              <div id="sidebarUserRole" class="text-[10px] text-zinc-500 truncate max-w-[130px]">Not connected</div>
-            </div>
-          </div>
-          <span class="material-symbols-outlined text-zinc-500 text-sm group-hover:text-zinc-300 shrink-0">unfold_more</span>
-        </div>
-        <div id="userDropdown" class="hidden absolute bottom-full left-0 mb-2 w-64 glass-panel bg-neutral-900/95 backdrop-blur-2xl rounded-2xl p-2 border border-white/10 shadow-2xl space-y-1 z-50 animate-fade-in">
-          <div class="px-3 py-2 border-b border-white/5"><div id="dropdownUserEmail" class="text-xs font-semibold text-white truncate">Workspace not signed in</div><div id="dropdownUserCompany" class="text-[10px] text-zinc-400 truncate">Connect an account to personalize</div></div>
-          <button onclick="openAuthModal('login')" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-zinc-300 hover:text-white hover:bg-white/5 transition text-left"><span class="material-symbols-outlined text-sm text-indigo-400">login</span><span>Sign in</span></button>
-          <button onclick="openAuthModal('register')" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-zinc-300 hover:text-white hover:bg-white/5 transition text-left"><span class="material-symbols-outlined text-sm text-emerald-400">person_add</span><span>Create account</span></button>
-          <div class="border-t border-white/5 pt-1"><button onclick="handleLogout()" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition text-left"><span class="material-symbols-outlined text-sm">logout</span><span>Sign out</span></button></div>
+        <button onclick="toggleUserDropdown()" class="drawer-item">
+          <span id="sidebarUserInitials" class="w-7 h-7 rounded-full avatar flex items-center justify-center text-[11px] font-semibold"></span>
+          <span class="flex-1 min-w-0 text-left">
+            <span id="sidebarUserName" class="block truncate text-ink text-xs font-medium">Not signed in</span>
+            <span id="sidebarUserRole" class="block truncate text-muted text-[11px]"></span>
+          </span>
+          <span class="material-symbols-outlined text-sm text-muted">unfold_more</span>
+        </button>
+        <div id="userDropdown" class="hidden menu absolute bottom-full left-0 mb-2 w-full">
+          <div class="px-3 py-2 border-b hairline"><div id="dropdownUserEmail" class="text-xs font-medium text-ink truncate">Not signed in</div><div id="dropdownUserCompany" class="text-[11px] text-muted truncate"></div></div>
+          <button onclick="openAuthModal('login')" class="menu-item"><span class="material-symbols-outlined text-base">login</span>Sign in</button>
+          <button onclick="openAuthModal('register')" class="menu-item"><span class="material-symbols-outlined text-base">person_add</span>Create account</button>
+          <button onclick="handleLogout()" class="menu-item text-rose-500"><span class="material-symbols-outlined text-base">logout</span>Sign out</button>
         </div>
       </div>
     </div>
   </aside>
 
-  <main class="flex-1 h-full flex flex-col relative z-10 overflow-hidden bg-[radial-gradient(circle_at_top_right,_rgba(79,70,229,0.10),_transparent_30%),linear-gradient(145deg,#080B13_0%,#0B101B_55%,#0A0F18_100%)]">
-    <header class="min-h-[68px] px-4 sm:px-7 flex items-center justify-between gap-4 shrink-0 bg-black/10 backdrop-blur-2xl border-b border-white/[0.07] z-30">
-      <div class="min-w-0">
-        <div class="flex items-center gap-2.5"><span class="w-2 h-2 rounded-full bg-indigo-400 shadow-[0_0_14px_rgba(129,140,248,0.8)]"></span><span class="text-sm font-semibold text-white tracking-tight">Merchant command center</span></div>
-        <div class="hidden sm:flex items-center gap-2 mt-1 text-[11px] text-zinc-500"><span>AI-assisted cross-border growth</span><span class="text-zinc-700">/</span><span id="headerCampaignLabel" class="text-zinc-400 truncate max-w-xs">Ready for your first connection</span></div>
-      </div>
-      <div class="flex items-center gap-2 shrink-0">
-        <div id="networkStatusPill" class="network-pill network-checking" title="Live latency check against /health/network"><span id="networkStatusDot" class="network-dot"></span><span id="networkStatusLabel">Checking network</span><span id="networkLatency" class="network-latency">—</span></div>
-        <button onclick="openFacebookTokenModal()" class="hidden md:flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium bg-blue-500/10 border border-blue-400/20 text-blue-200 hover:bg-blue-500/20 transition" title="Facebook Page connection">
-          <img src="/static/assets/logos/meta.svg" class="w-3.5 h-3.5" alt="Meta"/><span id="headerFbBadge">Connect Meta</span>
+  <main id="appMain" class="flex-1 h-full flex flex-col relative overflow-hidden">
+    <!-- ======================================================================= -->
+    <!-- TOP BAR                                                                 -->
+    <!-- ======================================================================= -->
+    <header class="topbar">
+      <div class="flex items-center gap-1.5 min-w-0">
+        <button onclick="toggleSidebar()" class="icon-btn" title="Menu"><span class="material-symbols-outlined text-xl">menu</span></button>
+        <button onclick="resetToNewChat()" class="flex items-center gap-2 px-1.5 py-1 rounded-lg" title="New prompt">
+          <img src="/static/assets/logos/omniflow_logo.svg" alt="" class="w-6 h-6 rounded-md"/>
+          <span class="font-semibold text-[15px] tracking-tight text-ink">OmniFlow</span>
         </button>
-        <button onclick="openIntegrationsModal()" class="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.06] transition" title="Connected channels"><span class="material-symbols-outlined text-base">hub</span></button>
-        <button onclick="openSchedulesModal()" class="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.06] transition" title="Schedule queue"><span class="material-symbols-outlined text-base">calendar_month</span></button>
-        <button onclick="openMcpModal()" class="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.06] transition" title="MCP and APIs"><span class="material-symbols-outlined text-base">tune</span></button>
+        <span id="headerCampaignLabel" class="hidden"></span>
+      </div>
+
+      <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
+        <button id="networkStatusPill" onclick="checkNetworkHealth()" class="network-pill network-checking" title="Checking network…">
+          <span id="networkStatusDot" class="network-dot"></span>
+          <span id="networkStatusLabel" class="sr-only">Checking network</span>
+          <span id="networkLatency" class="network-latency"></span>
+        </button>
+        <button onclick="toggleTheme()" class="icon-btn" title="Toggle light / dark"><span id="themeIcon" class="material-symbols-outlined text-xl">light_mode</span></button>
+        <button onclick="openMetaAccountModal()" class="cta-btn" title="Meta 企业广告账户快速开户">
+          <img src="/static/assets/logos/meta.svg" class="w-4 h-4" alt=""/>
+          <span class="hidden sm:inline">Meta 企业广告账户快速开户</span><span class="sm:hidden">快速开户</span>
+        </button>
+        <div class="relative">
+          <button onclick="toggleChannelsMenu(event)" class="icon-btn" title="Channels & settings"><span class="material-symbols-outlined text-xl">tune</span></button>
+          <div id="channelsMenu" class="hidden menu absolute right-0 top-full mt-2 w-60 z-50">
+            <button onclick="closeChannelsMenu(); openIntegrationsModal()" class="menu-item"><span class="material-symbols-outlined text-base">hub</span>已连接渠道 · Channels</button>
+            <button onclick="closeChannelsMenu(); openFacebookTokenModal()" class="menu-item"><img src="/static/assets/logos/meta.svg" class="w-4 h-4" alt=""/><span id="headerFbBadge" class="truncate">Connect Meta</span></button>
+            <a href="/auth/facebook/login" class="menu-item"><span class="material-symbols-outlined text-base">login</span>Meta OAuth 授权</a>
+            <button onclick="closeChannelsMenu(); openSchedulesModal()" class="menu-item"><span class="material-symbols-outlined text-base">calendar_month</span>发布队列 · Schedule</button>
+            <button onclick="closeChannelsMenu(); openNewCampaignModal()" class="menu-item"><span class="material-symbols-outlined text-base">add_circle</span>New campaign</button>
+            <button onclick="closeChannelsMenu(); openMcpModal()" class="menu-item"><span class="material-symbols-outlined text-base">key</span>MCP & API keys</button>
+            <div class="border-t hairline my-1"></div>
+            <button onclick="event.stopPropagation(); closeChannelsMenu(); toggleSidebar(true); toggleUserDropdown()" class="menu-item"><span class="material-symbols-outlined text-base">account_circle</span>Account</button>
+          </div>
+        </div>
       </div>
     </header>
 
-    <div id="chatScrollArea" class="flex-1 overflow-y-auto px-4 sm:px-8 lg:px-12 py-8 space-y-6 pb-44">
-      <div id="emptyHeroState" class="max-w-5xl mx-auto py-2 sm:py-8 animate-fade-in">
-        <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 mb-8">
-          <div class="max-w-2xl">
-            <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-indigo-500/10 border border-indigo-400/20 text-[10px] font-semibold tracking-[0.16em] uppercase text-indigo-200 mb-4"><span class="w-1.5 h-1.5 rounded-full bg-indigo-300"></span>New workspace</div>
-            <h1 class="text-3xl sm:text-5xl font-bold tracking-[-0.04em] text-white leading-[1.08]">Build your first<br/><span class="text-gradient">cross-border campaign.</span></h1>
-            <p class="text-sm sm:text-base text-zinc-400 max-w-xl mt-4 leading-relaxed">Connect a real Meta Page, define your brand voice, and let OmniFlow prepare your first campaign draft. Live metrics will appear after your account is connected.</p>
+    <!-- ======================================================================= -->
+    <!-- CENTER STAGE + CONVERSATION                                             -->
+    <!-- ======================================================================= -->
+    <div id="chatScrollArea" class="flex-1 overflow-y-auto px-4 sm:px-6">
+      <div id="emptyHeroState" class="min-h-[80vh] flex flex-col items-center justify-center py-10 animate-fade-in">
+        <h1 class="hero-title">What campaign would you like to launch today?</h1>
+        <p class="hero-sub">AI-powered cross-border growth engine for global merchants.</p>
+        <div id="heroComposerSlot" class="w-full max-w-3xl mt-8">
+          <!-- Composer: moved between this slot and #dockComposerSlot by syncComposerPosition() -->
+        <div id="composer" class="composer">
+          <div id="attachedImagePreview" class="hidden flex items-center justify-between gap-3 mx-1 mb-2 p-2 rounded-2xl surface-muted">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <img id="attachedThumb" src="" class="w-10 h-10 rounded-xl object-cover" alt="Attached media"/>
+              <div class="min-w-0"><span id="attachedFileName" class="text-xs text-ink font-medium block truncate max-w-[220px]"></span><span class="text-[11px] text-muted">Image attached</span></div>
+            </div>
+            <button type="button" onclick="clearAttachedImage()" class="icon-btn" title="Remove attachment"><span class="material-symbols-outlined text-base">close</span></button>
           </div>
-          <div class="lg:max-w-[245px] rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4 text-left shadow-xl shadow-black/10"><div class="flex items-center gap-2 text-xs font-semibold text-zinc-200"><span class="material-symbols-outlined text-indigo-300 text-base">shield</span>Safe by default</div><p class="text-[11px] text-zinc-500 leading-relaxed mt-2">No placeholder spend, reach, or post performance is shown before a live connection is available.</p></div>
+
+          <textarea id="chatInput" rows="1" onkeydown="handleInputKey(event)" oninput="autoGrowInput(this)" class="composer-input" placeholder="Ask OmniFlow to create copy, analyze ads, or schedule a campaign..."></textarea>
+
+          <div class="flex items-center justify-between gap-2 mt-1">
+            <div class="flex items-center gap-1.5 min-w-0">
+              <input type="file" id="mediaFileInput" accept="image/*" class="hidden" onchange="handleMediaSelect(event)"/>
+              <button onclick="document.getElementById('mediaFileInput').click()" id="attachBtn" class="round-btn" title="Attach media">
+                <span class="material-symbols-outlined text-xl">add</span><span id="attachLabel" class="sr-only">Attach media</span>
+              </button>
+
+              <div class="relative">
+                <button onclick="toggleChannelPicker(event)" class="channel-pill" title="Target channel">
+                  <span id="channelPillIcon" class="material-symbols-outlined text-base">public</span>
+                  <span id="channelPillLabel">All channels</span>
+                  <span class="material-symbols-outlined text-base opacity-60">expand_more</span>
+                </button>
+                <div id="platformChipsContainer" class="hidden menu absolute left-0 bottom-full mb-2 w-52 z-50">
+                  <button onclick="togglePlatformChip(this, 'all')" data-label="All channels" class="chip-btn active-chip menu-item"><span class="material-symbols-outlined text-base">public</span>All channels</button>
+                  <button onclick="togglePlatformChip(this, 'meta')" data-label="Meta" data-logo="/static/assets/logos/meta.svg" class="chip-btn menu-item"><img src="/static/assets/logos/meta.svg" class="w-4 h-4" alt=""/>Meta</button>
+                  <button onclick="togglePlatformChip(this, 'x')" data-label="X" data-logo="/static/assets/logos/x.svg" class="chip-btn menu-item"><img src="/static/assets/logos/x.svg" class="w-4 h-4 logo-mono" alt=""/>X</button>
+                  <button onclick="togglePlatformChip(this, 'tiktok')" data-label="TikTok" data-logo="/static/assets/logos/tiktok.svg" class="chip-btn menu-item"><img src="/static/assets/logos/tiktok.svg" class="w-4 h-4" alt=""/>TikTok</button>
+                  <div class="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-muted">More</div>
+                  <button onclick="togglePlatformChip(this, 'instagram')" data-label="Instagram" data-logo="/static/assets/logos/instagram.svg" class="chip-btn menu-item"><img src="/static/assets/logos/instagram.svg" class="w-4 h-4" alt=""/>Instagram</button>
+                  <button onclick="togglePlatformChip(this, 'xiaohongshu')" data-label="RED" data-logo="/static/assets/logos/xiaohongshu.svg" class="chip-btn menu-item"><img src="/static/assets/logos/xiaohongshu.svg" class="w-4 h-4" alt=""/>小红书 RED</button>
+                  <button onclick="togglePlatformChip(this, 'wechat')" data-label="WeChat" data-logo="/static/assets/logos/wechat.svg" class="chip-btn menu-item"><img src="/static/assets/logos/wechat.svg" class="w-4 h-4" alt=""/>WeChat</button>
+                </div>
+              </div>
+            </div>
+
+            <button onclick="submitChat()" id="sendBtn" class="send-btn" title="Send">
+              <span class="material-symbols-outlined text-xl">arrow_upward</span>
+            </button>
+          </div>
         </div>
-
-        <div id="metaOnboarding" class="glass-panel rounded-[28px] border border-white/[0.09] p-4 sm:p-6 shadow-2xl shadow-black/20">
-          <div class="flex items-start justify-between gap-4 pb-5 border-b border-white/[0.07]"><div><p class="text-xs font-semibold text-zinc-300">Get your workspace live</p><p class="text-[11px] text-zinc-500 mt-1">Three short steps to your first AI-assisted campaign.</p></div><span id="onboardingProgress" class="text-[11px] text-indigo-200 bg-indigo-500/10 border border-indigo-400/20 px-2.5 py-1 rounded-full">0 / 3 complete</span></div>
-          <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 mt-5">
-            <section id="onboardingStep1" class="onboarding-step active-step">
-              <div class="flex items-center justify-between"><span class="step-number">01</span><span id="step1State" class="step-state">Start here</span></div>
-              <div class="mt-5"><div class="w-10 h-10 rounded-2xl bg-blue-500/10 border border-blue-400/20 flex items-center justify-center"><img src="/static/assets/logos/meta.svg" class="w-5 h-5" alt="Meta"/></div><h2 class="text-sm font-semibold text-white mt-4">Connect Facebook Page</h2><p class="text-[11px] text-zinc-500 leading-relaxed mt-2 min-h-[50px]">Bring in a real Page so campaign drafts and future performance data belong to your business.</p></div>
-              <div class="flex flex-wrap gap-2 mt-5"><a href="/auth/facebook/login" class="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-blue-500 hover:bg-blue-400 text-white text-[11px] font-semibold transition active:scale-[0.98]"><span class="material-symbols-outlined text-sm">login</span>Connect with Facebook</a><button onclick="openFacebookTokenModal()" class="px-3 py-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.08] text-[11px] font-medium text-zinc-300 transition">Use Page token</button></div>
-            </section>
-
-            <section id="onboardingStep2" class="onboarding-step">
-              <div class="flex items-center justify-between"><span class="step-number">02</span><span id="step2State" class="step-state">Optional now</span></div>
-              <div class="mt-5"><div class="w-10 h-10 rounded-2xl bg-violet-500/10 border border-violet-400/20 flex items-center justify-center"><span class="material-symbols-outlined text-violet-300">tune</span></div><h2 class="text-sm font-semibold text-white mt-4">Target audience & voice</h2><p class="text-[11px] text-zinc-500 leading-relaxed mt-2">Give the copywriter just enough context to sound like your brand.</p></div>
-              <div class="space-y-2 mt-4"><input id="merchantNiche" type="text" placeholder="Merchant niche · e.g. skincare" class="wizard-input"/><input id="brandTone" type="text" placeholder="Brand tone · e.g. warm, expert" class="wizard-input"/><input id="brandLanguages" type="text" placeholder="Languages · e.g. EN, ZH" class="wizard-input"/></div>
-            </section>
-
-            <section id="onboardingStep3" class="onboarding-step">
-              <div class="flex items-center justify-between"><span class="step-number">03</span><span id="step3State" class="step-state">Needs Meta</span></div>
-              <div class="mt-5"><div class="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-400/20 flex items-center justify-center"><span class="material-symbols-outlined text-emerald-300">auto_awesome</span></div><h2 class="text-sm font-semibold text-white mt-4">Schedule first AI campaign</h2><p class="text-[11px] text-zinc-500 leading-relaxed mt-2">Ask the backend copywriter for a first draft. You review everything before anything is scheduled.</p></div>
-              <button id="scheduleFirstCampaignBtn" onclick="scheduleFirstCampaign()" class="w-full mt-5 inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-emerald-400 hover:bg-emerald-300 text-[#06130E] text-[11px] font-bold transition active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed" disabled><span class="material-symbols-outlined text-sm">arrow_forward</span>Prepare first campaign</button>
-            </section>
-          </div>
         </div>
       </div>
 
-      <div id="previewCopy" class="hidden">New Creative</div>
-      <div id="messagesContainer" class="max-w-4xl mx-auto space-y-6 hidden"></div>
+      <div id="previewCopy" class="hidden"></div>
+      <div id="messagesContainer" class="max-w-3xl mx-auto space-y-6 py-8 hidden"></div>
     </div>
 
-    <div class="absolute bottom-5 inset-x-0 mx-auto max-w-4xl px-4 z-40">
-      <div class="relative"><div class="absolute -inset-1 bg-gradient-to-r from-indigo-500/20 via-emerald-500/15 to-blue-500/20 rounded-[28px] blur-xl opacity-80 pointer-events-none"></div><div class="glass-island rounded-[26px] p-3 shadow-2xl relative space-y-2">
-        <div class="flex items-center justify-between px-2 text-xs border-b border-white/[0.06] pb-2 gap-2 overflow-x-auto"><div class="flex items-center gap-1.5 shrink-0" id="platformChipsContainer"><span class="text-[11px] text-zinc-500 font-medium mr-1">Target</span><button onclick="togglePlatformChip(this, 'meta')" class="chip-btn flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 text-[11px] font-medium border border-white/5 transition"><img src="/static/assets/logos/meta.svg" class="w-3.5 h-3.5 rounded-md" alt="Meta"/>Meta</button><button onclick="togglePlatformChip(this, 'tiktok')" class="chip-btn flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 text-[11px] font-medium border border-white/5 transition"><img src="/static/assets/logos/tiktok.svg" class="w-3.5 h-3.5 rounded-md" alt="TikTok"/>TikTok</button><button onclick="togglePlatformChip(this, 'xiaohongshu')" class="chip-btn flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 text-[11px] font-medium border border-white/5 transition"><img src="/static/assets/logos/xiaohongshu.svg" class="w-3.5 h-3.5 rounded-md" alt="RED"/>RED</button><button onclick="togglePlatformChip(this, 'wechat')" class="chip-btn flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 text-[11px] font-medium border border-white/5 transition"><img src="/static/assets/logos/wechat.svg" class="w-3.5 h-3.5 rounded-md" alt="WeChat"/>WeChat</button><button onclick="togglePlatformChip(this, 'instagram')" class="chip-btn flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 text-[11px] font-medium border border-white/5 transition"><img src="/static/assets/logos/instagram.svg" class="w-3.5 h-3.5 rounded-md" alt="Instagram"/>Instagram</button><button onclick="togglePlatformChip(this, 'x')" class="chip-btn flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 text-[11px] font-medium border border-white/5 transition"><img src="/static/assets/logos/x.svg" class="w-3.5 h-3.5 rounded-md" alt="X"/>X</button><button onclick="togglePlatformChip(this, 'all')" class="chip-btn active-chip flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 text-[11px] font-medium border border-indigo-500/30 transition">All channels</button></div><div class="flex items-center gap-2 shrink-0"><input type="file" id="mediaFileInput" accept="image/*" class="hidden" onchange="handleMediaSelect(event)"/><button onclick="document.getElementById('mediaFileInput').click()" id="attachBtn" class="flex items-center gap-1.5 text-xs text-indigo-300 hover:text-white px-3 py-1 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 transition shadow-sm font-medium" title="Attach product media"><span class="material-symbols-outlined text-sm">add_photo_alternate</span><span id="attachLabel">Attach media</span></button></div></div>
-        <div id="attachedImagePreview" class="hidden flex items-center justify-between px-3 py-1.5 bg-white/[0.06] border border-white/15 rounded-2xl mx-1 mb-1 backdrop-blur-md animate-fade-in"><div class="flex items-center gap-2.5"><img id="attachedThumb" src="" class="w-10 h-10 rounded-xl object-cover border border-white/20 shadow-md bg-black/40" alt="Attached media"/><div><span id="attachedFileName" class="text-xs text-white font-medium block truncate max-w-[220px]">product.jpg</span><span class="text-[10px] text-emerald-400 font-mono flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>Vision upload ready</span></div></div><button type="button" onclick="clearAttachedImage()" class="w-6 h-6 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center text-zinc-400 hover:text-white transition text-xs" title="Remove attachment">✕</button></div>
-        <div class="flex items-center gap-2 px-1"><button onclick="simulateVoice()" class="p-2 text-zinc-400 hover:text-white rounded-xl hover:bg-white/5 transition" title="Voice input"><span class="material-symbols-outlined text-lg">graphic_eq</span></button><input id="chatInput" onkeydown="handleInputKey(event)" class="w-full bg-transparent border-0 focus:ring-0 text-sm text-white placeholder-zinc-500 py-1.5 px-1 font-normal selection:bg-indigo-500/30" placeholder="Ask OmniFlow to create copy or a campaign plan…" type="text"/><button onclick="submitChat()" id="sendBtn" class="w-9 h-9 rounded-full bg-gradient-to-tr from-indigo-600 to-indigo-400 hover:from-indigo-500 hover:to-indigo-300 text-white flex items-center justify-center shrink-0 shadow-lg shadow-indigo-600/30 transition-transform duration-150 active:scale-90 group" title="Send prompt"><span class="material-symbols-outlined text-base group-hover:-translate-y-0.5 transition-transform">arrow_upward</span></button></div>
-      </div></div>
-      <div class="flex items-center justify-center gap-2 text-[10px] text-zinc-600 text-center mt-2 font-light"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500/70"></span><span>Live backend connected · human review required before any spend or publishing action</span></div>
-    </div>
+    <div id="dockComposerSlot" class="w-full max-w-3xl mx-auto px-4 sm:px-6 pb-4 hidden"></div>
+
   </main>
+
+  <!-- ========================================================================= -->
+  <!-- META 企业广告账户快速开户 MODAL                                              -->
+  <!-- ========================================================================= -->
+  <div id="metaAccountModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 modal-scrim" onclick="if (event.target === this) closeMetaAccountModal()">
+    <div class="sheet w-full max-w-lg">
+      <div class="flex items-start justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <span class="w-10 h-10 rounded-xl surface-muted flex items-center justify-center"><img src="/static/assets/logos/meta.svg" class="w-5 h-5" alt=""/></span>
+          <div>
+            <h3 class="text-base font-semibold text-ink">Meta 企业广告账户快速开户</h3>
+            <p class="text-xs text-muted mt-0.5">Meta business ad account fast-track</p>
+          </div>
+        </div>
+        <button onclick="closeMetaAccountModal()" class="icon-btn" title="Close"><span class="material-symbols-outlined text-lg">close</span></button>
+      </div>
+
+      <div class="segmented mt-5">
+        <button id="metaTabApply" onclick="switchMetaAccountTab('apply')" class="seg-btn seg-active">申请开户</button>
+        <button id="metaTabBind" onclick="switchMetaAccountTab('bind')" class="seg-btn">已有账户？立即绑定授权</button>
+      </div>
+
+      <div id="metaPanelApply" class="mt-5 space-y-4">
+        <div>
+          <h4 class="text-sm font-semibold text-ink">Meta 官方代理商绿色开户通道 (Meetsocial / YinoLink)</h4>
+          <p class="text-xs text-muted mt-1 leading-relaxed">通过 Meta 官方授权代理商申请企业广告账户，审核通过后可在 OmniFlow 中直接授权投放与发布。</p>
+        </div>
+        <div class="rounded-2xl surface-muted p-4">
+          <div class="text-[11px] uppercase tracking-wider text-muted mb-2">准备材料 · Requirements</div>
+          <ul class="space-y-2 text-sm text-ink">
+            <li class="flex items-center gap-2.5"><span class="material-symbols-outlined text-base text-muted">badge</span>营业执照 <span class="text-muted text-xs">Business License</span></li>
+            <li class="flex items-center gap-2.5"><span class="material-symbols-outlined text-base text-muted">storefront</span>独立站/店铺链接 <span class="text-muted text-xs">Store URL</span></li>
+          </ul>
+        </div>
+        <button id="metaApplyBtn" onclick="submitMetaAccountApplication()" class="primary-btn w-full" disabled>立即提交开户申请</button>
+        <p id="metaApplyNote" class="text-xs text-muted text-center">开户通道尚未配置，请联系客服。</p>
+      </div>
+
+      <div id="metaPanelBind" class="mt-5 space-y-3 hidden">
+        <p class="text-xs text-muted leading-relaxed">已有 Meta 企业广告账户或 Facebook 主页？通过官方 OAuth 授权，OmniFlow 只会获取发布和读取所需的权限。</p>
+        <a href="/auth/facebook/login" class="primary-btn w-full"><img src="/static/assets/logos/meta.svg" class="w-4 h-4" alt=""/>使用 Facebook 授权连接</a>
+        <button onclick="closeMetaAccountModal(); openFacebookTokenModal()" class="secondary-btn w-full">使用 Page Access Token</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ========================================================================= -->
   <!-- MODAL 1: NEW CAMPAIGN SHEET (POST /campaign/create)                       -->
@@ -493,7 +583,7 @@
       <form id="campaignModalForm" onsubmit="handleCampaignModalSubmit(event)" class="space-y-3.5 text-xs">
         <div>
           <label class="block text-zinc-300 font-medium mb-1">Campaign Name</label>
-          <input type="text" id="modalCampName" required value="" placeholder="e.g. Summer launch for your hero product"
+          <input type="text" id="modalCampName" required value="" placeholder="Campaign name"
             class="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500"/>
         </div>
         <div class="grid grid-cols-2 gap-3">
@@ -895,20 +985,147 @@
     }
     function closeSchedulesModal() { document.getElementById('schedulesModal').classList.add('hidden'); }
 
-    function toggleSidebar() {
+    // Drawer: toggleSidebar() flips it, toggleSidebar(true|false) forces a state.
+    function toggleSidebar(force) {
       const sb = document.getElementById('sidebar');
-      sb.classList.toggle('-ml-[280px]');
+      const backdrop = document.getElementById('drawerBackdrop');
+      if (!sb) return;
+      const open = typeof force === 'boolean' ? force : !sb.classList.contains('open');
+      sb.classList.toggle('open', open);
+      if (backdrop) backdrop.classList.toggle('open', open);
+      if (!open) {
+        const dd = document.getElementById('userDropdown');
+        if (dd) dd.classList.add('hidden');
+      }
     }
 
-    // Platform chip filter
+    // Header channels / settings dropdown
+    function toggleChannelsMenu(e) {
+      if (e) e.stopPropagation();
+      const menu = document.getElementById('channelsMenu');
+      if (menu) menu.classList.toggle('hidden');
+    }
+    function closeChannelsMenu() {
+      const menu = document.getElementById('channelsMenu');
+      if (menu) menu.classList.add('hidden');
+    }
+
+    // Composer channel picker (single target channel, or all)
+    function toggleChannelPicker(e) {
+      if (e) e.stopPropagation();
+      const picker = document.getElementById('platformChipsContainer');
+      if (picker) picker.classList.toggle('hidden');
+    }
+
     function togglePlatformChip(btn, platform) {
-      document.querySelectorAll('.chip-btn').forEach(b => {
-        b.classList.remove('active-chip', 'bg-indigo-500/20', 'text-indigo-300', 'border-indigo-500/30');
-        b.classList.add('bg-white/[0.06]', 'text-zinc-300', 'border-white/5');
-      });
-      btn.classList.add('active-chip', 'bg-indigo-500/20', 'text-indigo-300', 'border-indigo-500/30');
-      btn.classList.remove('bg-white/[0.06]', 'text-zinc-300', 'border-white/5');
+      document.querySelectorAll('.chip-btn').forEach(b => b.classList.remove('active-chip'));
+      btn.classList.add('active-chip');
       currentPlatformFilter = platform;
+
+      const label = document.getElementById('channelPillLabel');
+      if (label) label.textContent = btn.dataset.label || platform;
+      const icon = document.getElementById('channelPillIcon');
+      if (icon) {
+        const logo = btn.dataset.logo;
+        icon.innerHTML = logo ? `<img src="${logo}" class="w-4 h-4 ${platform === 'x' ? 'logo-mono' : ''}" alt=""/>` : 'public';
+      }
+      const picker = document.getElementById('platformChipsContainer');
+      if (picker) picker.classList.add('hidden');
+    }
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#channelsMenu')) closeChannelsMenu();
+      if (!e.target.closest('#platformChipsContainer')) {
+        const picker = document.getElementById('platformChipsContainer');
+        if (picker) picker.classList.add('hidden');
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      closeChannelsMenu();
+      toggleSidebar(false);
+      closeMetaAccountModal();
+    });
+
+    // Composer sits centred on the empty stage and docks to the bottom once a
+    // conversation starts. Several handlers hide #emptyHeroState directly, so
+    // follow its class changes instead of wiring each call site.
+    function syncComposerPosition() {
+      const hero = document.getElementById('emptyHeroState');
+      const composer = document.getElementById('composer');
+      const heroSlot = document.getElementById('heroComposerSlot');
+      const dockSlot = document.getElementById('dockComposerSlot');
+      if (!hero || !composer || !heroSlot || !dockSlot) return;
+      const chatting = hero.classList.contains('hidden');
+      const target = chatting ? dockSlot : heroSlot;
+      if (composer.parentElement !== target) target.appendChild(composer);
+      dockSlot.classList.toggle('hidden', !chatting);
+      const picker = document.getElementById('platformChipsContainer');
+      if (picker) {
+        picker.classList.toggle('bottom-full', chatting);
+        picker.classList.toggle('mb-2', chatting);
+        picker.classList.toggle('top-full', !chatting);
+        picker.classList.toggle('mt-2', !chatting);
+      }
+    }
+
+    function autoGrowInput(el) {
+      if (!el) return;
+      el.style.height = 'auto';
+      el.style.height = Math.min(el.scrollHeight, 200) + 'px';
+    }
+
+    // =========================================================================
+    // META 企业广告账户快速开户
+    // =========================================================================
+    let metaAgencyApplyUrl = null;
+
+    async function loadPublicConfig() {
+      try {
+        const res = await fetch('/config/public', { cache: 'no-store' });
+        if (!res.ok) return;
+        const cfg = await res.json();
+        metaAgencyApplyUrl = cfg.meta_agency_apply_url || null;
+      } catch (_) {
+        metaAgencyApplyUrl = null;
+      }
+      const btn = document.getElementById('metaApplyBtn');
+      const note = document.getElementById('metaApplyNote');
+      if (btn) btn.disabled = !metaAgencyApplyUrl;
+      if (note) note.classList.toggle('hidden', !!metaAgencyApplyUrl);
+    }
+
+    function openMetaAccountModal(tab = 'apply') {
+      closeChannelsMenu();
+      switchMetaAccountTab(tab);
+      const modal = document.getElementById('metaAccountModal');
+      if (modal) modal.classList.add('open');
+    }
+
+    function closeMetaAccountModal() {
+      const modal = document.getElementById('metaAccountModal');
+      if (modal) modal.classList.remove('open');
+    }
+
+    function switchMetaAccountTab(tab) {
+      const apply = tab !== 'bind';
+      const tabApply = document.getElementById('metaTabApply');
+      const tabBind = document.getElementById('metaTabBind');
+      if (tabApply) tabApply.classList.toggle('seg-active', apply);
+      if (tabBind) tabBind.classList.toggle('seg-active', !apply);
+      const panelApply = document.getElementById('metaPanelApply');
+      const panelBind = document.getElementById('metaPanelBind');
+      if (panelApply) panelApply.classList.toggle('hidden', !apply);
+      if (panelBind) panelBind.classList.toggle('hidden', apply);
+    }
+
+    function submitMetaAccountApplication() {
+      if (!metaAgencyApplyUrl) {
+        showToast('开户通道尚未配置，请联系客服。', false);
+        return;
+      }
+      window.open(metaAgencyApplyUrl, '_blank', 'noopener');
     }
 
     // =========================================================================
@@ -941,7 +1158,7 @@
         previewBox.classList.remove('hidden');
       }
       const label = document.getElementById('attachLabel');
-      if (label) label.textContent = 'Image Attached ✓';
+      if (label) label.textContent = 'Image attached';
     }
 
     function clearAttachedImage() {
@@ -952,7 +1169,7 @@
       const previewBox = document.getElementById('attachedImagePreview');
       if (previewBox) previewBox.classList.add('hidden');
       const label = document.getElementById('attachLabel');
-      if (label) label.textContent = 'Attach Media (+)';
+      if (label) label.textContent = 'Attach media';
     }
 
     function appendUserMessage(text, imgSrc) {
@@ -1077,11 +1294,12 @@
       const input = document.getElementById('chatInput');
       if (input) {
         input.value = '';
+        autoGrowInput(input);
         try { input.focus(); } catch (_) {}
       }
       clearAttachedImage();
       cachedDrafts = {};
-      showToast('Started new conversation', true);
+      syncComposerPosition();
     }
 
     function fillAndSend(prompt) {
@@ -1090,19 +1308,6 @@
         input.value = prompt;
       }
       submitChat();
-    }
-
-    function simulateVoice() {
-      showToast('Voice input listening... (Microphone active)');
-      const input = document.getElementById('chatInput');
-      if (input) {
-        input.placeholder = 'Listening to voice directive...';
-        setTimeout(() => {
-          input.value = 'Create a viral multi-platform campaign for our new ambient lighting drop';
-          input.placeholder = 'Ask OmniFlow to create campaigns, generate copy, or analyze ROI...';
-          showToast('Voice directive transcribed!', true);
-        }, 1200);
-      }
     }
 
     // =========================================================================
@@ -1124,6 +1329,7 @@
       // 1. Append User Message with REAL image thumbnail
       appendUserMessage(text, currentImage);
       input.value = '';
+      autoGrowInput(input);
       clearAttachedImage();
 
       // 2. Show AI Thinking Indicator (returns element ID)
@@ -1151,7 +1357,7 @@
           prompt: text,
           topic: text,
           image_base64: currentImage,
-          campaign_id: currentCampaignId || 'demo-campaign'
+          campaign_id: currentCampaignId || 'default-campaign'
         };
         if (currentPlatformFilter && currentPlatformFilter !== 'all') {
           payload.platforms = [currentPlatformFilter];
@@ -1570,7 +1776,7 @@
         const activeCamp = campaigns.find(c => c.id === currentCampaignId) || campaigns[0];
         const headerLabel = document.getElementById('headerCampaignLabel');
         if (headerLabel && activeCamp) {
-          headerLabel.textContent = `${activeCamp.name} — AI Swarm Active`;
+          headerLabel.textContent = activeCamp.name;
         }
 
         const sidebarList = document.getElementById('sidebarCampaignsList');
@@ -1690,7 +1896,7 @@
       const cdTasksCount = document.getElementById('cdTasksCount');
       if (cdTasksCount) cdTasksCount.textContent = tasks.length + ' Tasks';
       const cdIdLabel = document.getElementById('cdIdLabel');
-      if (cdIdLabel) cdIdLabel.textContent = 'ID: ' + (camp.id ? camp.id.substring(0, 8) : 'demo');
+      if (cdIdLabel) cdIdLabel.textContent = 'ID: ' + (camp.id ? camp.id.substring(0, 8) : '—');
       const cdStatusBadge = document.getElementById('cdStatusBadge');
       if (cdStatusBadge) cdStatusBadge.textContent = (camp.status || 'ACTIVE').toUpperCase();
       const cdVoiceAndDesc = document.getElementById('cdVoiceAndDesc');
@@ -1765,7 +1971,7 @@
           body: JSON.stringify({
             publish_now: true,
             immediate: true,
-            campaign_id: currentCampaignId || 'demo-campaign',
+            campaign_id: currentCampaignId || 'default-campaign',
             content_draft_ids: []
           })
         });
@@ -2248,8 +2454,12 @@
     // THEME ENGINE (Dark / Light Cupertino Mode)
     // =========================================================================
     function initTheme() {
-      applyTheme('dark');
-      try { localStorage.setItem('omniflow_theme', 'dark'); } catch (_) {}
+      let theme = null;
+      try { theme = localStorage.getItem('omniflow_theme'); } catch (_) {}
+      if (theme !== 'light' && theme !== 'dark') {
+        theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      }
+      applyTheme(theme);
     }
 
     function toggleTheme() {
@@ -2292,6 +2502,8 @@
           currentUser = await res.json();
           updateSidebarUserProfile(currentUser);
           closeAuthModal();
+        } else if (res.status === 401) {
+          openAuthModal('login');
         }
       } catch (err) {
         console.warn('Could not load session:', err);
@@ -2301,7 +2513,7 @@
     function updateSidebarUserProfile(user) {
       if (!user) return;
       try {
-        const initials = (user.full_name || 'AR').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+        const initials = (user.full_name || user.email || '?').split(/[\s@]+/).filter(Boolean).map(n => n[0]).join('').toUpperCase().slice(0, 2);
         const initEl = document.getElementById('sidebarUserInitials');
         if (initEl) initEl.textContent = initials;
         const nameEl = document.getElementById('sidebarUserName');
@@ -2332,24 +2544,9 @@
       }
     });
 
-    function fillDemoCredentials() {
-      const email = document.getElementById('authEmailInput');
-      const pwd = document.getElementById('authPasswordInput');
-      if (email) email.value = '';
-      if (pwd) pwd.value = '';
-    }
-
-    async function loginDemoNow() {
-      fillDemoCredentials();
-      await handleAuthSubmit();
-    }
-
     function openAuthModal(mode = 'login') {
       authMode = mode;
       switchAuthTab(mode);
-      if (mode === 'login') {
-        fillDemoCredentials();
-      }
       const dd = document.getElementById('userDropdown');
       if (dd) dd.classList.add('hidden');
       const modal = document.getElementById('authModal');
@@ -2379,14 +2576,12 @@
       const title = document.getElementById('authModalTitle');
       const switchPrompt = document.getElementById('authSwitchPrompt');
       const switchBtn = document.getElementById('authSwitchBtn');
-      const demoCard = document.getElementById('demoAccountCard');
 
       if (mode === 'register') {
         tabReg.className = 'flex-1 py-1.5 rounded-lg text-xs font-medium text-white bg-white/10 transition';
         tabLogin.className = 'flex-1 py-1.5 rounded-lg text-xs font-medium text-zinc-400 hover:text-white transition';
         nameField.classList.remove('hidden');
         compField.classList.remove('hidden');
-        if (demoCard) demoCard.classList.add('hidden');
         submitBtn.textContent = 'Create Account & Launch';
         title.textContent = 'Create OmniFlow Account';
         switchPrompt.textContent = 'Already have an account?';
@@ -2396,8 +2591,6 @@
         tabReg.className = 'flex-1 py-1.5 rounded-lg text-xs font-medium text-zinc-400 hover:text-white transition';
         nameField.classList.add('hidden');
         compField.classList.add('hidden');
-        if (demoCard) demoCard.classList.remove('hidden');
-        fillDemoCredentials();
         submitBtn.textContent = 'Sign In';
         title.textContent = 'Sign In to OmniFlow';
         switchPrompt.textContent = "Don't have an account?";
@@ -2618,93 +2811,9 @@
     let activeCardIdForFbToken = null;
     let connectedFacebookPageId = '';
 
-    function renderMetaConnectionState(connected, pageName) {
-      const onboarding = document.getElementById('metaOnboarding');
-      const step1State = document.getElementById('step1State');
-      const step3State = document.getElementById('step3State');
-      const progress = document.getElementById('onboardingProgress');
-      const campaignBtn = document.getElementById('scheduleFirstCampaignBtn');
-      const sidebarDot = document.getElementById('sidebarMetaDot');
-      if (!onboarding) return;
-
-      if (connected) {
-        if (step1State) {
-          step1State.textContent = 'Connected';
-          step1State.style.color = '#6ee7b7';
-        }
-        if (step3State) {
-          step3State.textContent = 'Ready';
-          step3State.style.color = '#6ee7b7';
-        }
-        if (progress) progress.textContent = '1 / 3 complete';
-        if (campaignBtn) campaignBtn.disabled = false;
-        if (sidebarDot) sidebarDot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]';
-        onboarding.dataset.connectedPage = pageName || '';
-      } else {
-        if (step1State) {
-          step1State.textContent = 'Start here';
-          step1State.style.color = '';
-        }
-        if (step3State) {
-          step3State.textContent = 'Needs Meta';
-          step3State.style.color = '';
-        }
-        if (progress) progress.textContent = '0 / 3 complete';
-        if (campaignBtn) campaignBtn.disabled = true;
-        if (sidebarDot) sidebarDot.className = 'w-1.5 h-1.5 rounded-full bg-amber-400';
-        delete onboarding.dataset.connectedPage;
-      }
-    }
-
-    async function scheduleFirstCampaign() {
-      const button = document.getElementById('scheduleFirstCampaignBtn');
-      const onboarding = document.getElementById('metaOnboarding');
-      if (!onboarding?.dataset.connectedPage) {
-        showToast('Connect a Facebook Page before preparing a campaign.', false);
-        return;
-      }
-
-      const niche = document.getElementById('merchantNiche')?.value.trim() || 'cross-border ecommerce';
-      const tone = document.getElementById('brandTone')?.value.trim() || 'clear and trustworthy';
-      const languages = document.getElementById('brandLanguages')?.value.trim() || 'English';
-      const prompt = `Prepare the first AI campaign for my ${niche} merchant business. Brand voice: ${tone}. Languages: ${languages}. Create a launch-ready multi-platform campaign draft with a clear audience, CTA, and suggested publishing sequence. Do not publish or spend budget.`;
-      const hero = document.getElementById('emptyHeroState');
-      const msgArea = document.getElementById('messagesContainer');
-      if (hero) hero.classList.add('hidden');
-      if (msgArea) msgArea.classList.remove('hidden');
-      appendUserMessage(prompt, null);
-      const thinkingId = appendThinkingIndicator();
-      if (button) {
-        button.disabled = true;
-        button.innerHTML = '<span class="material-symbols-outlined text-sm animate-spin">progress_activity</span>Writing your draft…';
-      }
-
-      try {
-        const res = await fetch('/content/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt, topic: prompt, campaign_id: currentCampaignId || 'first-campaign', platforms: ['meta'] })
-        });
-        if (!res.ok) {
-          let detail = 'The copywriter could not prepare a draft.';
-          try { const data = await res.json(); detail = data.detail || detail; } catch (_) {}
-          throw new Error(detail);
-        }
-        renderDynamicCreativeCard(prompt, await res.json(), null);
-        showToast('First campaign draft prepared for review.', true);
-        const state = document.getElementById('step3State');
-        if (state) { state.textContent = 'Draft ready'; state.style.color = '#6ee7b7'; }
-        scrollToBottom();
-      } catch (err) {
-        appendAiErrorMessage(err.message || 'Campaign draft failed.');
-        showToast(err.message || 'Campaign draft failed.', false);
-      } finally {
-        removeThinkingIndicator(thinkingId);
-        if (button) {
-          button.disabled = false;
-          button.innerHTML = '<span class="material-symbols-outlined text-sm">refresh</span>Prepare another draft';
-        }
-      }
+    function renderMetaConnectionState(connected) {
+      const dot = document.getElementById('sidebarMetaDot');
+      if (dot) dot.className = connected ? 'w-1.5 h-1.5 rounded-full bg-emerald-500' : 'w-1.5 h-1.5 rounded-full bg-zinc-400';
     }
 
     async function checkNetworkHealth() {
@@ -2712,29 +2821,35 @@
       const label = document.getElementById('networkStatusLabel');
       const latency = document.getElementById('networkLatency');
       const sidebarDot = document.getElementById('sidebarNetworkDot');
-      const startedAt = performance.now();
-      if (!pill || !label) return;
-      pill.classList.remove('network-healthy', 'network-degraded', 'network-offline');
-      pill.classList.add('network-checking');
-      label.textContent = 'Checking network';
+      if (!pill) return;
+      const setState = (cls, text, ms, tooltip, dotCls) => {
+        pill.classList.remove('network-checking', 'network-healthy', 'network-degraded', 'network-offline');
+        pill.classList.add(cls);
+        if (label) label.textContent = text;
+        if (latency) latency.textContent = ms;
+        pill.title = tooltip;
+        if (sidebarDot) sidebarDot.className = 'w-1.5 h-1.5 rounded-full ' + dotCls;
+      };
       try {
         const res = await fetch('/health/network', { cache: 'no-store' });
-        const elapsed = Math.max(1, Math.round(performance.now() - startedAt));
         if (!res.ok) throw new Error('HTTP ' + res.status);
-        let payload = null;
-        try { payload = await res.json(); } catch (_) {}
-        const healthy = payload?.healthy !== false && payload?.status !== 'unhealthy';
-        pill.classList.remove('network-checking');
-        pill.classList.add(healthy ? 'network-healthy' : 'network-degraded');
-        label.textContent = healthy ? 'Network healthy' : 'Network degraded';
-        if (latency) latency.textContent = elapsed + 'ms';
-        if (sidebarDot) sidebarDot.className = healthy ? 'w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]' : 'w-1.5 h-1.5 rounded-full bg-amber-400';
+        const payload = await res.json();
+        const targets = Array.isArray(payload.targets) ? payload.targets : [];
+        const names = { meta_graph: 'Meta', zhipu_bigmodel: 'Zhipu AI' };
+        const lines = targets.map(t => `${names[t.name] || t.name}: ${t.reachable ? Math.round(t.latency_ms) + ' ms' : 'unreachable'}`);
+        const reachable = targets.filter(t => t.reachable && typeof t.latency_ms === 'number');
+        const worst = reachable.length ? Math.round(Math.max(...reachable.map(t => t.latency_ms))) + 'ms' : '';
+        const NL = String.fromCharCode(10);
+        const mode = payload.mode === 'proxy' ? ' · via proxy' : '';
+        if (payload.status === 'ok') {
+          setState('network-healthy', 'Network healthy', worst, `Network healthy${mode}${NL}${lines.join(NL)}`, 'bg-emerald-500');
+        } else if (payload.status === 'degraded') {
+          setState('network-degraded', 'Network degraded', worst, `Network degraded${mode}${NL}${lines.join(NL)}`, 'bg-amber-500');
+        } else {
+          setState('network-offline', 'Network down', '', `Meta and Zhipu AI unreachable${mode}${NL}${lines.join(NL)}`, 'bg-rose-500');
+        }
       } catch (err) {
-        pill.classList.remove('network-checking');
-        pill.classList.add('network-offline');
-        label.textContent = 'Network unavailable';
-        if (latency) latency.textContent = '—';
-        if (sidebarDot) sidebarDot.className = 'w-1.5 h-1.5 rounded-full bg-rose-400';
+        setState('network-offline', 'Network unavailable', '', 'Network check failed: ' + err.message, 'bg-rose-500');
       }
     }
 
@@ -2779,17 +2894,17 @@
           if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
           if (title) title.textContent = `Connected to ${pageName} 🟢`;
           if (desc) desc.textContent = 'Token verified · Live photo & feed dispatch active';
-          if (headerBadge) headerBadge.textContent = `Facebook: ${pageName} 🟢`;
+          if (headerBadge) headerBadge.textContent = `Meta · ${pageName}`;
         } else if (data.token_expired) {
           if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse';
           if (title) title.textContent = 'Session Token Expired 🟡';
           if (desc) desc.textContent = data.error || 'Temporary session token has expired. Paste a new token below.';
-          if (headerBadge) headerBadge.textContent = 'Facebook: Token Expired 🟡';
+          if (headerBadge) headerBadge.textContent = 'Meta · token expired';
         } else {
           if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-rose-400';
           if (title) title.textContent = 'Not Connected';
           if (desc) desc.textContent = data.error || 'Check credentials';
-          if (headerBadge) headerBadge.textContent = 'Facebook: Connect';
+          if (headerBadge) headerBadge.textContent = 'Connect Meta';
         }
         renderMetaConnectionState(!!data.connected, pageName);
       } catch (err) {
@@ -2884,9 +2999,7 @@
     window.renderDynamicCreativeCard = renderDynamicCreativeCard;
     window.openAuthModal = openAuthModal;
     window.closeAuthModal = closeAuthModal;
-    window.loginDemoNow = loginDemoNow;
     window.handleAuthSubmit = handleAuthSubmit;
-    window.fillDemoCredentials = fillDemoCredentials;
     window.fillAndSend = fillAndSend;
     window.clearAttachedImage = clearAttachedImage;
     window.handleMediaSelect = handleMediaSelect;
@@ -2929,19 +3042,21 @@
     window.toggleAuthMode = toggleAuthMode;
     window.switchAuthTab = switchAuthTab;
     window.handleLogout = handleLogout;
-    window.simulateVoice = simulateVoice;
     window.scrollToBottom = scrollToBottom;
     window.escapeHtml = escapeHtml;
     window.openFacebookTokenModal = openFacebookTokenModal;
     window.closeFacebookTokenModal = closeFacebookTokenModal;
     window.checkFacebookLiveStatus = checkFacebookLiveStatus;
     window.saveFacebookToken = saveFacebookToken;
-    window.scheduleFirstCampaign = scheduleFirstCampaign;
     window.checkNetworkHealth = checkNetworkHealth;
 
     // Boot: stay on the empty workspace until a real account is connected
     document.addEventListener('DOMContentLoaded', () => {
       initTheme();
+      syncComposerPosition();
+      const hero = document.getElementById('emptyHeroState');
+      if (hero) new MutationObserver(syncComposerPosition).observe(hero, { attributes: true, attributeFilter: ['class'] });
+      loadPublicConfig();
       renderMetaConnectionState(false);
       checkAuthSession();
       loadCampaigns();
@@ -3011,7 +3126,7 @@
   <!-- ========================================================================= -->
   <!-- 9. USER AUTHENTICATION MODAL (Sign In & Register)                         -->
   <!-- ========================================================================= -->
-  <div id="authModal" class="fixed inset-0 bg-black/80 backdrop-blur-2xl z-50 flex items-center justify-center p-4 animate-fade-in">
+  <div id="authModal" class="fixed inset-0 bg-black/80 backdrop-blur-2xl z-50 hidden items-center justify-center p-4 animate-fade-in">
     <div class="glass-panel max-w-md w-full rounded-3xl p-6 border border-white/15 shadow-2xl space-y-4 relative">
       <!-- Modal Header -->
       <div class="flex items-center justify-between border-b border-white/10 pb-4">
@@ -3019,7 +3134,7 @@
           <img src="/static/assets/logos/omniflow_logo.svg" alt="OmniFlow" class="w-8 h-8 rounded-xl"/>
           <div>
             <h3 id="authModalTitle" class="text-base font-bold text-white">Sign In to OmniFlow</h3>
-            <p class="text-[11px] text-zinc-400">Autonomous Multi-Agent Marketing Suite</p>
+            <p class="text-[11px] text-zinc-400">AI-powered cross-border growth engine</p>
           </div>
         </div>
         <button onclick="closeAuthModal()" class="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/10 transition" title="Close modal">
@@ -3037,7 +3152,7 @@
       <form id="authForm" onsubmit="handleAuthSubmit(event)" class="space-y-4">
         <div id="authNameField" class="hidden space-y-1">
           <label class="text-[11px] text-zinc-400 font-medium">Full Name</label>
-          <input type="text" id="authNameInput" placeholder="e.g. Marcus Vance" class="w-full bg-black/30 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:ring-1 focus:ring-indigo-500"/>
+          <input type="text" id="authNameInput" placeholder="Your name" class="w-full bg-black/30 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:ring-1 focus:ring-indigo-500"/>
         </div>
 
         <div class="space-y-1">
@@ -3052,7 +3167,7 @@
 
         <div id="authCompanyField" class="hidden space-y-1">
           <label class="text-[11px] text-zinc-400 font-medium">Company / Brand Organization</label>
-          <input type="text" id="authCompanyInput" placeholder="e.g. Acme Global Fashion" class="w-full bg-black/30 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:ring-1 focus:ring-indigo-500"/>
+          <input type="text" id="authCompanyInput" placeholder="Company or brand" class="w-full bg-black/30 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:ring-1 focus:ring-indigo-500"/>
         </div>
 
         <button type="submit" id="authSubmitBtn" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-400 hover:to-indigo-500 text-white font-semibold text-xs shadow-lg shadow-indigo-500/25 transition active:scale-98">
@@ -3109,7 +3224,7 @@
           </div>
           <div class="space-y-1">
             <label class="text-[10px] text-zinc-400">Account / Page ID</label>
-            <input type="text" id="connectAccountId" placeholder="e.g. act-1029384" class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white"/>
+            <input type="text" id="connectAccountId" placeholder="Page or account ID" class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white"/>
           </div>
         </div>
         <div class="space-y-1">
@@ -3125,7 +3240,7 @@
       <div class="flex items-center justify-between pt-2 border-t border-white/10 text-xs text-zinc-400">
         <span class="flex items-center gap-1.5 text-[11px]">
           <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-          <span>Credentials encrypted & synced to SQLite database</span>
+          <span>Credentials are stored per workspace</span>
         </span>
         <button onclick="loadIntegrationsStatus()" class="text-indigo-400 hover:text-indigo-300 text-xs font-medium flex items-center gap-1">
           <span class="material-symbols-outlined text-xs">refresh</span>

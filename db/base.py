@@ -76,7 +76,6 @@ class Store(Protocol):
     def get_tenant(self, tenant_id: str) -> Optional[Dict[str, Any]]: ...
 
     # ------------------------------------------------------------------ users
-    def _seed_default_user(self) -> None: ...
     def create_user(
         self,
         email: str,
