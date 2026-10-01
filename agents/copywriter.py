@@ -14,11 +14,24 @@ from agents.llm_client import (
     get_llm_client,
 )
 from app.config import load_environment
-from models.schemas import Campaign, ContentDraft, ContentGenerateRequest, Platform
+from models.schemas import Campaign, CampaignCreate, ContentDraft, ContentGenerateRequest, Platform
 
 load_environment()
 
 logger = logging.getLogger("multi-agent-marketing.copywriter")
+
+# Placeholder defaults of the request models are not merchant input, so fallback copy never uses them.
+_PLACEHOLDER_TEXTS = {
+    str(CampaignCreate.model_fields["product_description"].default).strip().lower(),
+    str(ContentGenerateRequest.model_fields["topic"].default).strip().lower(),
+}
+_HASHTAG_STOPWORDS = {"a", "an", "and", "the", "for", "with", "of", "to", "in", "on", "our", "your", "new", "my"}
+
+
+def _merchant_text(value: Optional[str]) -> str:
+    """The value if the merchant actually provided it, else ""."""
+    text = (value or "").strip()
+    return "" if text.lower() in _PLACEHOLDER_TEXTS else text
 
 
 class CopywriterAgent:
@@ -207,18 +220,11 @@ class CopywriterAgent:
             generation_meta["status"] = "fallback"
             generation_meta["fallback_reason"] = "llm_auth_failed" if self.client else "llm_not_configured"
 
-        if not result_copy:
-            result_copy = (
-                f"🔥 Introducing the next evolution in performance: {prompt_text}!\n\n"
-                f"Engineered to redefine modern standards with effortless reliability, refined aesthetics, "
-                f"and uncompromising craftsmanship built for discerning global lifestyles.\n\n"
-                f"✨ Key Highlights:\n"
-                f"• Precision-engineered architecture for maximum durability\n"
-                f"• Streamlined intuitive experience from day one\n"
-                f"• 4.9/5 verified global customer satisfaction rating\n\n"
-                f"Tap below to secure your allocation today before first drop sells out!"
-            )
-            result_hashtags = ["#Innovation", "#LaunchDay", "#ProductDrop", "#SmartLiving", "#Ecommerce"]
+        is_fallback = not result_copy
+        if is_fallback:
+            # Neutral draft built only from what the merchant typed (no invented claims or numbers).
+            result_copy = self._write_fallback(campaign, prompt_text, Platform.META, "en")
+            result_hashtags = self._topic_hashtags(prompt_text, limit=5)
             if generation_meta.get("status") == "ai_generated":
                 generation_meta["status"] = "fallback"
                 generation_meta["fallback_reason"] = "empty_copy"
@@ -238,21 +244,25 @@ class CopywriterAgent:
             body=result_copy,
             hashtags=list(result_hashtags),
             image_base64=image_base64,
-            call_to_action="Learn More",
+            call_to_action=self._cta_fallback(Platform.META, "en"),
             metadata=dict(generation_meta),
             **tenant_kwargs,
         )
         first_line = result_copy.splitlines()[0] if result_copy else ""
+        if is_fallback:
+            tiktok_body = self._write_fallback(campaign, prompt_text, Platform.TIKTOK, "en")
+        else:
+            tiktok_body = f"Stop scrolling! ✋ Have you seen {prompt_text}?\n\n{first_line}\n\nCheck sound and tap link below ⬇️"
         tiktok_draft = ContentDraft(
             id=str(uuid4()),
             campaign_id=cid,
             platform=Platform.TIKTOK,
             language="en",
             title=f"{prompt_text[:30]} | TikTok",
-            body=f"Stop scrolling! ✋ Have you seen {prompt_text}?\n\n{first_line}\n\nCheck sound and tap link below ⬇️",
+            body=tiktok_body,
             hashtags=list(result_hashtags),
             image_base64=image_base64,
-            call_to_action="TikTok Drop",
+            call_to_action=self._cta_fallback(Platform.TIKTOK, "en"),
             metadata=dict(generation_meta),
             **tenant_kwargs,
         )
@@ -299,7 +309,7 @@ class CopywriterAgent:
         media_links: List[str],
         schedule_time: str,
     ) -> ContentDraft:
-        topic = topic or campaign.product_description or campaign.objective or "Product Showcase"
+        topic = _merchant_text(topic) or _merchant_text(campaign.product_description)
         body = None
         hashtags = None
         cta = None
@@ -402,99 +412,56 @@ class CopywriterAgent:
             "hashtags": found_tags if found_tags else self._hashtags(campaign, platform, topic),
         }
 
-    def _write_fallback(self, campaign: Campaign, topic: str, platform: Platform, language: str) -> str:
-        topic_clean = topic.strip() or "Modern Innovation"
+    def _write_fallback(self, campaign: Optional[Campaign], topic: str, platform: Platform, language: str) -> str:
+        """Neutral draft used when the AI is unavailable.
 
-        if language.startswith("zh"):
-            if platform in (Platform.XIAOHONGSHU, Platform.DOUYIN):
-                return (
-                    f"终于被我挖到了！✨ {topic_clean} 真的太懂生活美学了！\n\n"
-                    f"高颜值与硬核实用性双重在线，摆在桌上随手一拍都是大片质感。"
-                    f"强烈推荐给近期有品质提升需求的小伙伴们～\n\n"
-                    f"欢迎在评论区交流体验感受哦！"
-                )
-            elif platform == Platform.WECHAT:
-                return (
-                    f"【官方首发】探索全新 {topic_clean} 的设计美学与硬核科技。\n\n"
-                    f"秉持极致工艺与创新体验，专为追求卓越品质的用户量身打造。"
-                    f"点击下方阅读原文，即刻预约专属礼遇与体验名额。"
-                )
-            return f"探索全新 {topic_clean}。以现代极简工艺与卓越性能，为全球用户带来非凡体验。点击了解详情。"
+        Built strictly from merchant-provided parameters (the topic/product and the campaign's
+        product description). It never adds ratings, statistics, offers, scarcity, testimonials or
+        product features the merchant did not supply; the UI labels it as a template draft.
+        """
+        subject = _merchant_text(topic)
+        description = _merchant_text(campaign.product_description if campaign is not None else "")
+        if description and description.lower() == subject.lower():
+            description = ""
+        closing = "了解更多。" if language.lower().startswith("zh") else "Learn more."
 
-        # English (Default)
-        if platform == Platform.META:
-            return (
-                f"🔥 Introducing the breakthrough in everyday performance: {topic_clean}!\n\n"
-                f"Engineered to redefine modern standards with effortless reliability, sophisticated aesthetics, "
-                f"and uncompromising craftsmanship built for demanding lifestyles.\n\n"
-                f"✨ Key Highlights:\n"
-                f"• Precision-engineered architecture for maximum durability\n"
-                f"• Streamlined intuitive experience from day one\n"
-                f"• 4.9/5 verified global customer satisfaction rating\n\n"
-                f"Tap below to secure your launch allocation with complimentary express dispatch."
-            )
-        elif platform == Platform.INSTAGRAM:
-            return (
-                f"✨ Elevate your creative sanctuary with {topic_clean}.\n\n"
-                f"Where architectural minimalism meets acoustic precision. Designed to restore natural balance "
-                f"and modern focus to your daily workflow.\n\n"
-                f"Save this post & tap the link in bio to explore the limited release collection."
-            )
-        elif platform == Platform.TIKTOK:
-            return (
-                f"Stop scrolling for 3 seconds! ✋ Have you actually tried {topic_clean} yet?\n\n"
-                f"This single upgrade completely transformed our setup. Zero distractions, 100% pure focus. "
-                f"You literally have to experience this in person!\n\n"
-                f"Tap the shopping link below before the first drop sells out ⬇️"
-            )
-        elif platform == Platform.X:
-            return (
-                f"Direct release: {topic_clean} is officially live.\n\n"
-                f"High-throughput architecture, zero clutter, built for global operators who demand higher standards.\n\n"
-                f"Full breakdown & allocation: [link]"
-            )
-        elif platform == Platform.WECHAT:
-            return (
-                f"【Curated Spotlight】 The Architectural Story of {topic_clean}.\n\n"
-                f"Balancing artisanal craftsmanship with next-generation materials for discerning global audiences.\n"
-                f"Discover our private reservation catalogue via official link below."
-            )
-        elif platform == Platform.XIAOHONGSHU:
-            return (
-                f"📌 Essential Aesthetic Find: {topic_clean}!\n\n"
-                f"Unmatched minimalist textures and understated luxury that instantly elevates your creative environment.\n"
-                f"Drop a comment below with your favorite colorway!"
-            )
-        else:
-            return (
-                f"Experience {topic_clean}. Engineered with premium materials and ergonomic precision for global creators. "
-                f"Explore full specifications and reserve yours today."
-            )
+        if platform == Platform.X:
+            # One short post that stays within X's length limit.
+            text = " — ".join(part for part in (subject, description) if part)
+            budget = 240 - len(closing) - 1
+            if len(text) > budget:
+                text = text[: budget - 1].rstrip() + "…"
+            return f"{text} {closing}".strip()
+
+        parts = [part for part in (subject, description) if part]
+        parts.append(closing)
+        return "\n\n".join(parts)
+
+    def _topic_hashtags(self, topic: str, limit: int) -> List[str]:
+        """Hashtags made only from the merchant's own words (Unicode-aware, so Chinese topics work too)."""
+        subject = _merchant_text(topic)
+        words = [w for w in re.split(r"[\s,，。.!?！？/|·]+", subject) if w]
+        candidates: List[str] = []
+        if len(words) > 1:
+            candidates.append("".join(w[:1].upper() + w[1:] for w in words))
+        candidates.extend(w for w in words if w.lower() not in _HASHTAG_STOPWORDS)
+        tags: List[str] = []
+        for word in candidates:
+            clean = re.sub(r"[^\w]", "", word)
+            tag = "#" + clean
+            if len(clean) >= 2 and tag.lower() not in {t.lower() for t in tags}:
+                tags.append(tag)
+        return tags[:limit]
 
     def _title(self, topic: str, platform: Platform, language: str) -> str:
         topic = topic or "Campaign update"
         return f"{topic} | {platform.value.upper()}"
 
     def _hashtags(self, campaign: Campaign, platform: Platform, topic: str) -> List[str]:
-        raw = [topic.replace(" ", ""), campaign.name.replace(" ", ""), "Marketing", platform.value]
-        tags = []
-        for x in raw:
-            if x and x not in tags:
-                clean = re.sub(r"[^A-Za-z0-9_]", "", x)
-                if clean:
-                    tags.append("#" + clean)
-        tags.extend(["#digitalmarketing", "#brand", "#innovation", "#ecommerce"])
-        return tags[: self.PLATFORM_RULES[platform]["hashtags"]]
+        """Default hashtags when the model returns none: only from the merchant's topic."""
+        return self._topic_hashtags(topic, limit=self.PLATFORM_RULES[platform]["hashtags"])
 
     @staticmethod
     def _cta_fallback(platform: Platform, language: str) -> str:
-        if language.startswith("zh"):
-            return "即刻探索并领取礼遇"
-        if platform == Platform.TIKTOK:
-            return "Shop TikTok Drop"
-        if platform == Platform.INSTAGRAM:
-            return "Link in Bio"
-        if platform == Platform.X:
-            return "Explore Release"
-        return "Learn More"
-
+        """Neutral call to action; never implies a gift, discount, product drop or bio link."""
+        return "了解更多" if language.lower().startswith("zh") else "Learn More"

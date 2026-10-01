@@ -276,3 +276,88 @@ def _patched_init(sdk: FakeSDK):
         self._sdk = sdk
 
     return init
+
+
+# ------------------------------------------------------- honest fallback (AI unavailable)
+FABRICATED = [
+    "4.9", "verified", "rating", "sells out", "drop", "limited", "complimentary", "exclusive", "%",
+    "transformed", "guarantee", "best-selling", "precision", "durability", "礼遇", "首发", "挖到", "爆款",
+]
+DEFAULT_DESCRIPTION = CampaignCreate.model_fields["product_description"].default
+
+
+def _assert_no_fabrication(text: str) -> None:
+    lowered = text.lower()
+    found = [phrase for phrase in FABRICATED if phrase.lower() in lowered]
+    assert not found, f"fallback copy invents claims {found}: {text!r}"
+
+
+def test_fallback_copy_uses_only_merchant_parameters_on_every_platform():
+    campaign = Campaign(**CampaignCreate(
+        name="Q4 internal push",
+        platforms=list(Platform),
+        product_description="Stoneware mugs, 350 ml, dishwasher safe",
+    ).model_dump())
+    drafts = CopywriterAgent().generate(
+        campaign, ContentGenerateRequest(campaign_id="c", topic="Handmade ceramic mugs", count_per_platform=1)
+    )
+    assert {d.platform for d in drafts} == set(Platform)
+    for draft in drafts:
+        assert draft.metadata["status"] == "deterministic_fallback"
+        assert "Handmade ceramic mugs" in draft.body
+        assert "Stoneware mugs, 350 ml, dishwasher safe" in draft.body  # merchant-supplied facts are kept verbatim
+        assert "Q4 internal push" not in draft.body  # internal campaign name is never published
+        _assert_no_fabrication(draft.body.replace("350 ml", ""))
+        assert draft.call_to_action == "Learn More"
+        assert set(draft.hashtags) <= {"#HandmadeCeramicMugs", "#Handmade", "#ceramic", "#mugs"}
+        assert draft.hashtags
+
+
+def test_fallback_never_uses_placeholder_defaults():
+    campaign = Campaign(**CampaignCreate(platforms=[Platform.META]).model_dump())  # all defaults
+    drafts = CopywriterAgent().generate(campaign, ContentGenerateRequest(campaign_id="c", count_per_platform=1))
+    body = drafts[0].body
+    assert DEFAULT_DESCRIPTION not in body
+    assert "Product showcase" not in body and "Global Growth Campaign" not in body
+    assert body == "Learn more."
+    assert drafts[0].hashtags == []
+
+
+def test_fallback_x_post_stays_within_the_limit():
+    campaign = Campaign(**CampaignCreate(platforms=[Platform.X], product_description="d" * 400).model_dump())
+    draft = CopywriterAgent().generate(campaign, ContentGenerateRequest(campaign_id="c", topic="Desk lamp", count_per_platform=1))[0]
+    assert len(draft.body) <= 240 and draft.body.startswith("Desk lamp — ") and draft.body.endswith("Learn more.")
+
+
+def test_fallback_chinese_copy_is_neutral():
+    campaign = Campaign(**CampaignCreate(platforms=[Platform.XIAOHONGSHU, Platform.WECHAT], languages=["zh-CN"]).model_dump())
+    drafts = CopywriterAgent().generate(campaign, ContentGenerateRequest(campaign_id="c", topic="手工陶瓷杯", count_per_platform=1))
+    for draft in drafts:
+        assert draft.body == "手工陶瓷杯\n\n了解更多。"
+        assert draft.call_to_action == "了解更多"
+        assert draft.hashtags == ["#手工陶瓷杯"]
+        _assert_no_fabrication(draft.body)
+
+
+def test_vision_fallback_is_honest_without_an_llm():
+    agent = CopywriterAgent()
+    assert agent.client is None
+    res = agent.generate_with_vision("Handmade ceramic mugs", campaign=_campaign())
+    assert res["copy"] == "Handmade ceramic mugs\n\nLearn more."
+    assert res["hashtags"] == "#HandmadeCeramicMugs #Handmade #ceramic #mugs"
+    meta, tiktok = res["drafts"]
+    assert meta.metadata["status"] == tiktok.metadata["status"] == "fallback"
+    assert tiktok.body == "Handmade ceramic mugs\n\nLearn more."
+    assert meta.call_to_action == tiktok.call_to_action == "Learn More"
+    for draft in res["drafts"]:
+        _assert_no_fabrication(draft.body)
+
+
+def test_vision_fallback_after_bad_json_is_honest_too(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "key")
+    sdk = FakeSDK([_completion("definitely not json")])
+    monkeypatch.setattr("agents.llm_client.LLMClient.__init__", _patched_init(sdk))
+    res = CopywriterAgent().generate_with_vision("Lamp", campaign=_campaign())
+    assert res["drafts"][0].metadata["status"] == "fallback"
+    assert res["copy"] == "Lamp\n\nLearn more."
+    _assert_no_fabrication(res["copy"])
