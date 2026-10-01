@@ -18,6 +18,7 @@ from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 
 from app.config import env_float, env_str
+from app.redaction import redact
 from tools.http_client import build_async_httpx_client, get_outbound_proxy, mask_proxy_url
 
 logger = logging.getLogger("omniflow.health")
@@ -88,7 +89,7 @@ async def _probe(client: httpx.AsyncClient, target: Dict[str, str]) -> Dict[str,
         resp = await client.get(target["url"], follow_redirects=False)
         result.update(reachable=True, status_code=resp.status_code)
     except Exception as exc:  # noqa: BLE001 - diagnostic must never raise
-        result["error"] = f"{_classify_error(exc)}: {str(exc)[:200]}"
+        result["error"] = f"{_classify_error(exc)}: {redact(exc)[:200]}"
     result["latency_ms"] = round((time.perf_counter() - started) * 1000, 1)
     return result
 

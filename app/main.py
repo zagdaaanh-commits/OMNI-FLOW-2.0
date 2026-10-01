@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -35,9 +35,10 @@ from app.scheduler import (
     publish_offloop,
     scheduler_mode,
 )
+from app.redaction import describe_exception, redact
 from app.security import get_secret_key
 from app.services import resolve_task_credentials
-from app.tenancy import DEFAULT_TENANT_ID, TenantContext, get_tenant_context, issue_access_token
+from app.tenancy import DEFAULT_TENANT_ID, TenantContext, get_tenant_context, issue_access_token, require_authenticated
 from db import create_store, integrity_errors
 from db.base import scoped_id
 from models.schemas import (
@@ -143,6 +144,13 @@ app.include_router(meta_oauth_router)
 app.include_router(health_router)
 app.include_router(agency_router)
 app.include_router(comments_router)
+
+
+@app.exception_handler(Exception)
+async def _unhandled_error(request: Request, exc: Exception) -> JSONResponse:
+    """Clients never receive tracebacks or exception text; the details stay in the server log."""
+    logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
 # =============================================================================
@@ -703,14 +711,11 @@ def get_current_user(ctx: TenantContext = Depends(get_tenant_context)):
         if not user:
             raise HTTPException(status_code=401, detail="Account no longer exists.")
         return user
-    users = store.list_users(tenant_id=ctx.tenant_id)
-    if not users:
-        raise HTTPException(status_code=401, detail="Not signed in.")
-    return users[0]
+    raise HTTPException(status_code=401, detail="Not signed in.", headers={"WWW-Authenticate": "Bearer"})
 
 
 @app.get("/auth/users")
-def list_system_users(ctx: TenantContext = Depends(get_tenant_context)):
+def list_system_users(ctx: TenantContext = Depends(require_authenticated)):
     return store.list_users(tenant_id=ctx.tenant_id)
 
 
@@ -912,9 +917,10 @@ def update_facebook_token(payload: FacebookTokenUpdatePayload, ctx: TenantContex
     try:
         resolved = publisher.meta.verify_and_resolve_page(token, target_page)
     except MetaOAuthError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(status_code=400, detail=redact(exc)) from exc
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=500, detail=f"Meta API verification connection error: {exc}") from exc
+        logger.warning("Token verification transport error: %s", describe_exception(exc))
+        raise HTTPException(status_code=502, detail="Could not reach Facebook. Please try again.") from exc
 
     token, target_page, page_name = resolved["token"], resolved["page_id"], resolved["page_name"]
 

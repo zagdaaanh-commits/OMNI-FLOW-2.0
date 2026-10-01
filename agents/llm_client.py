@@ -27,6 +27,7 @@ from urllib.parse import urlsplit
 import openai
 
 from app.config import env_float, env_int, env_str, load_environment
+from app.redaction import describe_exception, redact
 from tools.http_client import get_outbound_proxy
 
 logger = logging.getLogger("omniflow.llm")
@@ -241,13 +242,13 @@ class LLMClient:
                     self.settings.provider_host,
                     self.settings.key_fingerprint,
                 )
-                raise LLMAuthError(str(exc)) from exc
+                raise LLMAuthError(redact(exc)) from exc
             except LLMError:
                 raise
             except Exception as exc:  # noqa: BLE001 - classified below
                 last_exc = exc
                 if not _is_retryable(exc):
-                    raise LLMUnavailableError(f"{type(exc).__name__}: {exc}") from exc
+                    raise LLMUnavailableError(describe_exception(exc)) from exc
                 if attempt >= attempts - 1:
                     break
                 delay = self._backoff_delay(attempt, exc)

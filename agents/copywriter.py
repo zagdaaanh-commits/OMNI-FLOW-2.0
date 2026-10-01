@@ -14,6 +14,7 @@ from agents.llm_client import (
     get_llm_client,
 )
 from app.config import load_environment
+from app.redaction import describe_exception
 from models.schemas import Campaign, CampaignCreate, ContentDraft, ContentGenerateRequest, Platform
 
 load_environment()
@@ -336,7 +337,7 @@ class CopywriterAgent:
             except Exception as exc:  # noqa: BLE001 - always degrade gracefully
                 logger.warning("LLM call (%s) failed: %s. Using resilient generation fallback.", self.model, exc)
                 ai_metadata["status"] = "simulated_fallback"
-                ai_metadata["fallback_reason"] = str(exc)[:300]
+                ai_metadata["fallback_reason"] = describe_exception(exc)
         else:
             auth_failed = bool(self.client and self.client.auth_failed)
             ai_metadata["status"] = "simulated_fallback" if auth_failed else "deterministic_fallback"

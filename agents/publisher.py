@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 from models.schemas import ContentDraft, Platform, PublishLog, PublishStatus, PublishTask
+from app.redaction import describe_exception
 from tools.meta_api import MetaAPIClient
 from tools.rpa_tool import RPATool
 
@@ -81,7 +82,7 @@ class PublisherAgent:
         except Exception as exc:  # noqa: BLE001 - convert to an explicit FAILED state
             logger.exception("Publish crashed for task %s (%s)", task.id, task.platform.value)
             task.status = PublishStatus.FAILED
-            task.error = f"{type(exc).__name__}: {exc}"
+            task.error = describe_exception(exc)
             task.confirmation_badge = "Publish Failed 🔴"
             task.logs.append(PublishLog(
                 level="ERROR",
@@ -262,7 +263,7 @@ class PublisherAgent:
                 logger.error("Instagram publish failed: %s", type(exc).__name__)
                 return {
                     "failed": True,
-                    "error": f"Instagram API exception: {type(exc).__name__}: {exc}",
+                    "error": "Instagram API exception: " + describe_exception(exc),
                     "confirmation_badge": "Gateway Fallback 🟡",
                     "mode": "api_error",
                     "platform": "instagram",

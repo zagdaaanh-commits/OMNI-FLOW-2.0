@@ -72,7 +72,17 @@
             init.headers = headers;
           }
         } catch (_) {}
-        return nativeFetch(input, init);
+        return nativeFetch(input, init).then((res) => {
+          // A rejected session on an API call (not the sign-in calls themselves) re-opens sign-in.
+          try {
+            const path = new URL(typeof input === 'string' ? input : input.url, window.location.href).pathname;
+            if (res.status === 401 && !path.startsWith('/auth/login') && !path.startsWith('/auth/register')
+                && typeof window.onApiUnauthorized === 'function') {
+              window.onApiUnauthorized(path);
+            }
+          } catch (_) {}
+          return res;
+        });
       };
     })();
 
@@ -334,6 +344,17 @@
     }
     html.dark .form-alert { color: #fecaca; background: rgba(239,68,68,0.10); border-color: rgba(239,68,68,0.30); }
 
+    .option-card {
+      width: 100%; display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.85rem 0.9rem; border-radius: 1rem;
+      border: 1px solid var(--border); background: var(--surface);
+      transition: background 150ms ease, border-color 150ms ease;
+    }
+    .option-card:hover { background: var(--surface-hover); border-color: var(--border-strong); }
+
+    /* While sign-in is required, the workspace behind the gate is not readable or clickable. */
+    body.auth-locked #appMain, body.auth-locked #sidebar { filter: blur(8px); pointer-events: none; user-select: none; }
+
     /* Green success toast (both themes). */
     #toast.toast-success { background: #ecfdf5 !important; border-color: #a7f3d0 !important; }
     #toast.toast-success #toastMsg, #toast.toast-success #toastIcon { color: #047857 !important; }
@@ -415,12 +436,9 @@
     </button>
 
     <div class="drawer-label">Workspace</div>
-    <button onclick="openFacebookTokenModal()" class="drawer-item">
-      <img src="/static/assets/logos/meta.svg" class="w-4 h-4" alt=""/><span class="flex-1">Meta Page</span>
-      <span id="sidebarMetaDot" class="w-1.5 h-1.5 rounded-full bg-zinc-400"></span>
-    </button>
-    <button onclick="openIntegrationsModal()" class="drawer-item">
-      <span class="material-symbols-outlined text-base">hub</span><span class="flex-1">Channels</span>
+    <button onclick="toggleSidebar(false); openIntegrationsModal()" class="drawer-item">
+      <span class="material-symbols-outlined text-base">hub</span><span class="flex-1">渠道集成 · Integrations</span>
+      <span id="sidebarMetaDot" class="w-1.5 h-1.5 rounded-full bg-zinc-400" title="Meta connection"></span>
     </button>
     <button onclick="openSchedulesModal()" class="drawer-item">
       <span class="material-symbols-outlined text-base">schedule</span><span class="flex-1">Schedule queue</span>
@@ -487,12 +505,9 @@
         <div class="relative">
           <button onclick="toggleChannelsMenu(event)" class="icon-btn" title="Channels & settings"><span class="material-symbols-outlined text-xl">tune</span></button>
           <div id="channelsMenu" class="hidden menu absolute right-0 top-full mt-2 w-60 z-50">
-            <button onclick="closeChannelsMenu(); openIntegrationsModal()" class="menu-item"><span class="material-symbols-outlined text-base">hub</span>已连接渠道 · Channels</button>
-            <button onclick="closeChannelsMenu(); openFacebookTokenModal()" class="menu-item"><img src="/static/assets/logos/meta.svg" class="w-4 h-4" alt=""/><span id="headerFbBadge" class="truncate">Connect Meta</span></button>
-            <button onclick="closeChannelsMenu(); startMetaOAuth()" class="menu-item"><span class="material-symbols-outlined text-base">login</span>Meta OAuth 授权</button>
+            <button onclick="closeChannelsMenu(); openIntegrationsModal()" class="menu-item"><span class="material-symbols-outlined text-base">hub</span>渠道集成 · Integrations</button>
             <button onclick="closeChannelsMenu(); openSchedulesModal()" class="menu-item"><span class="material-symbols-outlined text-base">calendar_month</span>发布队列 · Schedule</button>
             <button onclick="closeChannelsMenu(); openNewCampaignModal()" class="menu-item"><span class="material-symbols-outlined text-base">add_circle</span>New campaign</button>
-            <button onclick="closeChannelsMenu(); openMcpModal()" class="menu-item"><span class="material-symbols-outlined text-base">key</span>MCP & API keys</button>
             <div class="border-t hairline my-1"></div>
             <button onclick="event.stopPropagation(); closeChannelsMenu(); toggleSidebar(true); toggleUserDropdown()" class="menu-item"><span class="material-symbols-outlined text-base">account_circle</span>Account</button>
           </div>
@@ -577,7 +592,7 @@
       </div>
       <div class="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-2">
         <button onclick="closeOAuthNotice()" class="secondary-btn">关闭</button>
-        <button onclick="closeOAuthNotice(); openMetaAccountModal('bind')" class="primary-btn">使用 System User Token</button>
+        <button onclick="closeOAuthNotice(); openIntegrationsModal('bind')" class="primary-btn">绑定已有企业账户</button>
       </div>
     </div>
   </div>
@@ -596,11 +611,6 @@
           </div>
         </div>
         <button onclick="closeMetaAccountModal()" class="icon-btn" title="Close"><span class="material-symbols-outlined text-lg">close</span></button>
-      </div>
-
-      <div class="segmented mt-5">
-        <button id="metaTabApply" onclick="switchMetaAccountTab('apply')" class="seg-btn seg-active">申请绿色通道</button>
-        <button id="metaTabBind" onclick="switchMetaAccountTab('bind')" class="seg-btn">已有企业账户绑定</button>
       </div>
 
       <form id="metaPanelApply" class="mt-5 space-y-4" onsubmit="submitMetaAccountApplication(event)" novalidate>
@@ -643,33 +653,9 @@
         <p id="metaApplyExternalWrap" class="hidden text-center text-xs">
           <a id="metaApplyExternal" href="#" target="_blank" rel="noopener" class="text-muted hover:text-ink">或前往代理商官网申请 ↗</a>
         </p>
-      </form>
-
-      <form id="metaPanelBind" class="mt-5 space-y-4 hidden" onsubmit="submitAdAccountBinding(event)" novalidate>
-        <p class="text-xs text-muted leading-relaxed">已在代理商或 Business Manager 开通广告账户？填写广告账户 ID 与 System User Token，OmniFlow 会先通过 Meta Graph API 验证，再保存到当前工作区。</p>
-
-        <div id="adAccountFormError" class="form-alert hidden" role="alert"></div>
-
-        <div class="space-y-3">
-          <div>
-            <label for="adAccountId" class="field-label">广告账户 ID <span class="text-muted">Ad Account ID</span></label>
-            <input id="adAccountId" name="ad_account_id" type="text" maxlength="40" autocomplete="off" spellcheck="false" required class="field-input font-mono" placeholder="act_1234567890"/>
-            <p class="field-error hidden" data-error-for="ad_account_id"></p>
-          </div>
-          <div>
-            <label for="adAccountToken" class="field-label">System User Token <span class="text-muted">Business Manager → 系统用户</span></label>
-            <input id="adAccountToken" name="access_token" type="password" maxlength="1000" autocomplete="off" spellcheck="false" required class="field-input font-mono" placeholder="粘贴系统用户访问令牌"/>
-            <p class="field-error hidden" data-error-for="access_token"></p>
-          </div>
-        </div>
-
-        <button id="adAccountSubmitBtn" type="submit" class="primary-btn w-full">Connect &amp; Verify</button>
-
-        <div class="flex items-center gap-3 text-[11px] text-muted"><span class="flex-1 border-t hairline"></span>或连接 Facebook 主页<span class="flex-1 border-t hairline"></span></div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <button type="button" onclick="startMetaOAuth()" class="secondary-btn"><img src="/static/assets/logos/meta.svg" class="w-4 h-4" alt=""/>Facebook 授权</button>
-          <button type="button" onclick="closeMetaAccountModal(); openFacebookTokenModal()" class="secondary-btn">Page Access Token</button>
-        </div>
+        <p class="text-center text-xs text-muted">已有企业广告账户？
+          <button type="button" onclick="closeMetaAccountModal(); openIntegrationsModal('bind')" class="text-ink underline underline-offset-2">前往渠道集成绑定</button>
+        </p>
       </form>
     </div>
   </div>
@@ -760,169 +746,6 @@
           </button>
         </div>
       </form>
-    </div>
-  </div>
-
-  <!-- ========================================================================= -->
-  <!-- MODAL: FACEBOOK PAGE TOKEN MANAGER (DIRECT GRAPH API INTEGRATION)         -->
-  <!-- ========================================================================= -->
-  <div id="facebookTokenModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-2xl hidden p-4">
-    <div class="glass-panel max-w-lg w-full rounded-3xl p-6 space-y-4 shadow-2xl border border-white/15 bg-[#0D1017] max-h-[90vh] flex flex-col animate-fade-in">
-      <div class="flex items-center justify-between border-b border-white/10 pb-3 shrink-0">
-        <div class="flex items-center gap-3">
-          <div class="w-9 h-9 rounded-2xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
-            <img src="/static/assets/logos/meta.svg" class="w-5 h-5"/>
-          </div>
-          <div>
-            <h3 class="text-sm font-bold text-white">Facebook Page Access Token</h3>
-            <p class="text-[11px] text-zinc-400">Target Page: <span id="fbModalPageName" class="text-white font-medium">Not connected</span> <span id="fbModalPageIdWrap" class="hidden">(ID: <span id="fbModalPageIdDisplay" class="font-mono"></span>)</span></p>
-          </div>
-        </div>
-        <button onclick="closeFacebookTokenModal()" class="w-7 h-7 rounded-full bg-white/5 hover:bg-white/15 flex items-center justify-center text-zinc-400 hover:text-white transition">✕</button>
-      </div>
-
-      <div class="flex-1 overflow-y-auto space-y-4 text-xs pr-1">
-        <!-- Live Status Card -->
-        <div id="fbTokenStatusCard" class="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 flex items-center justify-between">
-          <div class="flex items-center gap-2.5">
-            <span id="fbTokenStatusDot" class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
-            <div>
-              <span id="fbTokenStatusTitle" class="text-white font-medium block">Checking status...</span>
-              <span id="fbTokenStatusDesc" class="text-[11px] text-zinc-400">Connecting to Meta Graph API v19.0</span>
-            </div>
-          </div>
-          <button onclick="checkFacebookLiveStatus()" class="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-[11px] text-zinc-300 transition flex items-center gap-1">
-            <span class="material-symbols-outlined text-xs">refresh</span> Check
-          </button>
-        </div>
-
-        <!-- Instructions Notice -->
-        <div class="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-200 text-[11px] leading-relaxed space-y-1">
-          <div class="font-semibold flex items-center gap-1 text-blue-300">
-            <span class="material-symbols-outlined text-sm">info</span>
-            <span>How to get your fresh Page Access Token:</span>
-          </div>
-          <ol class="list-decimal list-inside space-y-1 pl-1 text-zinc-300">
-            <li>Open <a href="https://developers.facebook.com/tools/explorer/" target="_blank" class="text-blue-400 underline hover:text-blue-300">Meta Graph API Explorer ↗</a></li>
-            <li>In the User or Page dropdown, select the Facebook Page you want to connect.</li>
-            <li>Ensure permissions: <code class="bg-black/40 px-1 py-0.5 rounded text-[10px] text-indigo-300">pages_manage_posts</code>, <code class="bg-black/40 px-1 py-0.5 rounded text-[10px] text-indigo-300">pages_read_engagement</code>.</li>
-            <li>Click <strong>Generate Access Token</strong>, copy it, and paste it below.</li>
-          </ol>
-        </div>
-
-        <!-- Token Form -->
-        <div class="space-y-3">
-          <div>
-            <label class="text-[11px] font-medium text-zinc-400 block mb-1">Page ID</label>
-            <input type="text" id="fbInputPageId" value="" placeholder="Enter your Facebook Page ID" class="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-blue-500"/>
-          </div>
-          <div>
-            <label class="text-[11px] font-medium text-zinc-400 block mb-1">New Page Access Token (starts with EAAB... or EAAk...)</label>
-            <textarea id="fbInputAccessToken" rows="3" placeholder="Paste your fresh Facebook Page Access Token here..." class="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-white font-mono text-xs placeholder-zinc-600 focus:outline-none focus:border-blue-500 resize-none"></textarea>
-          </div>
-        </div>
-
-        <div id="fbTokenErrorMsg" class="hidden p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs"></div>
-      </div>
-
-      <div class="flex items-center justify-end gap-2 pt-3 border-t border-white/10 shrink-0">
-        <button type="button" onclick="closeFacebookTokenModal()" class="px-4 py-2 rounded-xl text-zinc-400 hover:text-white transition">Cancel</button>
-        <button type="button" id="fbSaveTokenBtn" onclick="saveFacebookToken()" class="px-5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold shadow-lg shadow-blue-600/30 transition flex items-center gap-2">
-          <span class="material-symbols-outlined text-sm">key</span>
-          <span>Verify & Save Token</span>
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ========================================================================= -->
-  <!-- MODAL 2: CUSTOM MCP & PRODUCTION APIS MODAL (GENUINE CONFIGURATION)       -->
-  <!-- ========================================================================= -->
-  <div id="mcpApiModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-2xl hidden p-4">
-    <div class="glass-panel max-w-lg w-full rounded-2xl p-6 space-y-4 shadow-2xl border border-white/15 bg-[#0D1017] max-h-[90vh] flex flex-col">
-      <div class="flex items-center justify-between border-b border-white/10 pb-3 shrink-0">
-        <div class="flex items-center gap-2.5">
-          <div class="w-8 h-8 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
-            <span class="material-symbols-outlined text-base">cable</span>
-          </div>
-          <div>
-            <h3 class="text-sm font-bold text-white">Custom MCP & Production API Gateway</h3>
-            <p class="text-[11px] text-zinc-400">Real-time encryption active · Zero-knowledge storage</p>
-          </div>
-        </div>
-        <button onclick="closeMcpModal()" class="w-7 h-7 rounded-full bg-white/5 hover:bg-white/15 flex items-center justify-center text-zinc-400 hover:text-white transition">✕</button>
-      </div>
-
-      <div class="flex-1 overflow-y-auto space-y-3.5 text-xs pr-1">
-        <!-- Live Connection Status Banner -->
-        <div class="p-3 rounded-xl bg-white/[0.03] border border-white/10 flex items-center justify-between">
-          <div class="flex items-center gap-2.5">
-            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            <div>
-              <span class="text-white font-medium block">Stitch MCP & Multi-Agent Bridge</span>
-              <span id="mcpTestStatusMsg" class="text-[10px] text-zinc-400">Operational · 7 Platform Adapters Ready</span>
-            </div>
-          </div>
-          <button onclick="testMcpConnection()" id="btnTestMcp" class="px-3 py-1 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-300 text-[11px] font-semibold transition flex items-center gap-1">
-            <span class="material-symbols-outlined text-xs">sync</span>
-            <span>Test Connection</span>
-          </button>
-        </div>
-
-        <div class="space-y-3">
-          <div>
-            <label class="block text-zinc-300 font-medium mb-1">Meta Graph API Access Token</label>
-            <input type="password" id="inputMetaToken" placeholder="EAA..." class="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-[11px] focus:outline-none focus:border-indigo-500"/>
-          </div>
-
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-zinc-300 font-medium mb-1">TikTok Commercial API Key</label>
-              <input type="password" id="inputTikTokKey" placeholder="tt_live_..." class="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-[11px] focus:outline-none focus:border-indigo-500"/>
-            </div>
-            <div>
-              <label class="block text-zinc-300 font-medium mb-1">Xiaohongshu (RED) Open Key</label>
-              <input type="password" id="inputXhsKey" placeholder="xhs_sec_..." class="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-[11px] focus:outline-none focus:border-indigo-500"/>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-zinc-300 font-medium mb-1">WeChat Official AppID</label>
-              <input type="text" id="inputWechatAppId" placeholder="wx..." class="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-[11px] focus:outline-none focus:border-indigo-500"/>
-            </div>
-            <div>
-              <label class="block text-zinc-300 font-medium mb-1">WeChat Secret</label>
-              <input type="password" id="inputWechatSecret" placeholder="wx_sec_..." class="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-[11px] focus:outline-none focus:border-indigo-500"/>
-            </div>
-          </div>
-
-          <div>
-            <label class="block text-zinc-300 font-medium mb-1">Custom MCP Bridge Endpoint / Server URL</label>
-            <input type="text" id="inputStitchUrl" value="mcp://stitch-server-local" class="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-zinc-300 font-mono text-[11px] focus:outline-none focus:border-indigo-500"/>
-          </div>
-
-          <div>
-            <label class="block text-zinc-300 font-medium mb-1">OpenAI / Claude / Gemini LLM Key</label>
-            <input type="password" id="inputOpenAiKey" placeholder="sk-..." class="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-[11px] focus:outline-none focus:border-indigo-500"/>
-          </div>
-        </div>
-
-        <div class="p-3 rounded-xl bg-white/[0.02] border border-white/5 text-[11px] text-zinc-400 flex items-start gap-2">
-          <span class="material-symbols-outlined text-indigo-400 text-sm mt-0.5">verified_user</span>
-          <span>Credentials are securely encrypted and persisted in your local environment. Connected social agents immediately utilize these tokens for live API calls.</span>
-        </div>
-      </div>
-
-      <div class="flex items-center justify-between pt-3 border-t border-white/10 shrink-0">
-        <span id="mcpSaveFeedback" class="text-[11px] text-emerald-400"></span>
-        <div class="flex items-center gap-2">
-          <button type="button" onclick="closeMcpModal()" class="px-3.5 py-1.5 rounded-xl text-zinc-400 hover:text-white transition">Cancel</button>
-          <button type="button" onclick="saveMcpSettings()" id="btnSaveMcp" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs shadow-lg shadow-indigo-600/30 transition flex items-center gap-1.5">
-            <span>Save & Apply Credentials</span>
-          </button>
-        </div>
-      </div>
     </div>
   </div>
 
@@ -1092,8 +915,6 @@
     // Modal toggles
     function openNewCampaignModal() { document.getElementById('newCampaignModal').classList.remove('hidden'); }
     function closeNewCampaignModal() { document.getElementById('newCampaignModal').classList.add('hidden'); }
-    function openMcpModal() { loadMcpSettings(); document.getElementById('mcpApiModal').classList.remove('hidden'); }
-    function closeMcpModal() { document.getElementById('mcpApiModal').classList.add('hidden'); }
     function openSchedulesModal() {
       loadSchedulesList();
       document.getElementById('schedulesModal').classList.remove('hidden');
@@ -1161,7 +982,9 @@
       closeChannelsMenu();
       toggleSidebar(false);
       closeMetaAccountModal();
+      closeIntegrationsModal();
       closeOAuthNotice();
+      closeAuthModal();
     });
 
     // Composer sits centred on the empty stage and docks to the bottom once a
@@ -1214,13 +1037,9 @@
       if (wrap) wrap.classList.toggle('hidden', !url);
     }
 
-    function openMetaAccountModal(tab = 'apply') {
+    function openMetaAccountModal() {
       closeChannelsMenu();
       clearAgencyErrors();
-      const bindForm = document.getElementById('metaPanelBind');
-      ['ad_account_id', 'access_token'].forEach(f => setFormFieldError(bindForm, f, ''));
-      setFormAlert('adAccountFormError', '');
-      switchMetaAccountTab(tab);
       const modal = document.getElementById('metaAccountModal');
       if (modal) modal.classList.add('open');
     }
@@ -1228,18 +1047,6 @@
     function closeMetaAccountModal() {
       const modal = document.getElementById('metaAccountModal');
       if (modal) modal.classList.remove('open');
-    }
-
-    function switchMetaAccountTab(tab) {
-      const apply = tab !== 'bind';
-      const tabApply = document.getElementById('metaTabApply');
-      const tabBind = document.getElementById('metaTabBind');
-      if (tabApply) tabApply.classList.toggle('seg-active', apply);
-      if (tabBind) tabBind.classList.toggle('seg-active', !apply);
-      const panelApply = document.getElementById('metaPanelApply');
-      const panelBind = document.getElementById('metaPanelBind');
-      if (panelApply) panelApply.classList.toggle('hidden', !apply);
-      if (panelBind) panelBind.classList.toggle('hidden', apply);
     }
 
     // Facebook OAuth: ask the server first so an unconfigured app shows guidance, not raw JSON.
@@ -1263,7 +1070,7 @@
     }
 
     function openOAuthNotice() {
-      closeMetaAccountModal();
+      closeIntegrationsModal();
       document.getElementById('oauthNoticeModal')?.classList.add('open');
     }
 
@@ -1294,7 +1101,7 @@
 
     async function submitAdAccountBinding(event) {
       if (event) event.preventDefault();
-      const form = document.getElementById('metaPanelBind');
+      const form = document.getElementById('adAccountForm');
       const button = document.getElementById('adAccountSubmitBtn');
       if (!form || !button || button.disabled) return;
       ['ad_account_id', 'access_token'].forEach(f => setFormFieldError(form, f, ''));
@@ -1328,7 +1135,8 @@
         try { body = await res.json(); } catch (_) {}
         if (res.ok && body && body.connected) {
           form.reset();
-          closeMetaAccountModal();
+          showAdAccountForm(false);
+          loadIntegrationsStatus();
           const status = body.account_status_label && body.account_status_label !== 'active' ? `（状态：${body.account_status_label}）` : '';
           showToast(`广告账户已验证并绑定：${body.name} · ${body.ad_account_id}${status}`, true, { variant: 'success', duration: 6000 });
           return;
@@ -1884,8 +1692,8 @@
         || (typeof event !== 'undefined' ? (event?.target?.closest?.('button') || event?.target) : (typeof window !== 'undefined' && window.event ? window.event.target : null));
 
       if (!connectedFacebookPageId) {
-        showToast('请先连接 Facebook 主页后再发布。', false);
-        openMetaAccountModal('bind');
+        showToast('请先在渠道集成中连接 Facebook 主页。', false);
+        openIntegrationsModal();
         return;
       }
 
@@ -2300,110 +2108,6 @@
     // =========================================================================
     // MCP API GATEWAY & LIVE INTEGRATIONS
     // =========================================================================
-    async function loadMcpSettings() {
-      try {
-        const res = await fetch('/settings/apis');
-        if (!res.ok) return;
-        const data = await res.json();
-        const masked = data.masked || {};
-        const raw = data.raw || {};
-
-        const metaIn = document.getElementById('inputMetaToken');
-        const ttIn = document.getElementById('inputTikTokKey');
-        const xhsIn = document.getElementById('inputXhsKey');
-        const wxAppId = document.getElementById('inputWechatAppId');
-        const wxSec = document.getElementById('inputWechatSecret');
-        const stitchIn = document.getElementById('inputStitchUrl');
-        const openAiIn = document.getElementById('inputOpenAiKey');
-
-        if (metaIn && (masked.meta_access_token || raw.meta_access_token)) metaIn.value = masked.meta_access_token || raw.meta_access_token;
-        if (ttIn && (masked.tiktok_api_key || raw.tiktok_api_key)) ttIn.value = masked.tiktok_api_key || raw.tiktok_api_key;
-        if (xhsIn && (masked.xiaohongshu_api_key || raw.xiaohongshu_api_key)) xhsIn.value = masked.xiaohongshu_api_key || raw.xiaohongshu_api_key;
-        if (wxAppId && raw.wechat_app_id) wxAppId.value = raw.wechat_app_id;
-        if (wxSec && (masked.wechat_app_secret || raw.wechat_app_secret)) wxSec.value = masked.wechat_app_secret || raw.wechat_app_secret;
-        if (stitchIn && raw.stitch_mcp_url) stitchIn.value = raw.stitch_mcp_url;
-        if (openAiIn && (masked.openai_api_key || raw.openai_api_key)) openAiIn.value = masked.openai_api_key || raw.openai_api_key;
-      } catch (e) {
-        console.warn('Error loading MCP settings:', e);
-      }
-    }
-
-    async function saveMcpSettings() {
-      const btn = document.getElementById('btnSaveMcp');
-      const feedback = document.getElementById('mcpSaveFeedback');
-      if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<span class="material-symbols-outlined text-sm animate-spin">progress_activity</span> Saving...';
-      }
-
-      const payload = {};
-      const metaVal = document.getElementById('inputMetaToken')?.value.trim();
-      const ttVal = document.getElementById('inputTikTokKey')?.value.trim();
-      const xhsVal = document.getElementById('inputXhsKey')?.value.trim();
-      const wxIdVal = document.getElementById('inputWechatAppId')?.value.trim();
-      const wxSecVal = document.getElementById('inputWechatSecret')?.value.trim();
-      const stitchVal = document.getElementById('inputStitchUrl')?.value.trim();
-      const openAiVal = document.getElementById('inputOpenAiKey')?.value.trim();
-
-      if (metaVal) payload.meta_access_token = metaVal;
-      if (ttVal) payload.tiktok_api_key = ttVal;
-      if (xhsVal) payload.xiaohongshu_api_key = xhsVal;
-      if (wxIdVal) payload.wechat_app_id = wxIdVal;
-      if (wxSecVal) payload.wechat_app_secret = wxSecVal;
-      if (stitchVal) payload.stitch_mcp_url = stitchVal;
-      if (openAiVal) payload.openai_api_key = openAiVal;
-
-      try {
-        const res = await fetch('/settings/apis', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        if (res.ok) {
-          if (feedback) feedback.textContent = 'Credentials saved and persisted!';
-          showToast('API credentials saved successfully!', true);
-          setTimeout(() => { if (feedback) feedback.textContent = ''; }, 3000);
-        } else {
-          showToast('Failed to save credentials', false);
-        }
-      } catch (err) {
-        showToast('Error saving settings: ' + err.message, false);
-      } finally {
-        if (btn) {
-          btn.disabled = false;
-          btn.innerHTML = '<span>Save & Apply Credentials</span>';
-        }
-      }
-    }
-
-    async function testMcpConnection() {
-      const btn = document.getElementById('btnTestMcp');
-      const statusMsg = document.getElementById('mcpTestStatusMsg');
-      if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<span class="material-symbols-outlined text-xs animate-spin">sync</span><span>Testing...</span>';
-      }
-      try {
-        const res = await fetch('/settings/apis/test', { method: 'POST' });
-        if (res.ok) {
-          const data = await res.json();
-          if (statusMsg) {
-            statusMsg.textContent = `Operational · ${(data.active_services || []).length} Services Ready · ${data.latency_ms || 18}ms`;
-          }
-          showToast(`Connected! Active: ${(data.active_services || []).join(', ')}`, true);
-        } else {
-          showToast('MCP test failed', false);
-        }
-      } catch (err) {
-        showToast('Connection test error: ' + err.message, false);
-      } finally {
-        if (btn) {
-          btn.disabled = false;
-          btn.innerHTML = '<span class="material-symbols-outlined text-xs">sync</span><span>Test Connection</span>';
-        }
-      }
-    }
-
     // =========================================================================
     // SCHEDULES & REAL-TIME DISPATCH QUEUE
     // =========================================================================
@@ -2554,7 +2258,7 @@
           if (res.ok) {
             currentUser = await res.json();
             updateSidebarUserProfile(currentUser);
-            closeAuthModal();
+            closeAuthModal(true);
             return;
           }
           if (res.status === 401) {
@@ -2566,7 +2270,7 @@
       }
       currentUser = null;
       showMerchantWorkspace();
-      if (serverRequiresAuth) openAuthModal('login');
+      if (serverRequiresAuth) openAuthModal('login', { required: true });
     }
 
     function showMerchantWorkspace() {
@@ -2612,118 +2316,97 @@
       }
     });
 
-    function openAuthModal(mode = 'login') {
-      authMode = mode;
+    // Sign-in is a required gate when the server sets REQUIRE_AUTH; otherwise it is optional.
+    let authRequired = false;
+
+    function openAuthModal(mode = 'login', options = {}) {
+      authRequired = !!options.required;
       switchAuthTab(mode);
-      const dd = document.getElementById('userDropdown');
-      if (dd) dd.classList.add('hidden');
-      const modal = document.getElementById('authModal');
-      if (modal) {
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-        modal.style.display = 'flex';
-      }
+      setFormAlert('authFormError', options.message || '');
+      document.getElementById('userDropdown')?.classList.add('hidden');
+      document.getElementById('authCloseBtn')?.classList.toggle('hidden', authRequired);
+      document.body.classList.toggle('auth-locked', authRequired);
+      document.getElementById('authModal')?.classList.add('open');
+      setTimeout(() => document.getElementById(mode === 'register' ? 'authNameInput' : 'authEmailInput')?.focus(), 50);
     }
 
-    function closeAuthModal() {
-      const modal = document.getElementById('authModal');
-      if (modal) {
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-        modal.style.display = 'none';
-      }
+    function closeAuthModal(force) {
+      if (authRequired && !force) return;  // the gate stays until the visitor signs in
+      authRequired = false;
+      document.body.classList.remove('auth-locked');
+      document.getElementById('authModal')?.classList.remove('open');
     }
 
     function switchAuthTab(mode) {
-      authMode = mode;
-      const tabLogin = document.getElementById('authTabLogin');
-      const tabReg = document.getElementById('authTabRegister');
-      const nameField = document.getElementById('authNameField');
-      const compField = document.getElementById('authCompanyField');
-      const submitBtn = document.getElementById('authSubmitBtn');
+      authMode = mode === 'register' ? 'register' : 'login';
+      const register = authMode === 'register';
+      document.getElementById('authTabLogin')?.classList.toggle('seg-active', !register);
+      document.getElementById('authTabRegister')?.classList.toggle('seg-active', register);
+      document.getElementById('authNameField')?.classList.toggle('hidden', !register);
+      document.getElementById('authCompanyField')?.classList.toggle('hidden', !register);
+      const pwd = document.getElementById('authPasswordInput');
+      if (pwd) pwd.autocomplete = register ? 'new-password' : 'current-password';
       const title = document.getElementById('authModalTitle');
-      const switchPrompt = document.getElementById('authSwitchPrompt');
-      const switchBtn = document.getElementById('authSwitchBtn');
-
-      if (mode === 'register') {
-        tabReg.className = 'flex-1 py-1.5 rounded-lg text-xs font-medium text-white bg-white/10 transition';
-        tabLogin.className = 'flex-1 py-1.5 rounded-lg text-xs font-medium text-zinc-400 hover:text-white transition';
-        nameField.classList.remove('hidden');
-        compField.classList.remove('hidden');
-        submitBtn.textContent = 'Create Account & Launch';
-        title.textContent = 'Create OmniFlow Account';
-        switchPrompt.textContent = 'Already have an account?';
-        switchBtn.textContent = 'Sign in here';
-      } else {
-        tabLogin.className = 'flex-1 py-1.5 rounded-lg text-xs font-medium text-white bg-white/10 transition';
-        tabReg.className = 'flex-1 py-1.5 rounded-lg text-xs font-medium text-zinc-400 hover:text-white transition';
-        nameField.classList.add('hidden');
-        compField.classList.add('hidden');
-        submitBtn.textContent = 'Sign In';
-        title.textContent = 'Sign In to OmniFlow';
-        switchPrompt.textContent = "Don't have an account?";
-        switchBtn.textContent = 'Create one now';
-      }
+      if (title) title.textContent = register ? '创建 OmniFlow 账户' : '登录 OmniFlow';
+      const submit = document.getElementById('authSubmitBtn');
+      if (submit) submit.textContent = register ? '注册并进入' : '登录';
+      setFormAlert('authFormError', '');
     }
 
     function toggleAuthMode() {
       switchAuthTab(authMode === 'login' ? 'register' : 'login');
     }
 
+    // Any API call rejected for a missing/expired session brings the gate back (REQUIRE_AUTH only).
+    window.onApiUnauthorized = function () {
+      if (!serverRequiresAuth) return;
+      try { localStorage.removeItem('omniflow_auth_token'); } catch (_) {}
+      currentUser = null;
+      if (!authRequired) openAuthModal('login', { required: true, message: '登录已过期，请重新登录。' });
+    };
+
     async function handleAuthSubmit(e) {
       if (e && e.preventDefault) e.preventDefault();
-      const emailEl = document.getElementById('authEmailInput');
-      const pwdEl = document.getElementById('authPasswordInput');
-      const email = (emailEl ? emailEl.value : '').trim();
-      const password = (pwdEl ? pwdEl.value : '').trim();
+      const email = (document.getElementById('authEmailInput')?.value || '').trim();
+      const password = document.getElementById('authPasswordInput')?.value || '';
+      const register = authMode === 'register';
+      const fullName = (document.getElementById('authNameInput')?.value || '').trim();
+      const company = (document.getElementById('authCompanyInput')?.value || '').trim();
       const submitBtn = document.getElementById('authSubmitBtn');
-      if (!email || !password) {
-        showToast('Enter your email and password to continue.', false);
+      setFormAlert('authFormError', '');
+
+      if (!email || !password || (register && !fullName)) {
+        setFormAlert('authFormError', register ? '请填写姓名、邮箱和密码。' : '请输入邮箱和密码。');
         return;
       }
       if (submitBtn) {
         submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="material-symbols-outlined text-sm animate-spin">progress_activity</span> Authenticating...';
+        submitBtn.textContent = register ? '正在注册…' : '正在登录…';
       }
-
       try {
-        let res, data;
-        if (authMode === 'register') {
-          const nameEl = document.getElementById('authNameInput');
-          const compEl = document.getElementById('authCompanyInput');
-          const fullName = (nameEl ? nameEl.value.trim() : '');
-          const company = (compEl ? compEl.value.trim() : '');
-          res = await fetch('/auth/register', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password, full_name: fullName, company })
-          });
-        } else {
-          res = await fetch('/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
-          });
-        }
-
-        data = await res.json();
-        if (!res.ok) {
-          showToast(data.detail || 'Authentication failed', false);
+        const res = await fetch(register ? '/auth/register' : '/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(register ? { email, password, full_name: fullName, company } : { email, password }),
+        });
+        let data = null;
+        try { data = await res.json(); } catch (_) {}
+        if (!res.ok || !data || !data.token) {
+          let message = register ? '注册失败，请稍后重试。' : '邮箱或密码不正确。';
+          if (res.status === 422) message = register ? '请检查邮箱格式，密码至少 4 位。' : '请检查邮箱和密码格式。';
+          else if (typeof data?.detail === 'string' && res.status === 400) message = data.detail;
+          setFormAlert('authFormError', message);
           return;
         }
-
-        // Success
-        localStorage.setItem('omniflow_auth_token', data.token);
-        currentUser = data.user;
-        updateSidebarUserProfile(currentUser);
-        closeAuthModal();
-        showToast(`Welcome, ${currentUser.full_name || 'Admin'}! Active session started.`, true);
+        try { localStorage.setItem('omniflow_auth_token', data.token); } catch (_) {}
+        // Reload so every view is fetched again inside the signed-in workspace (no data from the previous one).
+        window.location.reload();
       } catch (err) {
-        showToast('Network error during authentication: ' + err.message, false);
+        setFormAlert('authFormError', '网络连接失败，请检查网络后重试。');
       } finally {
         if (submitBtn) {
           submitBtn.disabled = false;
-          submitBtn.textContent = authMode === 'register' ? 'Create Account & Launch' : 'Sign In';
+          submitBtn.textContent = register ? '注册并进入' : '登录';
         }
       }
     }
@@ -2742,129 +2425,74 @@
     // =========================================================================
     // SOCIAL INTEGRATIONS & OAUTH MANAGEMENT
     // =========================================================================
-    function openIntegrationsModal() {
-      document.getElementById('integrationsModal').classList.remove('hidden');
+    // 渠道集成: two ways to connect (OAuth, verified business ad account) + what is connected.
+    function openIntegrationsModal(view) {
+      closeChannelsMenu();
+      showAdAccountForm(view === 'bind');
+      document.getElementById('integrationsModal')?.classList.add('open');
       loadIntegrationsStatus();
     }
 
     function closeIntegrationsModal() {
-      document.getElementById('integrationsModal').classList.add('hidden');
+      document.getElementById('integrationsModal')?.classList.remove('open');
+    }
+
+    function showAdAccountForm(show) {
+      const form = document.getElementById('adAccountForm');
+      const options = document.getElementById('integrationsOptions');
+      if (!form || !options) return;
+      ['ad_account_id', 'access_token'].forEach(f => setFormFieldError(form, f, ''));
+      setFormAlert('adAccountFormError', '');
+      form.classList.toggle('hidden', !show);
+      options.classList.toggle('hidden', !!show);
+      if (show) document.getElementById('adAccountId')?.focus();
     }
 
     async function loadIntegrationsStatus() {
       const container = document.getElementById('integrationsListContainer');
+      if (!container) return;
       try {
         const res = await fetch('/integrations/status');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
-
-        container.innerHTML = Object.entries(data).map(([key, item]) => {
-          cachedPlatforms[key] = item;
-          const isConn = item.status === 'connected';
+        const connected = Object.entries(data).filter(([, item]) => item.status === 'connected');
+        connected.forEach(([key, item]) => { cachedPlatforms[key] = item; });
+        if (!connected.length) {
+          container.innerHTML = '<div class="text-xs text-muted">尚未连接任何渠道</div>';
+          return;
+        }
+        container.innerHTML = connected.map(([key, item]) => {
           const logo = key === 'meta_ads' ? 'meta.svg' : (key + '.svg');
-          const accountLine = isConn
-            ? [item.account_name, item.account_id].filter(Boolean).map(v => escapeHtml(v)).join(' · ')
-            : (item.error ? escapeHtml(item.error) : '未连接');
+          const account = [item.account_name, item.account_id].filter(Boolean).map(v => escapeHtml(v)).join(' · ');
           return `
-            <div class="flex items-center justify-between gap-3 p-3.5 rounded-2xl border hairline">
+            <div class="flex items-center justify-between gap-3 p-3 rounded-2xl border hairline">
               <div class="flex items-center gap-3 min-w-0">
-                <img src="/static/assets/logos/${logo}" alt="" class="w-8 h-8 rounded-xl shrink-0" onerror="this.src='/static/assets/logos/omniflow_logo.svg'"/>
+                <img src="/static/assets/logos/${logo}" alt="" class="w-8 h-8 rounded-lg shrink-0" onerror="this.src='/static/assets/logos/omniflow_logo.svg'"/>
                 <div class="min-w-0">
-                  <div class="text-xs font-semibold text-ink flex items-center gap-2 flex-wrap">
-                    <span>${escapeHtml(item.name)}</span>
-                    <span class="text-[10px] px-2 py-0.5 rounded-full ${isConn ? 'bg-emerald-500/15 text-emerald-600 border border-emerald-500/30' : 'surface-muted text-muted'}">${isConn ? 'Connected' : 'Not Connected'}</span>
-                  </div>
-                  <div class="text-[11px] text-muted mt-0.5 truncate">${accountLine}</div>
+                  <div class="text-xs font-semibold text-ink">${escapeHtml(item.name)}</div>
+                  <div class="text-[11px] text-muted truncate">${account}</div>
                 </div>
               </div>
-              <div class="flex items-center gap-2">
-                ${isConn ? `
-                  <button onclick="disconnectChannel('${key}')" class="px-3 py-1 rounded-lg text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 border border-white/5 text-[11px] transition">
-                    Disconnect
-                  </button>
-                ` : `
-                  <button onclick="connectChannel('${key}')" class="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-medium shadow transition">
-                    Connect
-                  </button>
-                `}
-              </div>
-            </div>
-          `;
+              <button onclick="disconnectChannel('${key}')" class="secondary-btn !h-8 !text-xs !px-3 shrink-0">断开</button>
+            </div>`;
         }).join('');
       } catch (err) {
-        container.innerHTML = `<div class="text-rose-400 text-xs text-center py-4">Error loading integrations: ${err.message}</div>`;
-      }
-    }
-
-    // Meta channels connect through OAuth / verified tokens, never the unverified generic form.
-    function connectChannel(platform) {
-      if (['meta', 'instagram', 'meta_ads'].includes(platform)) {
-        closeIntegrationsModal();
-        openMetaAccountModal('bind');
-        return;
-      }
-      promptConnectChannel(platform);
-    }
-
-    function promptConnectChannel(platform, platformName) {
-      const sheet = document.getElementById('connectFormSheet');
-      if (!sheet) return;
-      sheet.classList.remove('hidden');
-      const item = cachedPlatforms[platform];
-      const name = platformName || (item ? item.name : platform.toUpperCase());
-      const keyEl = document.getElementById('connectPlatformKey');
-      if (keyEl) keyEl.value = platform;
-      const titleEl = document.getElementById('connectSheetTitle');
-      if (titleEl) {
-        titleEl.innerHTML = `
-          <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
-          <span>Connect ${escapeHtml(name)}</span>
-        `;
-      }
-      ['connectAccountName', 'connectAccountId', 'connectAccessToken'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.value = '';
-      });
-    }
-
-    async function submitConnectChannel() {
-      const platform = document.getElementById('connectPlatformKey').value;
-      const account_name = document.getElementById('connectAccountName').value.trim();
-      const account_id = document.getElementById('connectAccountId').value.trim();
-      const access_token = document.getElementById('connectAccessToken').value.trim();
-      if (!account_name || !account_id || !access_token) {
-        showToast('请填写账户名称、账户 ID 和访问令牌。', false);
-        return;
-      }
-
-      try {
-        const res = await fetch('/integrations/connect', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ platform, account_name, account_id, access_token })
-        });
-        const data = await res.json();
-        if (res.ok) {
-          showToast(`${platform.toUpperCase()} 账户已保存`, true, { variant: 'success' });
-          document.getElementById('connectFormSheet').classList.add('hidden');
-          loadIntegrationsStatus();
-        } else {
-          showToast('保存失败：' + (typeof data.detail === 'string' ? data.detail : 'HTTP ' + res.status), false);
-        }
-      } catch (err) {
-        showToast('Error connecting channel: ' + err.message, false);
+        container.innerHTML = '<div class="text-xs text-muted">暂时无法加载连接状态，请稍后重试。</div>';
       }
     }
 
     async function disconnectChannel(platform) {
-      if (!confirm(`Are you sure you want to disconnect ${platform}?`)) return;
+      const name = (cachedPlatforms[platform] && cachedPlatforms[platform].name) || platform;
+      if (!confirm(`确定要断开 ${name} 吗？`)) return;
       try {
         await fetch('/integrations/disconnect', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ platform })
         });
-        showToast(`Disconnected ${platform}`);
+        showToast(`已断开 ${name}`);
         loadIntegrationsStatus();
+        checkFacebookLiveStatus();
       } catch (err) {
         showToast('Error disconnecting: ' + err.message, false);
       }
@@ -2905,7 +2533,6 @@
     // =========================================================================
     // FACEBOOK TOKEN MANAGER JAVASCRIPT
     // =========================================================================
-    let activeCardIdForFbToken = null;
     let connectedFacebookPageId = '';
 
     function renderMetaConnectionState(connected) {
@@ -2950,126 +2577,16 @@
       }
     }
 
-    async function openFacebookTokenModal(cardId) {
-      if (cardId) activeCardIdForFbToken = cardId;
-      const modal = document.getElementById('facebookTokenModal');
-      if (!modal) return;
-      modal.classList.remove('hidden');
-      const errBox = document.getElementById('fbTokenErrorMsg');
-      if (errBox) errBox.classList.add('hidden');
-      await checkFacebookLiveStatus();
-    }
-
-    function closeFacebookTokenModal() {
-      const modal = document.getElementById('facebookTokenModal');
-      if (modal) modal.classList.add('hidden');
-    }
-
+    // Tracks whether this workspace has a usable Facebook Page (publishing needs it).
     async function checkFacebookLiveStatus() {
-      const dot = document.getElementById('fbTokenStatusDot');
-      const title = document.getElementById('fbTokenStatusTitle');
-      const desc = document.getElementById('fbTokenStatusDesc');
-      const headerBadge = document.getElementById('headerFbBadge');
-
       try {
         const res = await fetch('/tools/facebook/status');
         const data = await res.json();
-        const pageName = data.page_name || 'Not connected';
-        const pageId = data.page_id || '';
-        connectedFacebookPageId = data.connected ? pageId : '';
-
-        const nameEl = document.getElementById('fbModalPageName');
-        if (nameEl) nameEl.textContent = pageName;
-        const idDisplay = document.getElementById('fbModalPageIdDisplay');
-        if (idDisplay) idDisplay.textContent = pageId;
-        const idWrap = document.getElementById('fbModalPageIdWrap');
-        if (idWrap) idWrap.classList.toggle('hidden', !pageId);
-        const pageIdInput = document.getElementById('fbInputPageId');
-        if (pageIdInput && !pageIdInput.value) pageIdInput.value = pageId;
-
-        if (data.connected) {
-          if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
-          if (title) title.textContent = `Connected to ${pageName} 🟢`;
-          if (desc) desc.textContent = 'Token verified · Live photo & feed dispatch active';
-          if (headerBadge) headerBadge.textContent = `Meta · ${pageName}`;
-        } else if (data.token_expired) {
-          if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse';
-          if (title) title.textContent = 'Session Token Expired 🟡';
-          if (desc) desc.textContent = data.error || 'Temporary session token has expired. Paste a new token below.';
-          if (headerBadge) headerBadge.textContent = 'Meta · token expired';
-        } else {
-          if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-rose-400';
-          if (title) title.textContent = 'Not Connected';
-          if (desc) desc.textContent = data.error || 'Check credentials';
-          if (headerBadge) headerBadge.textContent = 'Connect Meta';
-        }
-        renderMetaConnectionState(!!data.connected, pageName);
+        connectedFacebookPageId = data.connected ? (data.page_id || '') : '';
+        renderMetaConnectionState(!!data.connected);
       } catch (err) {
-        if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-rose-400';
-        if (title) title.textContent = 'Connection Error';
-        if (desc) desc.textContent = err.message;
+        connectedFacebookPageId = '';
         renderMetaConnectionState(false);
-      }
-    }
-
-    async function saveFacebookToken() {
-      const saveBtn = document.getElementById('fbSaveTokenBtn');
-      const tokenInput = document.getElementById('fbInputAccessToken');
-      const pageIdInput = document.getElementById('fbInputPageId');
-      const errBox = document.getElementById('fbTokenErrorMsg');
-
-      const access_token = tokenInput.value.trim();
-      const page_id = pageIdInput.value.trim();
-
-      if (!access_token || !page_id) {
-        errBox.classList.remove('hidden');
-        errBox.textContent = 'Please provide both a Facebook Page ID and Page Access Token.';
-        return;
-      }
-
-      errBox.classList.add('hidden');
-      saveBtn.disabled = true;
-      saveBtn.innerHTML = '<span class="material-symbols-outlined text-sm animate-spin">progress_activity</span> Verifying with Meta...';
-
-      try {
-        const res = await fetch('/tools/facebook/update-token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ access_token, page_id })
-        });
-        const data = await res.json();
-
-        if (res.ok && data.success) {
-          showToast(`Facebook connected to ${data.page_name} 🟢!`, true);
-          tokenInput.value = '';
-          await checkFacebookLiveStatus();
-
-          // Reset failed card button to allow immediate publish
-          if (activeCardIdForFbToken) {
-            const btn = document.getElementById(`${activeCardIdForFbToken}-approveBtn`);
-            if (btn) {
-              btn.className = 'px-5 py-2.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-neutral-950 text-xs font-semibold shadow-lg shadow-emerald-500/25 flex items-center gap-2 transition active:scale-95';
-              btn.innerHTML = '<span class="material-symbols-outlined text-base font-bold">check_circle</span><span>Publish to Facebook now</span>';
-              btn.disabled = false;
-              btn.onclick = () => approveAndPublish(activeCardIdForFbToken);
-            }
-            const updateBtn = document.getElementById(`${activeCardIdForFbToken}-updateTokenBtn`);
-            if (updateBtn) updateBtn.remove();
-          }
-
-          setTimeout(() => {
-            closeFacebookTokenModal();
-          }, 1000);
-        } else {
-          errBox.classList.remove('hidden');
-          errBox.textContent = data.detail || data.error || 'Failed to verify token with Meta Graph API.';
-        }
-      } catch (err) {
-        errBox.classList.remove('hidden');
-        errBox.textContent = 'Network error: ' + err.message;
-      } finally {
-        saveBtn.disabled = false;
-        saveBtn.innerHTML = '<span class="material-symbols-outlined text-sm">key</span><span>Verify & Save Token</span>';
       }
     }
 
@@ -3110,8 +2627,6 @@
     window.showToast = showToast;
     window.openNewCampaignModal = openNewCampaignModal;
     window.closeNewCampaignModal = closeNewCampaignModal;
-    window.openMcpModal = openMcpModal;
-    window.closeMcpModal = closeMcpModal;
     window.openSchedulesModal = openSchedulesModal;
     window.closeSchedulesModal = closeSchedulesModal;
     window.openIntegrationsModal = openIntegrationsModal;
@@ -3123,24 +2638,17 @@
     window.synthesizeDraftsForCampaign = synthesizeDraftsForCampaign;
     window.writeMoreForCurrentCampaign = writeMoreForCurrentCampaign;
     window.dispatchCampaignImmediate = dispatchCampaignImmediate;
-    window.promptConnectChannel = promptConnectChannel;
-    window.submitConnectChannel = submitConnectChannel;
     window.disconnectChannel = disconnectChannel;
     window.loadIntegrationsStatus = loadIntegrationsStatus;
     window.regenerateCardDraft = regenerateCardDraft;
     window.publishSingleTaskNow = publishSingleTaskNow;
-    window.saveMcpSettings = saveMcpSettings;
-    window.testMcpConnection = testMcpConnection;
     window.handleCampaignModalSubmit = handleCampaignModalSubmit;
     window.toggleAuthMode = toggleAuthMode;
     window.switchAuthTab = switchAuthTab;
     window.handleLogout = handleLogout;
     window.scrollToBottom = scrollToBottom;
     window.escapeHtml = escapeHtml;
-    window.openFacebookTokenModal = openFacebookTokenModal;
-    window.closeFacebookTokenModal = closeFacebookTokenModal;
     window.checkFacebookLiveStatus = checkFacebookLiveStatus;
-    window.saveFacebookToken = saveFacebookToken;
     window.checkNetworkHealth = checkNetworkHealth;
 
     // Boot: stay on the empty workspace until a real account is connected
@@ -3153,6 +2661,7 @@
       renderMetaConnectionState(false);
       await loadPublicConfig();
       await checkAuthSession();
+      if (authRequired) return;
       loadCampaigns();
       checkFacebookLiveStatus();
       checkNetworkHealth();
@@ -3173,128 +2682,108 @@
     });
   </script>
   <!-- ========================================================================= -->
-  <!-- 9. USER AUTHENTICATION MODAL (Sign In & Register)                         -->
+  <!-- 9. SIGN IN / SIGN UP (a required gate when the server sets REQUIRE_AUTH)  -->
   <!-- ========================================================================= -->
-  <div id="authModal" class="fixed inset-0 bg-black/80 backdrop-blur-2xl z-50 hidden items-center justify-center p-4 animate-fade-in">
-    <div class="glass-panel max-w-md w-full rounded-3xl p-6 border border-white/15 shadow-2xl space-y-4 relative">
-      <!-- Modal Header -->
-      <div class="flex items-center justify-between border-b border-white/10 pb-4">
+  <div id="authModal" class="fixed inset-0 z-[70] hidden items-center justify-center p-4 modal-scrim" onclick="if (event.target === this) closeAuthModal()">
+    <div class="sheet w-full max-w-sm" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
+      <div class="flex items-start justify-between gap-4">
         <div class="flex items-center gap-3">
-          <img src="/static/assets/logos/omniflow_logo.svg" alt="OmniFlow" class="w-8 h-8 rounded-xl"/>
+          <img src="/static/assets/logos/omniflow_logo.svg" alt="" class="w-9 h-9 rounded-xl"/>
           <div>
-            <h3 id="authModalTitle" class="text-base font-bold text-white">Sign In to OmniFlow</h3>
-            <p class="text-[11px] text-zinc-400">AI-powered cross-border growth engine</p>
+            <h3 id="authModalTitle" class="text-base font-semibold text-ink">登录 OmniFlow</h3>
+            <p class="text-xs text-muted mt-0.5">AI-powered cross-border growth engine</p>
           </div>
         </div>
-        <button onclick="closeAuthModal()" class="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/10 transition" title="Close modal">
-          <span class="material-symbols-outlined text-base">close</span>
-        </button>
+        <button id="authCloseBtn" onclick="closeAuthModal()" class="icon-btn" title="Close"><span class="material-symbols-outlined text-lg">close</span></button>
       </div>
 
-      <!-- Mode Selector Tabs -->
-      <div class="flex p-1 bg-black/40 rounded-xl border border-white/5">
-        <button id="authTabLogin" onclick="switchAuthTab('login')" class="flex-1 py-1.5 rounded-lg text-xs font-medium text-white bg-white/10 transition">Sign In</button>
-        <button id="authTabRegister" onclick="switchAuthTab('register')" class="flex-1 py-1.5 rounded-lg text-xs font-medium text-zinc-400 hover:text-white transition">Create Account</button>
+      <div class="segmented mt-5">
+        <button id="authTabLogin" type="button" onclick="switchAuthTab('login')" class="seg-btn seg-active">登录 Sign in</button>
+        <button id="authTabRegister" type="button" onclick="switchAuthTab('register')" class="seg-btn">注册 Sign up</button>
       </div>
 
-      <!-- Auth Form -->
-      <form id="authForm" onsubmit="handleAuthSubmit(event)" class="space-y-4">
-        <div id="authNameField" class="hidden space-y-1">
-          <label class="text-[11px] text-zinc-400 font-medium">Full Name</label>
-          <input type="text" id="authNameInput" placeholder="Your name" class="w-full bg-black/30 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:ring-1 focus:ring-indigo-500"/>
+      <form id="authForm" onsubmit="handleAuthSubmit(event)" class="mt-5 space-y-3" novalidate>
+        <div id="authFormError" class="form-alert hidden" role="alert"></div>
+        <div id="authNameField" class="hidden">
+          <label for="authNameInput" class="field-label">姓名 <span class="text-muted">Name</span></label>
+          <input type="text" id="authNameInput" autocomplete="name" maxlength="100" class="field-input" placeholder="Your name"/>
         </div>
-
-        <div class="space-y-1">
-          <label class="text-[11px] text-zinc-400 font-medium">Work Email</label>
-          <input type="email" id="authEmailInput" required value="" placeholder="name@company.com" class="w-full bg-black/30 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:ring-1 focus:ring-indigo-500"/>
+        <div>
+          <label for="authEmailInput" class="field-label">邮箱 <span class="text-muted">Email</span></label>
+          <input type="email" id="authEmailInput" autocomplete="email" required maxlength="100" class="field-input" placeholder="name@company.com"/>
         </div>
-
-        <div class="space-y-1">
-          <label class="text-[11px] text-zinc-400 font-medium">Password / Access Code</label>
-          <input type="password" id="authPasswordInput" required value="" placeholder="Enter your password" class="w-full bg-black/30 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:ring-1 focus:ring-indigo-500"/>
+        <div>
+          <label for="authPasswordInput" class="field-label">密码 <span class="text-muted">Password</span></label>
+          <input type="password" id="authPasswordInput" autocomplete="current-password" required maxlength="100" class="field-input" placeholder="••••••••"/>
         </div>
-
-        <div id="authCompanyField" class="hidden space-y-1">
-          <label class="text-[11px] text-zinc-400 font-medium">Company / Brand Organization</label>
-          <input type="text" id="authCompanyInput" placeholder="Company or brand" class="w-full bg-black/30 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:ring-1 focus:ring-indigo-500"/>
+        <div id="authCompanyField" class="hidden">
+          <label for="authCompanyInput" class="field-label">公司 / 品牌 <span class="text-muted">选填 · Optional</span></label>
+          <input type="text" id="authCompanyInput" autocomplete="organization" maxlength="200" class="field-input" placeholder="Company or brand"/>
         </div>
-
-        <button type="submit" id="authSubmitBtn" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-400 hover:to-indigo-500 text-white font-semibold text-xs shadow-lg shadow-indigo-500/25 transition active:scale-98">
-          Sign In
-        </button>
+        <button type="submit" id="authSubmitBtn" class="primary-btn w-full">登录</button>
       </form>
-
-      <!-- Quick Hint -->
-      <div class="text-center pt-1 border-t border-white/5 text-[11px] text-zinc-500">
-        <span id="authSwitchPrompt">Don't have an account?</span>
-        <button type="button" id="authSwitchBtn" onclick="toggleAuthMode()" class="text-indigo-400 hover:text-indigo-300 font-medium ml-1">Create one now</button>
-      </div>
     </div>
   </div>
 
   <!-- ========================================================================= -->
-  <!-- 10. REAL SOCIAL INTEGRATIONS & OAUTH MODAL                                -->
+  <!-- 10. 渠道集成 · INTEGRATIONS (OAuth or verified business ad account)        -->
   <!-- ========================================================================= -->
-  <div id="integrationsModal" class="fixed inset-0 bg-black/80 backdrop-blur-2xl z-50 hidden flex items-center justify-center p-4 md:p-6 animate-fade-in">
-    <div class="glass-panel max-w-2xl w-full rounded-3xl p-6 border border-white/15 shadow-2xl space-y-5 relative max-h-[90vh] overflow-y-auto">
-      <div class="flex items-center justify-between border-b border-white/10 pb-4">
+  <div id="integrationsModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 modal-scrim" onclick="if (event.target === this) closeIntegrationsModal()">
+    <div class="sheet w-full max-w-lg max-h-[calc(100vh-2rem)] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="integrationsTitle">
+      <div class="flex items-start justify-between gap-4">
         <div class="flex items-center gap-3">
-          <span class="material-symbols-outlined text-indigo-400 text-2xl">hub</span>
+          <span class="w-10 h-10 rounded-xl surface-muted flex items-center justify-center"><span class="material-symbols-outlined text-xl text-muted">hub</span></span>
           <div>
-            <h3 class="text-base font-bold text-white">Connected Channels & Official APIs</h3>
-            <p class="text-xs text-zinc-400">Authorize official social accounts for authentic automated publishing.</p>
+            <h3 id="integrationsTitle" class="text-base font-semibold text-ink">渠道集成 · Integrations</h3>
+            <p class="text-xs text-muted mt-0.5">连接 Facebook 主页或已开通的企业广告账户</p>
           </div>
         </div>
-        <button onclick="closeIntegrationsModal()" class="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/10 transition">
-          <span class="material-symbols-outlined text-base">close</span>
+        <button onclick="closeIntegrationsModal()" class="icon-btn" title="Close"><span class="material-symbols-outlined text-lg">close</span></button>
+      </div>
+
+      <div id="integrationsOptions" class="mt-5 grid gap-2">
+        <button type="button" onclick="startMetaOAuth()" class="option-card">
+          <img src="/static/assets/logos/meta.svg" class="w-8 h-8 rounded-lg shrink-0" alt=""/>
+          <span class="min-w-0 text-left">
+            <span class="block text-sm font-semibold text-ink">OAuth 授权连接</span>
+            <span class="block text-xs text-muted mt-0.5">使用 Facebook 官方登录，一键授权主页用于发布与评论管理</span>
+          </span>
+          <span class="material-symbols-outlined text-muted ml-auto">chevron_right</span>
+        </button>
+        <button type="button" onclick="showAdAccountForm(true)" class="option-card">
+          <span class="w-8 h-8 rounded-lg surface-muted flex items-center justify-center shrink-0"><span class="material-symbols-outlined text-lg text-muted">badge</span></span>
+          <span class="min-w-0 text-left">
+            <span class="block text-sm font-semibold text-ink">绑定已有企业账户</span>
+            <span class="block text-xs text-muted mt-0.5">Ad Account ID + System User Token（适用于 Meetsocial / YinoLink 已开通账户）</span>
+          </span>
+          <span class="material-symbols-outlined text-muted ml-auto">chevron_right</span>
         </button>
       </div>
 
-      <!-- Channel List Grid -->
-      <div class="space-y-3" id="integrationsListContainer">
-        <!-- Loaded dynamically via loadIntegrationsStatus() -->
-        <div class="text-center py-6 text-zinc-500 text-xs">Loading platform connections...</div>
-      </div>
-
-      <!-- OAuth Manual Connect Form Sheet -->
-      <div id="connectFormSheet" class="hidden p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-3">
-        <div class="flex items-center justify-between">
-          <h4 id="connectSheetTitle" class="text-xs font-bold text-white flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
-            <span>Configure Channel Connection</span>
-          </h4>
-          <button onclick="document.getElementById('connectFormSheet').classList.add('hidden')" class="text-zinc-500 hover:text-white text-xs">Cancel</button>
-        </div>
-        <input type="hidden" id="connectPlatformKey"/>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div class="space-y-1">
-            <label class="text-[10px] text-zinc-400">Account / Page Name</label>
-            <input type="text" id="connectAccountName" placeholder="e.g. Brand Official Page" class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white"/>
+      <form id="adAccountForm" class="mt-5 space-y-4 hidden" onsubmit="submitAdAccountBinding(event)" novalidate>
+        <button type="button" onclick="showAdAccountForm(false)" class="text-xs text-muted hover:text-ink inline-flex items-center gap-1"><span class="material-symbols-outlined text-sm">arrow_back</span>返回</button>
+        <p class="text-xs text-muted leading-relaxed">填写广告账户 ID 与 System User Token，OmniFlow 会先通过 Meta Graph API 验证，再保存到当前工作区。</p>
+        <div id="adAccountFormError" class="form-alert hidden" role="alert"></div>
+        <div class="space-y-3">
+          <div>
+            <label for="adAccountId" class="field-label">广告账户 ID <span class="text-muted">Ad Account ID</span></label>
+            <input id="adAccountId" name="ad_account_id" type="text" value="" maxlength="40" autocomplete="off" spellcheck="false" required class="field-input font-mono" placeholder="act_…"/>
+            <p class="field-error hidden" data-error-for="ad_account_id"></p>
           </div>
-          <div class="space-y-1">
-            <label class="text-[10px] text-zinc-400">Account / Page ID</label>
-            <input type="text" id="connectAccountId" placeholder="Page or account ID" class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white"/>
+          <div>
+            <label for="adAccountToken" class="field-label">System User Token <span class="text-muted">Business Manager → 系统用户</span></label>
+            <input id="adAccountToken" name="access_token" type="password" value="" maxlength="1000" autocomplete="off" spellcheck="false" required class="field-input font-mono" placeholder="粘贴系统用户访问令牌"/>
+            <p class="field-error hidden" data-error-for="access_token"></p>
           </div>
         </div>
-        <div class="space-y-1">
-          <label class="text-[10px] text-zinc-400">Access Token / Commercial API Key</label>
-          <input type="password" id="connectAccessToken" placeholder="Paste access token from Developer Portal" class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white font-mono"/>
-        </div>
-        <button onclick="submitConnectChannel()" class="w-full py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs shadow-md transition">
-          Verify & Save Connection
-        </button>
-      </div>
+        <button id="adAccountSubmitBtn" type="submit" class="primary-btn w-full">Connect &amp; Verify</button>
+      </form>
 
-      <!-- Footer Info -->
-      <div class="flex items-center justify-between pt-2 border-t border-white/10 text-xs text-zinc-400">
-        <span class="flex items-center gap-1.5 text-[11px]">
-          <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-          <span>Credentials are stored per workspace</span>
-        </span>
-        <button onclick="loadIntegrationsStatus()" class="text-indigo-400 hover:text-indigo-300 text-xs font-medium flex items-center gap-1">
-          <span class="material-symbols-outlined text-xs">refresh</span>
-          <span>Refresh Status</span>
-        </button>
+      <div class="mt-6">
+        <div class="text-[11px] uppercase tracking-wider text-muted mb-2">已连接 · Connected</div>
+        <div id="integrationsListContainer" class="space-y-2">
+          <div class="text-xs text-muted">正在加载…</div>
+        </div>
       </div>
     </div>
   </div>

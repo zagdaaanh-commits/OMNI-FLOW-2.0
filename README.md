@@ -71,7 +71,6 @@ c:/ZGC HACKATHON/
 ├── tests/
 │   ├── test_api_endpoints.py# 10 integration tests for all REST endpoints
 │   └── test_system.py       # End-to-end multi-agent pipeline tests
-└── test_e2e_workflow.py     # 5-step automated workflow & persistence verification
 ```
 
 ---
@@ -126,9 +125,4 @@ Open your browser at:
 Run the full automated test suite:
 ```powershell
 python -m pytest
-```
-
-Run the end-to-end 5-step workflow verification:
-```powershell
-python test_e2e_workflow.py
 ```

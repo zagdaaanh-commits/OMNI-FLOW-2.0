@@ -37,6 +37,7 @@ from typing import Any, Callable, Dict, Optional
 
 from agents.publisher import PublisherAgent
 from app.config import env_float, env_int, env_str, load_environment
+from app.redaction import describe_exception
 from db.base import Store
 from models.schemas import PublishLog, PublishStatus, PublishTask
 
@@ -203,7 +204,7 @@ class SchedulerService:
         except Exception as exc:  # noqa: BLE001 - never leave a task stuck in 'publishing'
             logger.exception("Scheduler crashed while publishing task %s", task_id)
             fresh = self.store.get_task_any_tenant(task_id) or task
-            return self._fail(fresh, f"Unexpected scheduler error: {type(exc).__name__}: {exc}", reason="exception")
+            return self._fail(fresh, "Unexpected scheduler error: " + describe_exception(exc), reason="exception")
 
     def _finalize(self, task: PublishTask) -> PublishTask:
         if task.status == PublishStatus.FAILED and self._is_transient(task) and task.attempts < self.max_attempts:

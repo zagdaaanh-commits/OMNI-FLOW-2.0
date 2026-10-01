@@ -8,6 +8,7 @@ from urllib.parse import urlencode, urlsplit
 import httpx
 
 from app.config import env_float, env_str, load_environment
+from app.redaction import describe_exception, redact
 from tools.http_client import get_http_client
 
 logger = logging.getLogger("multi-agent-marketing.meta")
@@ -47,7 +48,8 @@ def parse_graph_error(data: Any, status_code: int, text: str = "") -> Dict[str, 
     err = data.get("error") if isinstance(data, dict) else None
     if not isinstance(err, dict):
         err = {}
-    message = str(err.get("message") or text or f"HTTP {status_code}")
+    # Graph messages can embed the app id, user ids or request URLs with tokens.
+    message = redact(err.get("message") or text or f"HTTP {status_code}")
     code = err.get("code")
     lowered = message.lower()
     is_token = code in TOKEN_ERROR_CODES or any(h in lowered for h in _TOKEN_MESSAGE_HINTS)
@@ -206,7 +208,7 @@ class MetaAPIClient:
             is_expired = err["is_token_error"] or "app id" in err["message"].lower()
             return {
                 "connected": False,
-                "error": "Session token expired. Please refresh your Facebook Page Access Token." if is_expired else err["message"],
+                "error": "Facebook authorization expired. Please reconnect the Page in Integrations." if is_expired else err["message"],
                 "status_code": resp.status_code,
                 "page_id": self.page_id,
                 "token_expired": is_expired,
@@ -214,7 +216,7 @@ class MetaAPIClient:
         except Exception as exc:  # noqa: BLE001
             return {
                 "connected": False,
-                "error": f"{type(exc).__name__}: {exc}",
+                "error": describe_exception(exc),
                 "page_id": self.page_id,
                 "token_expired": False,
             }
@@ -250,7 +252,7 @@ class MetaAPIClient:
         logger.warning("Meta Graph API connection exception: %s", type(exc).__name__)
         return {
             "success": False,
-            "error": f"Connection exception: {type(exc).__name__}: {exc}",
+            "error": "Connection exception: " + describe_exception(exc),
             "post_url": None,
             "post_id": None,
             "external_post_id": None,
@@ -469,7 +471,7 @@ class MetaAPIClient:
             resp = self._post(self._url("me/accounts"), data=payload)
             data = _json(resp)
         except Exception as exc:  # noqa: BLE001
-            return {**base_fail, "error": f"Connection exception: {type(exc).__name__}: {exc}",
+            return {**base_fail, "error": "Connection exception: " + describe_exception(exc),
                     "status_code": None, "mode": "network_exception"}
 
         if resp.status_code == 200 and data.get("id"):
