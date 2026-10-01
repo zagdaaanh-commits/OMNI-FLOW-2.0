@@ -14,7 +14,14 @@ logger = logging.getLogger("multi-agent-marketing.meta")
 
 GRAPH_HOST = "graph.facebook.com"
 DEFAULT_GRAPH_VERSION = "v23.0"
-DEFAULT_OAUTH_SCOPES = "pages_show_list,pages_manage_posts,pages_read_engagement,business_management"
+# pages_manage_engagement: reply to comments as the Page.
+# pages_manage_metadata: subscribe the Page to this app's webhooks (POST /{page_id}/subscribed_apps).
+DEFAULT_OAUTH_SCOPES = (
+    "pages_show_list,pages_manage_posts,pages_read_engagement,pages_manage_engagement,"
+    "pages_manage_metadata,business_management"
+)
+# Page webhook fields subscribed when a Page is connected (comments arrive as "feed" changes).
+PAGE_WEBHOOK_FIELDS = "feed"
 
 # Graph error codes that mean "this token cannot be used" (expired / invalidated / malformed).
 TOKEN_ERROR_CODES = {102, 190, 463, 467}
@@ -368,6 +375,40 @@ class MetaAPIClient:
             return self._failure(resp, data)
         except Exception as exc:  # noqa: BLE001
             return self._network_failure(exc)
+
+    # --------------------------------------------------------------- comments
+    def reply_to_comment(self, comment_id: str, message: str, access_token: str) -> Dict[str, Any]:
+        """POST ``/{comment_id}/comments`` as the Page. Transport errors propagate to the caller.
+
+        Returns ``{"success": True, "id": ...}`` or ``{"success": False, "status_code", "error"}``
+        where ``error`` is :func:`parse_graph_error` output.
+        """
+        self._refresh_credentials()
+        resp = self._post(self._url(f"{comment_id}/comments"), data={"message": message, "access_token": access_token})
+        data = _json(resp)
+        if resp.status_code == 200 and data.get("id"):
+            return {"success": True, "id": str(data["id"])}
+        return {"success": False, "status_code": resp.status_code, "error": parse_graph_error(data, resp.status_code, resp.text)}
+
+    def subscribe_page_webhooks(self, page_id: str, page_token: str, fields: str = PAGE_WEBHOOK_FIELDS) -> Dict[str, Any]:
+        """POST ``/{page_id}/subscribed_apps`` so Meta delivers this Page's webhook events to the app.
+
+        Needs a Page token carrying ``pages_manage_metadata``. Never raises: returns
+        ``{"success": True}`` or ``{"success": False, "error": <message>, "code": <graph code>}``.
+        """
+        self._refresh_credentials()
+        try:
+            resp = self._post(
+                self._url(f"{page_id}/subscribed_apps"),
+                data={"subscribed_fields": fields, "access_token": page_token},
+            )
+        except Exception as exc:  # noqa: BLE001 - transport failure
+            return {"success": False, "error": f"network error: {type(exc).__name__}", "code": None}
+        data = _json(resp)
+        if resp.status_code == 200 and data.get("success") is True:
+            return {"success": True}
+        err = parse_graph_error(data, resp.status_code, resp.text)
+        return {"success": False, "error": err["message"], "code": err["code"]}
 
     # ------------------------------------------------ brand page provisioning
     def create_brand_page(

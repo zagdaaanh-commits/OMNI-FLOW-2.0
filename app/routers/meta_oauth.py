@@ -26,7 +26,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from app.config import env_str
 from app.security import InvalidTokenError, sign_payload, verify_payload
 from app.tenancy import TenantContext, get_tenant_context
-from tools.meta_api import DEFAULT_OAUTH_SCOPES, MetaAPIClient, MetaOAuthError
+from tools.meta_api import DEFAULT_OAUTH_SCOPES, PAGE_WEBHOOK_FIELDS, MetaAPIClient, MetaOAuthError
 
 logger = logging.getLogger("omniflow.oauth.meta")
 
@@ -55,6 +55,18 @@ def _config() -> Dict[str, str]:
 
 def _client() -> MetaAPIClient:
     return MetaAPIClient()
+
+
+def subscribe_page_webhooks(client: MetaAPIClient, page_id: str, page_token: str) -> bool:
+    """Subscribe a just-connected Page to the app's webhooks; a failure never undoes the connection."""
+    result = client.subscribe_page_webhooks(page_id, page_token)
+    if result["success"]:
+        logger.info("Subscribed page %s to %s webhooks", page_id, PAGE_WEBHOOK_FIELDS)
+        return True
+    logger.warning(
+        "Could not subscribe page %s to webhooks (code %s): %s", page_id, result.get("code"), result.get("error")
+    )
+    return False
 
 
 @router.get("/auth/facebook/login")
@@ -165,7 +177,11 @@ def facebook_callback(
             tenant_id=tenant_id,
         )
     for page in usable:
-        saved.append({"id": str(page["id"]), "name": str(page.get("name") or page["id"])})
+        saved.append({
+            "id": str(page["id"]),
+            "name": str(page.get("name") or page["id"]),
+            "webhook_subscribed": subscribe_page_webhooks(client, str(page["id"]), page["access_token"]),
+        })
 
     hook = getattr(request.app.state, "on_meta_connected", None)
     if hook and usable:

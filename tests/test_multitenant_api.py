@@ -256,3 +256,24 @@ def test_cors_is_wildcard_without_credentials_by_default():
 def test_new_workspace_starts_with_no_campaigns():
     _, headers = _register("Fresh Co")
     assert client.get("/campaigns", headers=headers).json() == []
+
+
+def test_update_token_subscribes_the_page_to_webhooks(graph_stub):
+    graph_stub.add("GET", "/PAGE-W", json={"id": "PAGE-W", "name": "Webhook Page"})
+    graph_stub.add("POST", "/PAGE-W/subscribed_apps", json={"success": True})
+    _, a = _register("Webhook Token Co")
+    res = client.post("/tools/facebook/update-token", json={"access_token": "EAAB_TOKEN_W", "page_id": "PAGE-W"}, headers=a)
+    assert res.status_code == 200 and res.json()["webhook_subscribed"] is True
+    (request,) = graph_stub.requests_to("/PAGE-W/subscribed_apps")
+    assert "subscribed_fields=feed" in request.content.decode()
+    assert "access_token=EAAB_TOKEN_W" in request.content.decode()
+
+
+def test_update_token_still_connects_when_webhook_subscription_fails(graph_stub):
+    graph_stub.add("GET", "/PAGE-X", json={"id": "PAGE-X", "name": "No Webhook Page"})
+    graph_stub.add("POST", "/PAGE-X/subscribed_apps", status=403, json={"error": {"message": "(#200) Permission denied", "code": 200}})
+    user, a = _register("No Webhook Co")
+    res = client.post("/tools/facebook/update-token", json={"access_token": "EAAB_TOKEN_X", "page_id": "PAGE-X"}, headers=a)
+    assert res.status_code == 200
+    assert res.json()["connected"] is True and res.json()["webhook_subscribed"] is False
+    assert store.get_connected_account(None, "meta", tenant_id=user["tenant_id"])["account_id"] == "PAGE-X"

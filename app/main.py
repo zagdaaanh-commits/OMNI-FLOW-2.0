@@ -23,8 +23,11 @@ from agents.planner import CampaignPlanner
 from agents.publisher import PublisherAgent
 from app.config import env_str, is_production, load_environment
 from app.dashboard import get_dashboard_html
+from app.routers.agency import router as agency_router
+from app.routers.comments import router as comments_router
 from app.routers.health import router as health_router
 from app.routers.meta_oauth import router as meta_oauth_router
+from app.routers.meta_oauth import subscribe_page_webhooks
 from app.scheduler import (
     MODE_EMBEDDED,
     SchedulerService,
@@ -56,7 +59,7 @@ from models.schemas import (
     UserRegister,
     normalize_platform,
 )
-from tools.meta_api import MetaAPIClient, MetaOAuthError
+from tools.meta_api import DEFAULT_OAUTH_SCOPES, MetaAPIClient, MetaOAuthError
 
 load_environment()
 
@@ -137,6 +140,8 @@ if STATIC_DIR.exists():
 
 app.include_router(meta_oauth_router)
 app.include_router(health_router)
+app.include_router(agency_router)
+app.include_router(comments_router)
 
 
 # =============================================================================
@@ -227,6 +232,7 @@ def _on_meta_connected(tenant_id: str, page: Dict[str, Any]) -> None:
 
 
 app.state.on_meta_connected = _on_meta_connected
+app.state.facebook_credentials = _facebook_credentials
 
 
 # =============================================================================
@@ -864,7 +870,7 @@ def get_meta_oauth_url(ctx: TenantContext = Depends(get_tenant_context)):
 
     app_id = env_str("META_APP_ID")
     redirect_uri = env_str("META_REDIRECT_URI")
-    scopes = env_str("META_OAUTH_SCOPES", default="pages_show_list,pages_manage_posts,pages_read_engagement,business_management")
+    scopes = env_str("META_OAUTH_SCOPES", default=DEFAULT_OAUTH_SCOPES)
     if not (app_id and redirect_uri and env_str("META_APP_SECRET")):
         return {
             "oauth_url": None,
@@ -946,12 +952,14 @@ def update_facebook_token(payload: FacebookTokenUpdatePayload, ctx: TenantContex
         permissions=["pages_manage_posts", "pages_read_engagement"],
         tenant_id=ctx.tenant_id,
     )
+    webhook_subscribed = subscribe_page_webhooks(publisher.meta, target_page, token)
 
     return {
         "success": True,
         "connected": True,
         "page_name": page_name,
         "page_id": target_page,
+        "webhook_subscribed": webhook_subscribed,
         "confirmation_badge": f"Connected to {page_name} 🟢",
         "message": f"Successfully validated and updated Facebook token for '{page_name}' ({target_page}).",
     }

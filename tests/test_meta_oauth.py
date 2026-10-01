@@ -184,3 +184,54 @@ def test_legacy_callback_path_is_the_real_handler(env, oauth_env, graph_stub):
     graph_stub.add("GET", "/oauth/access_token", status=400, json={"error": {"message": "bad", "code": 100}})
     state = sign_payload({"typ": "meta_oauth_state", "tid": "default", "uid": None, "next": None}, 60)
     assert client.get("/auth/callback/meta", params={"code": "c", "state": state}).status_code == 502
+
+
+# ----------------------------------------------------------------- scopes & webhooks
+def test_login_requests_engagement_and_webhook_scopes(env, oauth_env):
+    client, _, _ = env
+    q = parse_qs(urlsplit(client.get("/auth/facebook/login").headers["location"]).query)
+    scopes = q["scope"][0].split(",")
+    assert {"pages_manage_engagement", "pages_manage_metadata", "pages_manage_posts", "pages_show_list"} <= set(scopes)
+
+
+def test_login_scope_override_is_still_respected(env, oauth_env, monkeypatch):
+    client, _, _ = env
+    monkeypatch.setenv("META_OAUTH_SCOPES", "pages_show_list")
+    q = parse_qs(urlsplit(client.get("/auth/facebook/login").headers["location"]).query)
+    assert q["scope"] == ["pages_show_list"]
+
+
+def test_callback_subscribes_every_connected_page_to_webhooks(env, oauth_env, graph_stub):
+    client, store, _ = env
+    _graph_happy_path(graph_stub, [
+        {"id": "P1", "name": "Shop", "access_token": "PAGE_TOKEN_1"},
+        {"id": "P2", "name": "Outlet", "access_token": "PAGE_TOKEN_2"},
+        {"id": "P3", "name": "No token page"},
+    ])
+    graph_stub.add("POST", "/subscribed_apps", json={"success": True})
+    state = sign_payload({"typ": "meta_oauth_state", "tid": "default", "uid": None, "next": None}, 60)
+    res = client.get("/auth/facebook/callback", params={"code": "c", "state": state, "format": "json"})
+    assert res.status_code == 200, res.text
+    assert [(p["id"], p["webhook_subscribed"]) for p in res.json()["pages"]] == [("P1", True), ("P2", True)]
+
+    subscriptions = {
+        urlsplit(str(r.url)).path.split("/")[-2]: parse_qs(r.content.decode())
+        for r in graph_stub.requests_to("/subscribed_apps")
+    }
+    assert subscriptions == {
+        "P1": {"subscribed_fields": ["feed"], "access_token": ["PAGE_TOKEN_1"]},
+        "P2": {"subscribed_fields": ["feed"], "access_token": ["PAGE_TOKEN_2"]},
+    }
+    assert "PAGE_TOKEN" not in res.text
+
+
+def test_callback_keeps_the_connection_when_webhook_subscription_fails(env, oauth_env, graph_stub):
+    client, store, hook_calls = env
+    _graph_happy_path(graph_stub, [{"id": "P1", "name": "Shop", "access_token": "PAGE_TOKEN_1"}])
+    graph_stub.add("POST", "/subscribed_apps", status=403, json={"error": {"message": "(#200) Permission denied", "code": 200}})
+    state = sign_payload({"typ": "meta_oauth_state", "tid": "default", "uid": None, "next": None}, 60)
+    res = client.get("/auth/facebook/callback", params={"code": "c", "state": state, "format": "json"})
+    assert res.status_code == 200
+    assert res.json()["pages"] == [{"id": "P1", "name": "Shop", "webhook_subscribed": False}]
+    assert store.get_connected_account(None, "meta")["account_id"] == "P1"
+    assert hook_calls == [("default", "P1")]

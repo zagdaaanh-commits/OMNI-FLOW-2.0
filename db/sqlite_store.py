@@ -76,7 +76,39 @@ CREATE TABLE IF NOT EXISTS connected_accounts (
     permissions TEXT,
     updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS agency_applications (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    user_id TEXT,
+    company_name TEXT NOT NULL,
+    credit_code TEXT NOT NULL,
+    store_url TEXT NOT NULL,
+    contact TEXT NOT NULL,
+    remarks TEXT,
+    status TEXT NOT NULL DEFAULT 'received',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS page_comments (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    page_id TEXT NOT NULL,
+    comment_id TEXT NOT NULL,
+    post_id TEXT,
+    parent_id TEXT,
+    from_id TEXT,
+    from_name TEXT,
+    message TEXT,
+    verb TEXT NOT NULL DEFAULT 'add',
+    created_time TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE (tenant_id, comment_id)
+);
 """
+
+# Columns written by save_page_comment, in insert order.
+_COMMENT_FIELDS = ("page_id", "comment_id", "post_id", "parent_id", "from_id", "from_name", "message", "verb")
 
 # Columns added on top of the prototype schema: (table, column, DDL type/default).
 _ADDED_COLUMNS = [
@@ -99,6 +131,9 @@ CREATE INDEX IF NOT EXISTS idx_tasks_tenant ON tasks (tenant_id, updated_at);
 CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks (status, scheduled_at);
 CREATE INDEX IF NOT EXISTS idx_users_tenant ON users (tenant_id);
 CREATE INDEX IF NOT EXISTS idx_accounts_tenant_platform ON connected_accounts (tenant_id, platform, updated_at);
+CREATE INDEX IF NOT EXISTS idx_accounts_platform_account ON connected_accounts (platform, account_id);
+CREATE INDEX IF NOT EXISTS idx_agency_applications_tenant ON agency_applications (tenant_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_page_comments_tenant_post ON page_comments (tenant_id, post_id, created_time);
 """
 
 
@@ -376,6 +411,98 @@ class SQLiteStore:
                 "DELETE FROM connected_accounts WHERE tenant_id = ? AND platform = ?", (tenant_id, platform.lower())
             )
             return cur.rowcount
+
+    def list_connected_accounts_any_tenant(self, platform: str, account_id: str) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM connected_accounts WHERE platform = ? AND account_id = ? ORDER BY updated_at DESC",
+                (platform.lower(), account_id),
+            ).fetchall()
+            return [self._account_row(r) for r in rows]
+
+    # -------------------------------------------------- agency applications
+    def save_agency_application(self, application: Dict[str, Any], *, tenant_id: str = DEFAULT_TENANT_ID) -> Dict[str, Any]:
+        app_id = str(uuid4())
+        now = iso_utc(utcnow())
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO agency_applications
+                    (id, tenant_id, user_id, company_name, credit_code, store_url, contact, remarks, status,
+                     created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    app_id,
+                    tenant_id,
+                    application.get("user_id"),
+                    application["company_name"],
+                    application["credit_code"],
+                    application["store_url"],
+                    application["contact"],
+                    application.get("remarks"),
+                    application.get("status") or "received",
+                    now,
+                    now,
+                ),
+            )
+            row = conn.execute("SELECT * FROM agency_applications WHERE id = ?", (app_id,)).fetchone()
+            return dict(row)
+
+    def list_agency_applications(self, *, tenant_id: str = DEFAULT_TENANT_ID) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM agency_applications WHERE tenant_id = ? ORDER BY created_at DESC", (tenant_id,)
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    # -------------------------------------------------------- page comments
+    def save_page_comment(self, comment: Dict[str, Any], *, tenant_id: str = DEFAULT_TENANT_ID) -> Dict[str, Any]:
+        now = iso_utc(utcnow())
+        values = [comment.get(field) for field in _COMMENT_FIELDS]
+        values[_COMMENT_FIELDS.index("verb")] = comment.get("verb") or "add"
+        with self._conn() as conn:
+            conn.execute(
+                f"""
+                INSERT INTO page_comments (id, tenant_id, {", ".join(_COMMENT_FIELDS)}, created_time, created_at, updated_at)
+                VALUES (?, ?, {", ".join("?" for _ in _COMMENT_FIELDS)}, ?, ?, ?)
+                ON CONFLICT (tenant_id, comment_id) DO UPDATE SET
+                    page_id = excluded.page_id,
+                    post_id = COALESCE(excluded.post_id, page_comments.post_id),
+                    parent_id = COALESCE(excluded.parent_id, page_comments.parent_id),
+                    from_id = COALESCE(excluded.from_id, page_comments.from_id),
+                    from_name = COALESCE(excluded.from_name, page_comments.from_name),
+                    message = COALESCE(excluded.message, page_comments.message),
+                    verb = excluded.verb,
+                    created_time = COALESCE(excluded.created_time, page_comments.created_time),
+                    updated_at = excluded.updated_at
+                """,
+                (str(uuid4()), tenant_id, *values, iso_utc(comment.get("created_time")), now, now),
+            )
+            row = conn.execute(
+                "SELECT * FROM page_comments WHERE tenant_id = ? AND comment_id = ?", (tenant_id, comment["comment_id"])
+            ).fetchone()
+            return dict(row)
+
+    def get_page_comment(self, comment_id: str, *, tenant_id: str = DEFAULT_TENANT_ID) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM page_comments WHERE tenant_id = ? AND comment_id = ?", (tenant_id, comment_id)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def list_page_comments(
+        self, *, tenant_id: str = DEFAULT_TENANT_ID, post_id: Optional[str] = None, limit: int = 100
+    ) -> List[Dict[str, Any]]:
+        sql = "SELECT * FROM page_comments WHERE tenant_id = ?"
+        params: List[Any] = [tenant_id]
+        if post_id is not None:
+            sql += " AND post_id = ?"
+            params.append(post_id)
+        sql += " ORDER BY COALESCE(created_time, created_at) DESC LIMIT ?"
+        params.append(limit)
+        with self._conn() as conn:
+            return [dict(r) for r in conn.execute(sql, params).fetchall()]
 
     # ------------------------------------------------ campaigns/drafts/tasks
     @staticmethod

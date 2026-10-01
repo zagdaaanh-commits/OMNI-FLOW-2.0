@@ -295,6 +295,36 @@
     .secondary-btn { color: var(--ink); border: 1px solid var(--border); }
     .secondary-btn:hover { background: var(--surface-hover); }
 
+    /* ------------------------------------------------------------- forms --- */
+    .field-label { display: block; margin-bottom: 0.35rem; font-size: 0.78rem; font-weight: 500; color: var(--ink); }
+    .field-label .text-muted { font-weight: 400; margin-left: 0.25rem; }
+    /* Scoped under form so these beat the Tailwind forms plugin's [type='text'] resets. */
+    form .field-input {
+      width: 100%; padding: 0.6rem 0.75rem; border-radius: 0.75rem;
+      font-size: 0.85rem; line-height: 1.4; color: var(--ink);
+      background: var(--surface); border: 1px solid var(--border-strong);
+      box-shadow: none; outline: none;
+      transition: border-color 150ms ease, box-shadow 150ms ease;
+    }
+    html.dark form .field-input { background: rgba(255,255,255,0.03); }
+    form .field-input::placeholder { color: var(--muted); opacity: 0.8; text-transform: none; letter-spacing: normal; }
+    form .field-input:focus { border-color: var(--ink); box-shadow: 0 0 0 3px rgba(113,113,122,0.18); }
+    form .field-input.is-invalid { border-color: #ef4444; }
+    form .field-input.is-invalid:focus { border-color: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,0.18); }
+    .field-error { margin-top: 0.3rem; font-size: 0.74rem; color: #dc2626; }
+    html.dark .field-error { color: #f87171; }
+    .form-alert {
+      padding: 0.65rem 0.8rem; border-radius: 0.75rem; font-size: 0.8rem; line-height: 1.45;
+      color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca;
+    }
+    html.dark .form-alert { color: #fecaca; background: rgba(239,68,68,0.10); border-color: rgba(239,68,68,0.30); }
+
+    /* Green success toast (both themes). */
+    #toast.toast-success { background: #ecfdf5 !important; border-color: #a7f3d0 !important; }
+    #toast.toast-success #toastMsg, #toast.toast-success #toastIcon { color: #047857 !important; }
+    html.dark #toast.toast-success { background: #052e1f !important; border-color: rgba(52,211,153,0.40) !important; }
+    html.dark #toast.toast-success #toastMsg, html.dark #toast.toast-success #toastIcon { color: #a7f3d0 !important; }
+
     /* ------------------------------------------------------ network status --- */
     .network-pill {
       display: inline-flex; align-items: center; gap: 0.4rem;
@@ -521,7 +551,7 @@
   <!-- META 企业广告账户快速开户 MODAL                                              -->
   <!-- ========================================================================= -->
   <div id="metaAccountModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 modal-scrim" onclick="if (event.target === this) closeMetaAccountModal()">
-    <div class="sheet w-full max-w-lg">
+    <div class="sheet w-full max-w-lg max-h-[calc(100vh-2rem)] overflow-y-auto">
       <div class="flex items-start justify-between gap-4">
         <div class="flex items-center gap-3">
           <span class="w-10 h-10 rounded-xl surface-muted flex items-center justify-center"><img src="/static/assets/logos/meta.svg" class="w-5 h-5" alt=""/></span>
@@ -538,21 +568,47 @@
         <button id="metaTabBind" onclick="switchMetaAccountTab('bind')" class="seg-btn">已有账户？立即绑定授权</button>
       </div>
 
-      <div id="metaPanelApply" class="mt-5 space-y-4">
+      <form id="metaPanelApply" class="mt-5 space-y-4" onsubmit="submitMetaAccountApplication(event)" novalidate>
         <div>
           <h4 class="text-sm font-semibold text-ink">Meta 官方代理商绿色开户通道 (Meetsocial / YinoLink)</h4>
-          <p class="text-xs text-muted mt-1 leading-relaxed">通过 Meta 官方授权代理商申请企业广告账户，审核通过后可在 OmniFlow 中直接授权投放与发布。</p>
+          <p class="text-xs text-muted mt-1 leading-relaxed">提交营业执照信息与店铺链接，我们的开户顾问会协助您通过 Meta 官方授权代理商开通企业广告账户。</p>
         </div>
-        <div class="rounded-2xl surface-muted p-4">
-          <div class="text-[11px] uppercase tracking-wider text-muted mb-2">准备材料 · Requirements</div>
-          <ul class="space-y-2 text-sm text-ink">
-            <li class="flex items-center gap-2.5"><span class="material-symbols-outlined text-base text-muted">badge</span>营业执照 <span class="text-muted text-xs">Business License</span></li>
-            <li class="flex items-center gap-2.5"><span class="material-symbols-outlined text-base text-muted">storefront</span>独立站/店铺链接 <span class="text-muted text-xs">Store URL</span></li>
-          </ul>
+
+        <div id="agencyFormError" class="form-alert hidden" role="alert"></div>
+
+        <div class="space-y-3">
+          <div>
+            <label for="agencyCompanyName" class="field-label">公司名称 <span class="text-muted">Company name</span></label>
+            <input id="agencyCompanyName" name="company_name" type="text" maxlength="200" autocomplete="organization" required class="field-input" placeholder="与营业执照一致，例如 深圳市某某贸易有限公司"/>
+            <p class="field-error hidden" data-error-for="company_name"></p>
+          </div>
+          <div>
+            <label for="agencyCreditCode" class="field-label">统一社会信用代码 <span class="text-muted">Business license no.</span></label>
+            <input id="agencyCreditCode" name="credit_code" type="text" maxlength="18" autocomplete="off" spellcheck="false" required class="field-input font-mono uppercase tracking-wide" placeholder="18 位，营业执照上的代码"/>
+            <p class="field-error hidden" data-error-for="credit_code"></p>
+          </div>
+          <div>
+            <label for="agencyStoreUrl" class="field-label">独立站 / 店铺链接 <span class="text-muted">Store URL</span></label>
+            <input id="agencyStoreUrl" name="store_url" type="text" inputmode="url" maxlength="500" autocomplete="url" spellcheck="false" required class="field-input" placeholder="https://shop.example.com"/>
+            <p class="field-error hidden" data-error-for="store_url"></p>
+          </div>
+          <div>
+            <label for="agencyContact" class="field-label">联系方式 <span class="text-muted">WeChat / 手机 / 邮箱</span></label>
+            <input id="agencyContact" name="contact" type="text" maxlength="200" required class="field-input" placeholder="微信号、手机号或邮箱"/>
+            <p class="field-error hidden" data-error-for="contact"></p>
+          </div>
+          <div>
+            <label for="agencyRemarks" class="field-label">备注 <span class="text-muted">选填 · Optional</span></label>
+            <textarea id="agencyRemarks" name="remarks" rows="2" maxlength="2000" class="field-input resize-none" placeholder="例如预计月投放预算、目标市场"></textarea>
+            <p class="field-error hidden" data-error-for="remarks"></p>
+          </div>
         </div>
-        <button id="metaApplyBtn" onclick="submitMetaAccountApplication()" class="primary-btn w-full" disabled>立即提交开户申请</button>
-        <p id="metaApplyNote" class="text-xs text-muted text-center">开户通道尚未配置，请联系客服。</p>
-      </div>
+
+        <button id="metaApplyBtn" type="submit" class="primary-btn w-full">立即提交开户申请</button>
+        <p id="metaApplyExternalWrap" class="hidden text-center text-xs">
+          <a id="metaApplyExternal" href="#" target="_blank" rel="noopener" class="text-muted hover:text-ink">或前往代理商官网申请 ↗</a>
+        </p>
+      </form>
 
       <div id="metaPanelBind" class="mt-5 space-y-3 hidden">
         <p class="text-xs text-muted leading-relaxed">已有 Meta 企业广告账户或 Facebook 主页？通过官方 OAuth 授权，OmniFlow 只会获取发布和读取所需的权限。</p>
@@ -943,7 +999,7 @@
   </div>
 
   <!-- Notification Toast -->
-  <div id="toast" class="fixed bottom-24 right-6 z-50 glass-panel px-4 py-2.5 rounded-xl text-xs font-medium flex items-center gap-2 border border-white/20 shadow-2xl transition-all duration-300 opacity-0 pointer-events-none translate-y-2">
+  <div id="toast" role="status" aria-live="polite" class="fixed bottom-24 right-6 z-50 glass-panel px-4 py-2.5 rounded-xl text-xs font-medium flex items-center gap-2 border border-white/20 shadow-2xl transition-all duration-300 opacity-0 pointer-events-none translate-y-2">
     <span id="toastIcon" class="material-symbols-outlined text-sm text-emerald-400">check_circle</span>
     <span id="toastMsg" class="text-white">Action successful</span>
   </div>
@@ -960,18 +1016,21 @@
     let currentUser = null;
     let attachedImage = null;
 
-    // Toast helper
-    function showToast(msg, isSuccess = true) {
+    // Toast helper. options.variant === 'success' renders the green style; options.duration in ms.
+    let toastTimer = null;
+    function showToast(msg, isSuccess = true, options = {}) {
       const toast = document.getElementById('toast');
       const toastMsg = document.getElementById('toastMsg');
       const toastIcon = document.getElementById('toastIcon');
       toastMsg.textContent = msg;
       toastIcon.textContent = isSuccess ? 'check_circle' : 'info';
       toastIcon.className = isSuccess ? 'material-symbols-outlined text-sm text-emerald-400' : 'material-symbols-outlined text-sm text-indigo-400';
+      toast.classList.toggle('toast-success', options.variant === 'success');
       toast.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-2');
-      setTimeout(() => {
+      clearTimeout(toastTimer);  // a newer toast must not be hidden by an older one's timer
+      toastTimer = setTimeout(() => {
         toast.classList.add('opacity-0', 'pointer-events-none', 'translate-y-2');
-      }, 3500);
+      }, options.duration || 3500);
     }
 
     // Modal toggles
@@ -1079,25 +1138,22 @@
     // =========================================================================
     // META 企业广告账户快速开户
     // =========================================================================
-    let metaAgencyApplyUrl = null;
-
+    // The optional agency website link (META_AGENCY_APPLY_URL) is shown under the form when configured.
     async function loadPublicConfig() {
+      let url = null;
       try {
         const res = await fetch('/config/public', { cache: 'no-store' });
-        if (!res.ok) return;
-        const cfg = await res.json();
-        metaAgencyApplyUrl = cfg.meta_agency_apply_url || null;
-      } catch (_) {
-        metaAgencyApplyUrl = null;
-      }
-      const btn = document.getElementById('metaApplyBtn');
-      const note = document.getElementById('metaApplyNote');
-      if (btn) btn.disabled = !metaAgencyApplyUrl;
-      if (note) note.classList.toggle('hidden', !!metaAgencyApplyUrl);
+        if (res.ok) url = (await res.json()).meta_agency_apply_url || null;
+      } catch (_) {}
+      const link = document.getElementById('metaApplyExternal');
+      const wrap = document.getElementById('metaApplyExternalWrap');
+      if (link && url) link.href = url;
+      if (wrap) wrap.classList.toggle('hidden', !url);
     }
 
     function openMetaAccountModal(tab = 'apply') {
       closeChannelsMenu();
+      clearAgencyErrors();
       switchMetaAccountTab(tab);
       const modal = document.getElementById('metaAccountModal');
       if (modal) modal.classList.add('open');
@@ -1120,13 +1176,139 @@
       if (panelBind) panelBind.classList.toggle('hidden', apply);
     }
 
-    function submitMetaAccountApplication() {
-      if (!metaAgencyApplyUrl) {
-        showToast('开户通道尚未配置，请联系客服。', false);
+    const AGENCY_FIELDS = ['company_name', 'credit_code', 'store_url', 'contact', 'remarks'];
+    const AGENCY_FIELD_MESSAGES = {
+      company_name: '请填写公司名称（与营业执照一致）。',
+      credit_code: '请输入有效的 18 位统一社会信用代码。',
+      store_url: '请输入有效的店铺链接，例如 https://shop.example.com',
+      contact: '请填写微信号、手机号或邮箱。',
+      remarks: '备注不能超过 2000 字。',
+    };
+    const AGENCY_SUBMIT_LABEL = '立即提交开户申请';
+    const AGENCY_SUCCESS_MESSAGE = '申请已成功提交，我们将在 1-2 个工作日内与您联系协助下户';
+
+    function agencyForm() {
+      return document.getElementById('metaPanelApply');
+    }
+
+    function setAgencyFieldError(field, message) {
+      const form = agencyForm();
+      if (!form) return;
+      const input = form.elements[field];
+      const slot = form.querySelector(`[data-error-for="${field}"]`);
+      if (input) {
+        input.classList.toggle('is-invalid', !!message);
+        input.setAttribute('aria-invalid', message ? 'true' : 'false');
+      }
+      if (slot) {
+        slot.textContent = message || '';
+        slot.classList.toggle('hidden', !message);
+      }
+    }
+
+    function setAgencyFormError(message) {
+      const box = document.getElementById('agencyFormError');
+      if (!box) return;
+      box.textContent = message || '';
+      box.classList.toggle('hidden', !message);
+    }
+
+    function clearAgencyErrors() {
+      AGENCY_FIELDS.forEach(field => setAgencyFieldError(field, ''));
+      setAgencyFormError('');
+    }
+
+    // Turn an error response into per-field messages plus one summary line for the form.
+    function agencyErrorsFromResponse(status, body) {
+      if (status === 422 && Array.isArray(body?.detail)) {
+        const fields = {};
+        const other = [];
+        body.detail.forEach(item => {
+          const field = Array.isArray(item.loc) ? item.loc[item.loc.length - 1] : null;
+          if (AGENCY_FIELDS.includes(field)) {
+            fields[field] = fields[field] || AGENCY_FIELD_MESSAGES[field];
+          } else if (item.msg) {
+            other.push(String(item.msg).replace(/^Value error,\s*/, ''));
+          }
+        });
+        const summary = Object.keys(fields).length ? '请检查标红的字段后重新提交。' : (other.join(' ') || '提交的信息有误，请检查后重试。');
+        return { fields, message: summary };
+      }
+      if (status === 401) return { fields: {}, message: '请先登录后再提交开户申请。' };
+      if (status === 429) return { fields: {}, message: '提交过于频繁，请稍后再试。' };
+      const detail = typeof body?.detail === 'string' ? body.detail : '';
+      return { fields: {}, message: `提交失败（HTTP ${status}）${detail ? '：' + detail : '，请稍后重试或联系客服。'}` };
+    }
+
+    function showAgencyErrors(fields, message) {
+      Object.entries(fields).forEach(([field, msg]) => setAgencyFieldError(field, msg));
+      setAgencyFormError(message);
+      const firstInvalid = AGENCY_FIELDS.map(f => agencyForm()?.elements[f]).find(el => el && el.classList.contains('is-invalid'));
+      if (firstInvalid) firstInvalid.focus();
+      else document.getElementById('agencyFormError')?.scrollIntoView({ block: 'nearest' });
+    }
+
+    async function submitMetaAccountApplication(event) {
+      if (event) event.preventDefault();
+      const form = agencyForm();
+      const button = document.getElementById('metaApplyBtn');
+      if (!form || !button || button.disabled) return;
+      clearAgencyErrors();
+
+      const value = name => (form.elements[name]?.value || '').trim();
+      const payload = {
+        company_name: value('company_name'),
+        credit_code: value('credit_code').toUpperCase(),
+        store_url: value('store_url'),
+        contact: value('contact'),
+        remarks: value('remarks') || null,
+      };
+
+      // Required fields are checked here; formats (credit-code checksum, URL) are validated by the server.
+      const missing = {};
+      ['company_name', 'credit_code', 'store_url', 'contact'].forEach(field => {
+        if (!payload[field]) missing[field] = AGENCY_FIELD_MESSAGES[field];
+      });
+      if (Object.keys(missing).length) {
+        showAgencyErrors(missing, '请填写所有必填信息。');
         return;
       }
-      window.open(metaAgencyApplyUrl, '_blank', 'noopener');
+
+      button.disabled = true;
+      button.textContent = '提交中…';
+      try {
+        const headers = { 'Content-Type': 'application/json' };
+        let token = null;
+        try { token = localStorage.getItem('omniflow_auth_token'); } catch (_) {}
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        const res = await fetch('/api/agency/apply', { method: 'POST', headers, body: JSON.stringify(payload) });
+        let body = null;
+        try { body = await res.json(); } catch (_) {}
+
+        if (res.ok && body?.status === 'success') {
+          form.reset();
+          clearAgencyErrors();
+          closeMetaAccountModal();
+          showToast(AGENCY_SUCCESS_MESSAGE, true, { variant: 'success', duration: 6000 });
+          return;
+        }
+        const { fields, message } = agencyErrorsFromResponse(res.status, body);
+        showAgencyErrors(fields, message);
+      } catch (err) {
+        showAgencyErrors({}, '网络连接失败，请检查网络后重试。');
+      } finally {
+        button.disabled = false;
+        button.textContent = AGENCY_SUBMIT_LABEL;
+      }
     }
+
+    // Editing a field clears its own error.
+    document.addEventListener('input', (e) => {
+      if (e.target?.form?.id === 'metaPanelApply' && AGENCY_FIELDS.includes(e.target.name)) {
+        setAgencyFieldError(e.target.name, '');
+      }
+    });
 
     // =========================================================================
     // DYNAMIC USER IMAGE ATTACHMENT & PREVIEW PIPELINE

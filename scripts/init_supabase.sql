@@ -176,12 +176,52 @@ CREATE INDEX IF NOT EXISTS ix_scheduled_tasks_tenant ON scheduled_tasks (tenant_
 CREATE INDEX IF NOT EXISTS ix_scheduled_tasks_due ON scheduled_tasks (scheduled_at) WHERE status = 'scheduled';
 CREATE INDEX IF NOT EXISTS ix_scheduled_tasks_stuck ON scheduled_tasks (updated_at) WHERE status = 'publishing';
 
+-- ---------------------------------------------------- agency_applications ---
+-- Meta agency (Meetsocial / YinoLink) ad-account applications submitted from the UI.
+CREATE TABLE IF NOT EXISTS agency_applications (
+    id            text PRIMARY KEY,
+    tenant_id     text        NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    user_id       text,
+    company_name  text        NOT NULL,
+    credit_code   text        NOT NULL,   -- Unified Social Credit Code (营业执照)
+    store_url     text        NOT NULL,
+    contact       text        NOT NULL,
+    remarks       text,
+    status        text        NOT NULL DEFAULT 'received',
+    created_at    timestamptz NOT NULL DEFAULT now(),
+    updated_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ix_agency_applications_tenant ON agency_applications (tenant_id, created_at DESC);
+
+-- ---------------------------------------------------------- page_comments ---
+-- Facebook Page comments received through the Meta webhook (one row per tenant + comment).
+CREATE TABLE IF NOT EXISTS page_comments (
+    id            text PRIMARY KEY,
+    tenant_id     text        NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    page_id       text        NOT NULL,
+    comment_id    text        NOT NULL,
+    post_id       text,
+    parent_id     text,
+    from_id       text,
+    from_name     text,
+    message       text,
+    verb          text        NOT NULL DEFAULT 'add',
+    created_time  timestamptz,
+    created_at    timestamptz NOT NULL DEFAULT now(),
+    updated_at    timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT ux_page_comments_tenant_comment UNIQUE (tenant_id, comment_id)
+);
+CREATE INDEX IF NOT EXISTS ix_page_comments_tenant_post ON page_comments (tenant_id, post_id, created_time DESC);
+-- Webhook routing looks a Page up across tenants.
+CREATE INDEX IF NOT EXISTS ix_social_accounts_platform_account ON social_accounts (platform, account_id);
+
 -- --------------------------------------------- updated_at triggers (all) ---
 DO $do$
 DECLARE
     t text;
 BEGIN
-    FOREACH t IN ARRAY ARRAY['tenants', 'users', 'campaigns', 'content_drafts', 'social_accounts', 'scheduled_tasks']
+    FOREACH t IN ARRAY ARRAY['tenants', 'users', 'campaigns', 'content_drafts', 'social_accounts', 'scheduled_tasks',
+                         'agency_applications', 'page_comments']
     LOOP
         EXECUTE format('DROP TRIGGER IF EXISTS trg_%1$s_updated_at ON %1$I', t);
         EXECUTE format(
@@ -199,7 +239,8 @@ DO $do$
 DECLARE
     t text;
 BEGIN
-    FOREACH t IN ARRAY ARRAY['users', 'campaigns', 'content_drafts', 'social_accounts', 'scheduled_tasks']
+    FOREACH t IN ARRAY ARRAY['users', 'campaigns', 'content_drafts', 'social_accounts', 'scheduled_tasks',
+                         'agency_applications', 'page_comments']
     LOOP
         EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
         EXECUTE format('DROP POLICY IF EXISTS tenant_isolation ON %I', t);

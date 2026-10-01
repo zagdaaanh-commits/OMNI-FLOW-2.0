@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator, AliasChoices
@@ -374,4 +376,88 @@ class AssistantChatResponse(BaseModel):
     drafts: Optional[List[ContentDraft]] = None
     data: Optional[Dict[str, Any]] = None
 
+# --------------------------------------------------------------- agency intake
+# Unified Social Credit Code (统一社会信用代码, GB 32100-2015): 18 characters drawn from
+# digits and the uppercase letters except I, O, S, V, Z; the last one is a checksum.
+_USCC_CHARS = "0123456789ABCDEFGHJKLMNPQRTUWXY"
+_USCC_WEIGHTS = [pow(3, i, 31) for i in range(17)]
+_USCC_RE = re.compile(r"^[0-9A-HJ-NPQRTUWXY]{2}[0-9]{6}[0-9A-HJ-NPQRTUWXY]{10}$")
 
+
+def is_valid_credit_code(code: str) -> bool:
+    if not _USCC_RE.match(code):
+        return False
+    total = sum(_USCC_CHARS.index(ch) * w for ch, w in zip(code[:17], _USCC_WEIGHTS))
+    return _USCC_CHARS[(31 - total % 31) % 31] == code[17]
+
+
+class AgencyApplicationRequest(BaseModel):
+    company_name: str = Field(..., min_length=1, max_length=200)
+    credit_code: str = Field(..., description="Unified Social Credit Code (营业执照代码), 18 characters")
+    store_url: str = Field(..., max_length=500, description="Independent store / shop URL")
+    contact: str = Field(..., min_length=1, max_length=200, description="WeChat / phone / email")
+    remarks: Optional[str] = Field(default=None, max_length=2000)
+
+    @field_validator("company_name", "contact")
+    @classmethod
+    def _required_text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("must not be blank")
+        return value
+
+    @field_validator("credit_code")
+    @classmethod
+    def _credit_code(cls, value: str) -> str:
+        value = value.strip().upper()
+        if not is_valid_credit_code(value):
+            raise ValueError("must be a valid 18-character Unified Social Credit Code")
+        return value
+
+    @field_validator("store_url")
+    @classmethod
+    def _store_url(cls, value: str) -> str:
+        value = value.strip()
+        if value and "://" not in value:
+            value = "https://" + value
+        parts = urlsplit(value)
+        host = parts.hostname or ""
+        if parts.scheme not in ("http", "https") or "." not in host:
+            raise ValueError("must be an http(s) URL of the store, e.g. https://shop.example.com")
+        return value
+
+    @field_validator("remarks")
+    @classmethod
+    def _remarks(cls, value: Optional[str]) -> Optional[str]:
+        value = (value or "").strip()
+        return value or None
+
+
+# ------------------------------------------------------------- meta comments
+class CommentReplyRequest(BaseModel):
+    comment_id: str = Field(..., min_length=1, max_length=128)
+    message: str = Field(..., min_length=1, max_length=8000)
+    page_token: Optional[str] = None
+
+    @field_validator("comment_id")
+    @classmethod
+    def _comment_id(cls, value: str) -> str:
+        # Graph object ids are digits joined by "_"; anything else could redirect the POST to another edge.
+        value = value.strip()
+        if not re.fullmatch(r"[0-9]+(?:_[0-9]+)*", value):
+            raise ValueError("must be a Graph API comment id such as 123_456")
+        return value
+
+    @field_validator("message")
+    @classmethod
+    def _message(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("must not be blank")
+        return value
+
+    @field_validator("page_token")
+    @classmethod
+    def _page_token(cls, value: Optional[str]) -> Optional[str]:
+        value = (value or "").strip()
+        return value or None

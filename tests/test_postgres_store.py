@@ -28,7 +28,7 @@ def owner():
     psycopg = _psycopg()
     with psycopg.connect(PG_URL, autocommit=True) as conn:
         conn.execute(SQL_FILE.read_text(encoding="utf-8"))
-        conn.execute("TRUNCATE tenants, users, campaigns, content_drafts, social_accounts, scheduled_tasks CASCADE")
+        conn.execute("TRUNCATE tenants, users, campaigns, content_drafts, social_accounts, scheduled_tasks, agency_applications, page_comments CASCADE")
         conn.execute("INSERT INTO tenants (id, name, slug) VALUES ('default', 'Default Workspace', 'default')")
         yield conn
 
@@ -54,7 +54,8 @@ def test_schema_script_is_idempotent(owner):
     for _ in range(3):
         owner.execute(sql)
     tables = {r[0] for r in owner.execute("SELECT tablename FROM pg_tables WHERE schemaname='public'")}
-    assert {"tenants", "users", "campaigns", "content_drafts", "social_accounts", "scheduled_tasks"} <= tables
+    assert {"tenants", "users", "campaigns", "content_drafts", "social_accounts", "scheduled_tasks",
+            "agency_applications", "page_comments"} <= tables
     assert owner.execute("SELECT count(*) FROM tenants WHERE id='default'").fetchone()[0] == 1
 
 
@@ -126,9 +127,10 @@ def test_rls_blocks_cross_tenant_access_for_non_owner_role(owner, app_role_url):
 def test_rls_applies_to_every_tenant_table(owner):
     rows = owner.execute(
         "SELECT relname, relrowsecurity FROM pg_class WHERE relname = ANY(%s)",
-        (["tenants", "users", "campaigns", "content_drafts", "social_accounts", "scheduled_tasks"],),
+        (["tenants", "users", "campaigns", "content_drafts", "social_accounts", "scheduled_tasks",
+          "agency_applications", "page_comments"],),
     ).fetchall()
-    assert len(rows) == 6 and all(enabled for _, enabled in rows)
+    assert len(rows) == 8 and all(enabled for _, enabled in rows)
 
 
 def test_postgres_store_end_to_end_as_non_owner_role(owner, app_role_url):

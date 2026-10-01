@@ -39,7 +39,7 @@ def store(request, tmp_path):
     migrate_sql = Path(__file__).resolve().parent.parent / "scripts" / "init_supabase.sql"
     with psycopg.connect(PG_URL, autocommit=True) as conn:
         conn.execute(migrate_sql.read_text(encoding="utf-8"))
-        conn.execute("TRUNCATE tenants, users, campaigns, content_drafts, social_accounts, scheduled_tasks CASCADE")
+        conn.execute("TRUNCATE tenants, users, campaigns, content_drafts, social_accounts, scheduled_tasks, agency_applications, page_comments CASCADE")
     s = PostgresStore(PG_URL, min_size=1, max_size=12)
     yield s
     s.close()
@@ -327,6 +327,77 @@ def test_save_task_always_stamps_updated_at(store):
     t = store.save_task(_task("default", "u1"))
     assert t.updated_at is not None
     assert store.get_task("u1").updated_at is not None
+
+
+# ------------------------------------------------------- agency applications
+def _application(name: str) -> dict:
+    return {
+        "company_name": name,
+        "credit_code": "91330100799655058B",
+        "store_url": "https://shop.example.com",
+        "contact": "wechat: example",
+        "remarks": None,
+        "user_id": None,
+    }
+
+
+def test_agency_applications_are_tenant_scoped(store):
+    a, b = _mk_tenants(store, "A", "B")
+    saved = store.save_agency_application(_application("A Co"), tenant_id=a)
+    assert saved["id"] and saved["tenant_id"] == a and saved["status"] == "received" and saved["created_at"]
+    store.save_agency_application(_application("A Co 2"), tenant_id=a)
+    assert {x["company_name"] for x in store.list_agency_applications(tenant_id=a)} == {"A Co", "A Co 2"}
+    assert store.list_agency_applications(tenant_id=b) == []
+
+
+# ------------------------------------------------------------ page comments
+def _comment(comment_id: str, **overrides) -> dict:
+    data = {
+        "page_id": "p1",
+        "comment_id": comment_id,
+        "post_id": "p1_10",
+        "parent_id": "p1_10",
+        "from_id": "u9",
+        "from_name": "Buyer",
+        "message": "hello",
+        "verb": "add",
+        "created_time": NOW,
+    }
+    data.update(overrides)
+    return data
+
+
+def test_page_comments_upsert_and_tenant_isolation(store):
+    a, b = _mk_tenants(store, "A", "B")
+    store.save_page_comment(_comment("c1"), tenant_id=a)
+    store.save_page_comment(_comment("c1", message="edited", verb="edited", from_name=None, created_time=None), tenant_id=a)
+    row = store.get_page_comment("c1", tenant_id=a)
+    assert row["message"] == "edited" and row["verb"] == "edited"
+    assert row["from_name"] == "Buyer"  # missing fields keep their stored value
+    assert row["created_time"].startswith("2026-09-29T12:00:00")
+    assert store.get_page_comment("c1", tenant_id=b) is None
+
+    store.save_page_comment(_comment("c1", message="B's copy"), tenant_id=b)  # same comment, other workspace
+    assert store.get_page_comment("c1", tenant_id=a)["message"] == "edited"
+    assert len(store.list_page_comments(tenant_id=a)) == 1
+
+
+def test_list_page_comments_filters_by_post_newest_first(store):
+    store.save_page_comment(_comment("old", created_time=NOW - timedelta(hours=1)))
+    store.save_page_comment(_comment("new", created_time=NOW))
+    store.save_page_comment(_comment("other", post_id="p1_99"))
+    assert [c["comment_id"] for c in store.list_page_comments(post_id="p1_10")] == ["new", "old"]
+    assert len(store.list_page_comments(limit=2)) == 2
+
+
+def test_connected_accounts_any_tenant_finds_every_owner(store):
+    a, b, c = _mk_tenants(store, "A", "B", "C")
+    store.save_connected_account("global", "meta", "shared-page", "Shared", "tok-a", tenant_id=a)
+    store.save_connected_account("global", "meta", "shared-page", "Shared", "tok-b", tenant_id=b)
+    store.save_connected_account("global", "meta", "other-page", "Other", "tok-c", tenant_id=c)
+    owners = store.list_connected_accounts_any_tenant("META", "shared-page")
+    assert {o["tenant_id"] for o in owners} == {a, b}
+    assert store.list_connected_accounts_any_tenant("tiktok", "shared-page") == []
 
 
 # --------------------------------------------------------------- SQLite specifics

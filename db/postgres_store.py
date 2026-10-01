@@ -242,6 +242,102 @@ class PostgresStore:
             )
             return cur.rowcount
 
+    def list_connected_accounts_any_tenant(self, platform: str, account_id: str) -> List[Dict[str, Any]]:
+        with self._tx(None) as conn:
+            rows = conn.execute(
+                f"SELECT {_ACCOUNT_COLUMNS} FROM social_accounts WHERE platform = %s AND account_id = %s "
+                "ORDER BY updated_at DESC",
+                (platform.lower(), account_id),
+            ).fetchall()
+        return [self._account(r) for r in rows]  # type: ignore[misc]
+
+    # -------------------------------------------------- agency applications
+    def save_agency_application(self, application: Dict[str, Any], *, tenant_id: str = DEFAULT_TENANT_ID) -> Dict[str, Any]:
+        with self._tx(tenant_id) as conn:
+            row = conn.execute(
+                """
+                INSERT INTO agency_applications
+                    (id, tenant_id, user_id, company_name, credit_code, store_url, contact, remarks, status)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING *
+                """,
+                (
+                    str(uuid4()),
+                    tenant_id,
+                    application.get("user_id"),
+                    application["company_name"],
+                    application["credit_code"],
+                    application["store_url"],
+                    application["contact"],
+                    application.get("remarks"),
+                    application.get("status") or "received",
+                ),
+            ).fetchone()
+        return _stringify(row)  # type: ignore[return-value]
+
+    def list_agency_applications(self, *, tenant_id: str = DEFAULT_TENANT_ID) -> List[Dict[str, Any]]:
+        with self._tx(tenant_id) as conn:
+            rows = conn.execute(
+                "SELECT * FROM agency_applications WHERE tenant_id = %s ORDER BY created_at DESC", (tenant_id,)
+            ).fetchall()
+        return [_stringify(r) for r in rows]  # type: ignore[misc]
+
+    # -------------------------------------------------------- page comments
+    def save_page_comment(self, comment: Dict[str, Any], *, tenant_id: str = DEFAULT_TENANT_ID) -> Dict[str, Any]:
+        with self._tx(tenant_id) as conn:
+            row = conn.execute(
+                """
+                INSERT INTO page_comments
+                    (id, tenant_id, page_id, comment_id, post_id, parent_id, from_id, from_name, message, verb, created_time)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (tenant_id, comment_id) DO UPDATE SET
+                    page_id = EXCLUDED.page_id,
+                    post_id = COALESCE(EXCLUDED.post_id, page_comments.post_id),
+                    parent_id = COALESCE(EXCLUDED.parent_id, page_comments.parent_id),
+                    from_id = COALESCE(EXCLUDED.from_id, page_comments.from_id),
+                    from_name = COALESCE(EXCLUDED.from_name, page_comments.from_name),
+                    message = COALESCE(EXCLUDED.message, page_comments.message),
+                    verb = EXCLUDED.verb,
+                    created_time = COALESCE(EXCLUDED.created_time, page_comments.created_time)
+                RETURNING *
+                """,
+                (
+                    str(uuid4()),
+                    tenant_id,
+                    comment.get("page_id"),
+                    comment["comment_id"],
+                    comment.get("post_id"),
+                    comment.get("parent_id"),
+                    comment.get("from_id"),
+                    comment.get("from_name"),
+                    comment.get("message"),
+                    comment.get("verb") or "add",
+                    comment.get("created_time"),
+                ),
+            ).fetchone()
+        return _stringify(row)  # type: ignore[return-value]
+
+    def get_page_comment(self, comment_id: str, *, tenant_id: str = DEFAULT_TENANT_ID) -> Optional[Dict[str, Any]]:
+        with self._tx(tenant_id) as conn:
+            row = conn.execute(
+                "SELECT * FROM page_comments WHERE tenant_id = %s AND comment_id = %s", (tenant_id, comment_id)
+            ).fetchone()
+        return _stringify(row)
+
+    def list_page_comments(
+        self, *, tenant_id: str = DEFAULT_TENANT_ID, post_id: Optional[str] = None, limit: int = 100
+    ) -> List[Dict[str, Any]]:
+        sql = "SELECT * FROM page_comments WHERE tenant_id = %s"
+        params: List[Any] = [tenant_id]
+        if post_id is not None:
+            sql += " AND post_id = %s"
+            params.append(post_id)
+        sql += " ORDER BY COALESCE(created_time, created_at) DESC LIMIT %s"
+        params.append(limit)
+        with self._tx(tenant_id) as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [_stringify(r) for r in rows]  # type: ignore[misc]
+
     # ------------------------------------------------ campaigns/drafts/tasks
     @staticmethod
     def _payload(item: Any) -> Jsonb:

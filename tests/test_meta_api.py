@@ -266,3 +266,35 @@ def test_meta_traffic_goes_through_configured_proxy(monkeypatch, creds):
     assert [t for t in client._mounts.values() if t is not None], "expected proxy transports in proxy mode"
     monkeypatch.setenv("OUTBOUND_PROXY_URL", "")
     assert not [t for t in get_http_client()._mounts.values() if t is not None]
+
+
+# ------------------------------------------------------------- webhook subscription
+def _form(request: httpx.Request) -> dict:
+    return {k: v[0] for k, v in parse_qs(request.content.decode()).items()}
+
+
+def test_subscribe_page_webhooks_posts_feed_subscription(graph_stub):
+    graph_stub.add("POST", f"/{PAGE}/subscribed_apps", json={"success": True})
+    assert MetaAPIClient().subscribe_page_webhooks(PAGE, "PAGE_TOKEN") == {"success": True}
+    (request,) = graph_stub.requests_to("/subscribed_apps")
+    assert urlsplit(str(request.url)).path == f"/v23.0/{PAGE}/subscribed_apps"
+    assert _form(request) == {"subscribed_fields": "feed", "access_token": "PAGE_TOKEN"}
+
+
+def test_subscribe_page_webhooks_reports_graph_errors(graph_stub):
+    graph_stub.add("POST", "/subscribed_apps", status=403, json={
+        "error": {"message": "(#200) Requires pages_manage_metadata permission", "type": "OAuthException", "code": 200},
+    })
+    result = MetaAPIClient().subscribe_page_webhooks(PAGE, "PAGE_TOKEN")
+    assert result["success"] is False and result["code"] == 200
+    assert "pages_manage_metadata" in result["error"]
+
+
+def test_subscribe_page_webhooks_never_raises_on_transport_errors(graph_stub):
+    def boom(request):
+        raise httpx.ConnectTimeout("timed out", request=request)
+
+    graph_stub.add("POST", "/subscribed_apps", handler=boom)
+    result = MetaAPIClient().subscribe_page_webhooks(PAGE, "PAGE_TOKEN")
+    assert result["success"] is False and "ConnectTimeout" in result["error"]
+    assert "PAGE_TOKEN" not in str(result)
