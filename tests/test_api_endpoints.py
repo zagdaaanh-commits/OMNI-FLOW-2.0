@@ -31,7 +31,7 @@ def test_dashboard_and_cors():
 
     res_dash = client.get("/dashboard")
     assert res_dash.status_code == 200
-    assert "Campaign Analytics" in res_dash.text
+    assert "What campaign would you like to launch today?" in res_dash.text
 
     # Test CORS header
     res_cors = client.get("/health", headers={"Origin": "http://localhost:3000"})
@@ -339,7 +339,7 @@ def test_facebook_token_update_validation(graph_stub):
 
     # Valid page token
     graph_stub.routes.clear()
-    graph_stub.add("GET", "/1000000000001", json={"id": "1000000000001", "name": "Mai boovoo"})
+    graph_stub.add("GET", "/1000000000001", json={"id": "1000000000001", "name": "Example Shop Page"})
     res_ok = client.post("/tools/facebook/update-token", json={
         "access_token": "EAAB_valid_access_token_123",
         "page_id": "1000000000001"
@@ -347,8 +347,8 @@ def test_facebook_token_update_validation(graph_stub):
     assert res_ok.status_code == 200
     data = res_ok.json()
     assert data["success"] is True
-    assert data["page_name"] == "Mai boovoo"
-    assert "Connected to Mai boovoo" in data["confirmation_badge"]
+    assert data["page_name"] == "Example Shop Page"
+    assert "Connected to Example Shop Page" in data["confirmation_badge"]
 
 
 def test_publish_meta_photo_pipeline():
@@ -361,9 +361,9 @@ def test_publish_meta_photo_pipeline():
         "id": "1000000000001_1234567890",
         "photo_id": "1234567890",
         "post_url": "https://www.facebook.com/1000000000001_1234567890",
-        "confirmation_badge": "Published to Mai boovoo 🟢",
+        "confirmation_badge": "Published to Example Shop Page 🟢",
         "status_code": 200,
-        "message": "Published to Mai boovoo 🟢",
+        "message": "Published to Example Shop Page 🟢",
     }
     
     with patch("tools.meta_api.MetaAPIClient.has_facebook_credentials", return_value=True), \
@@ -381,7 +381,7 @@ def test_publish_meta_photo_pipeline():
         assert tasks[0]["status"] == "published"
         assert tasks[0]["post_url"] == "https://www.facebook.com/1000000000001_1234567890"
         assert tasks[0]["external_post_id"] == "1000000000001_1234567890"
-        assert "Published to Mai boovoo" in tasks[0]["confirmation_badge"]
+        assert "Published to Example Shop Page" in tasks[0]["confirmation_badge"]
         mock_photo.assert_called_once()
 
 
@@ -495,10 +495,15 @@ def test_publish_facebook_endpoint_raw_base64(graph_stub, monkeypatch):
 
 def test_public_config_agency_url(monkeypatch):
     monkeypatch.delenv("META_AGENCY_APPLY_URL", raising=False)
-    assert client.get("/config/public").json() == {"meta_agency_apply_url": None}
+    assert client.get("/config/public").json() == {"meta_agency_apply_url": None, "require_auth": False}
 
     monkeypatch.setenv("META_AGENCY_APPLY_URL", "javascript:alert(1)")
-    assert client.get("/config/public").json() == {"meta_agency_apply_url": None}
+    assert client.get("/config/public").json() == {"meta_agency_apply_url": None, "require_auth": False}
 
     monkeypatch.setenv("META_AGENCY_APPLY_URL", "https://agency.example.com/apply")
-    assert client.get("/config/public").json() == {"meta_agency_apply_url": "https://agency.example.com/apply"}
+    assert client.get("/config/public").json() == {"meta_agency_apply_url": "https://agency.example.com/apply", "require_auth": False}
+
+
+def test_public_config_reports_whether_sign_in_is_required(monkeypatch):
+    monkeypatch.setenv("REQUIRE_AUTH", "true")
+    assert client.get("/config/public").json()["require_auth"] is True

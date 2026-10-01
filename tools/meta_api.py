@@ -301,9 +301,9 @@ class MetaAPIClient:
                     "post_id": fb_id,
                     "external_post_id": fb_id,
                     "post_url": post_url,
-                    "confirmation_badge": "Published to Mai boovoo 🟢",
+                    "confirmation_badge": "Published to Facebook 🟢",
                     "status_code": 200,
-                    "message": "Published to Mai boovoo 🟢",
+                    "message": "Published to Facebook 🟢",
                     "raw": data,
                 }
             return self._failure(resp, data)
@@ -367,9 +367,9 @@ class MetaAPIClient:
                     "external_post_id": post_id,
                     "photo_id": str(photo_id) if photo_id is not None else None,
                     "post_url": post_url,
-                    "confirmation_badge": "Published to Mai boovoo 🟢",
+                    "confirmation_badge": "Published to Facebook 🟢",
                     "status_code": 200,
-                    "message": "Published to Mai boovoo 🟢",
+                    "message": "Published to Facebook 🟢",
                     "raw": data,
                 }
             return self._failure(resp, data)
@@ -388,6 +388,21 @@ class MetaAPIClient:
         data = _json(resp)
         if resp.status_code == 200 and data.get("id"):
             return {"success": True, "id": str(data["id"])}
+        return {"success": False, "status_code": resp.status_code, "error": parse_graph_error(data, resp.status_code, resp.text)}
+
+    # ------------------------------------------------------------ ad accounts
+    AD_ACCOUNT_FIELDS = "id,account_id,name,account_status,currency,timezone_name"
+
+    def get_ad_account(self, ad_account_id: str, access_token: str) -> Dict[str, Any]:
+        """GET ``/act_<id>`` with a (System User) token. Transport errors propagate to the caller.
+
+        Returns ``{"success": True, "account": {...}}`` or ``{"success": False, "status_code", "error"}``.
+        """
+        self._refresh_credentials()
+        resp = self._get(self._url(ad_account_id), params={"fields": self.AD_ACCOUNT_FIELDS, "access_token": access_token})
+        data = _json(resp)
+        if resp.status_code == 200 and data.get("id"):
+            return {"success": True, "account": data}
         return {"success": False, "status_code": resp.status_code, "error": parse_graph_error(data, resp.status_code, resp.text)}
 
     def subscribe_page_webhooks(self, page_id: str, page_token: str, fields: str = PAGE_WEBHOOK_FIELDS) -> Dict[str, Any]:

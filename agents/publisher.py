@@ -212,7 +212,7 @@ class PublisherAgent:
                     "id": post_id,
                     "external_post_id": post_id,
                     "post_url": res.get("post_url") or f"https://www.facebook.com/{post_id}",
-                    "confirmation_badge": res.get("confirmation_badge", "Published to Mai boovoo 🟢"),
+                    "confirmation_badge": res.get("confirmation_badge", "Published to Facebook 🟢"),
                     "status": "published_live",
                     "mode": "live_facebook",
                     "platform": "meta",

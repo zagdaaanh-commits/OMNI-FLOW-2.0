@@ -11,6 +11,7 @@ htmlcov/
 .ruff_cache/
 data/*.db
 data/*.db-*
+data/*.bak*
 playwright_state.json
 storage_state.json
 .DS_Store

@@ -433,6 +433,29 @@ class AgencyApplicationRequest(BaseModel):
         return value or None
 
 
+# --------------------------------------------------------- meta ad accounts
+class MetaAdAccountConnectRequest(BaseModel):
+    ad_account_id: str = Field(..., min_length=1, max_length=40, description="act_<digits> or just the digits")
+    access_token: str = Field(..., min_length=1, max_length=1000, description="System User or user access token")
+
+    @field_validator("ad_account_id")
+    @classmethod
+    def _ad_account_id(cls, value: str) -> str:
+        value = value.strip().lower()
+        digits = value[4:] if value.startswith("act_") else value
+        if not digits.isdigit():
+            raise ValueError("must look like act_1234567890")
+        return f"act_{digits}"
+
+    @field_validator("access_token")
+    @classmethod
+    def _access_token(cls, value: str) -> str:
+        value = value.strip()
+        if not value or any(ch.isspace() for ch in value):
+            raise ValueError("must be a single access token without spaces")
+        return value
+
+
 # ------------------------------------------------------------- meta comments
 class CommentReplyRequest(BaseModel):
     comment_id: str = Field(..., min_length=1, max_length=128)

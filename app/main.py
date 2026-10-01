@@ -21,7 +21,7 @@ from agents.assistant import ConversationalAssistant
 from agents.copywriter import CopywriterAgent
 from agents.planner import CampaignPlanner
 from agents.publisher import PublisherAgent
-from app.config import env_str, is_production, load_environment
+from app.config import env_bool, env_str, is_production, load_environment
 from app.dashboard import get_dashboard_html
 from app.routers.agency import router as agency_router
 from app.routers.comments import router as comments_router
@@ -50,6 +50,7 @@ from models.schemas import (
     ConnectAccountRequest,
     ContentDraft,
     ContentGenerateRequest,
+    MetaAdAccountConnectRequest,
     Platform,
     PublishLog,
     PublishRequest,
@@ -252,7 +253,7 @@ def public_config():
     apply_url = (os.getenv("META_AGENCY_APPLY_URL") or "").strip()
     if not apply_url.lower().startswith(("https://", "http://")):
         apply_url = ""
-    return {"meta_agency_apply_url": apply_url or None}
+    return {"meta_agency_apply_url": apply_url or None, "require_auth": env_bool("REQUIRE_AUTH", False)}
 
 
 @app.get("/health")
@@ -410,7 +411,7 @@ async def _publish_direct_photo(payload: PublishRequest, ctx: TenantContext) -> 
             published_at=datetime.now(timezone.utc),
             external_post_id=post_id,
             post_url=post_url,
-            confirmation_badge="Published to Mai boovoo 🟢",
+            confirmation_badge="Published to Facebook 🟢",
             logs=[PublishLog(message="Photo published to Facebook", data={"post_id": post_id})],
         )
         store.save_task(task_record)
@@ -418,7 +419,7 @@ async def _publish_direct_photo(payload: PublishRequest, ctx: TenantContext) -> 
             "success": True,
             "post_id": post_id,
             "post_url": post_url,
-            "confirmation_badge": "Published to Mai boovoo 🟢",
+            "confirmation_badge": "Published to Facebook 🟢",
             "status": "published",
         }
 
@@ -730,80 +731,58 @@ def _mask_secret(value: Optional[str]) -> Optional[str]:
 
 @app.get("/integrations/status")
 def get_integrations_status(ctx: TenantContext = Depends(get_tenant_context)):
-    """Real connectivity status for Meta (Facebook/Instagram), TikTok, X, etc."""
+    """Channel status for the caller's workspace.
+
+    A channel is "connected" only when the workspace has a saved account for it. The default
+    workspace may also use the process-wide Facebook Page from the environment; that one is
+    verified live against the Graph API. API keys in data/api_settings.json do not count.
+    """
     accounts = store.list_connected_accounts(None, tenant_id=ctx.tenant_id)
     acc_map: Dict[str, Dict[str, Any]] = {}
     for a in accounts:  # newest first
-        acc_map.setdefault(a["platform"], a)
+        if a.get("status", "connected") == "connected":
+            acc_map.setdefault(a["platform"], a)
     is_default = ctx.tenant_id == DEFAULT_TENANT_ID
-    settings = load_api_settings() if is_default else {}
 
-    meta_acc = acc_map.get("meta")
-    has_meta_env = is_default and bool(settings.get("meta_access_token") or os.getenv("META_ACCESS_TOKEN"))
-    ig_acc = acc_map.get("instagram")
-    has_ig_env = is_default and bool(os.getenv("META_IG_USER_ID") or has_meta_env)
-    tiktok_acc = acc_map.get("tiktok")
-    has_tiktok_env = is_default and bool(settings.get("tiktok_api_key") or os.getenv("TIKTOK_API_KEY"))
-    x_acc = acc_map.get("x")
-    has_x_env = is_default and bool(os.getenv("X_API_KEY") or os.getenv("TWITTER_API_KEY"))
+    def channel(platform: str, name: str, permissions: List[str], oauth_supported: bool) -> Dict[str, Any]:
+        acc = acc_map.get(platform)
+        return {
+            "platform": platform,
+            "name": name,
+            "status": "connected" if acc else "not_connected",
+            "account_name": acc["account_name"] if acc else None,
+            "account_id": acc["account_id"] if acc else None,
+            "masked_token": acc.get("masked_token") if acc else None,
+            "permissions": permissions,
+            "oauth_supported": oauth_supported,
+        }
+
+    meta = channel("meta", "Meta (Facebook Graph)", ["pages_manage_posts", "pages_read_engagement", "pages_manage_engagement"], True)
+    if meta["status"] != "connected" and is_default and publisher.meta.has_facebook_credentials():
+        live = publisher.meta.test_connection()
+        if live.get("connected"):
+            meta.update(
+                status="connected",
+                account_name=live.get("page_name") or "Facebook Page",
+                account_id=live.get("page_id"),
+                masked_token=_mask_secret(publisher.meta.access_token or publisher.meta.user_token),
+            )
+        else:
+            meta["error"] = live.get("error") or "Facebook Page could not be verified."
+
+    instagram = channel("instagram", "Instagram Professional", ["instagram_basic", "instagram_content_publish"], True)
+    ig_user_id = os.getenv("META_IG_USER_ID", "").strip()
+    if instagram["status"] != "connected" and is_default and ig_user_id and meta["status"] == "connected":
+        instagram.update(status="connected", account_name="Instagram", account_id=ig_user_id)
 
     return {
-        "meta": {
-            "platform": "meta",
-            "name": "Meta (Facebook Graph)",
-            "status": "connected" if (meta_acc or has_meta_env) else "not_connected",
-            "account_name": meta_acc["account_name"] if meta_acc else ("Facebook Page" if has_meta_env else None),
-            "account_id": meta_acc["account_id"] if meta_acc else ((os.getenv("FACEBOOK_PAGE_ID") or os.getenv("META_PAGE_ID") or None) if is_default else None),
-            "masked_token": (meta_acc.get("masked_token") if meta_acc else _mask_secret(settings.get("meta_access_token") or os.getenv("META_ACCESS_TOKEN"))) if (meta_acc or has_meta_env) else None,
-            "permissions": ["pages_manage_posts", "pages_read_engagement", "ads_management"],
-            "oauth_supported": True,
-        },
-        "instagram": {
-            "platform": "instagram",
-            "name": "Instagram Professional",
-            "status": "connected" if (ig_acc or has_ig_env) else "not_connected",
-            "account_name": ig_acc["account_name"] if ig_acc else ("Instagram Professional" if has_ig_env else None),
-            "account_id": ig_acc["account_id"] if ig_acc else ((os.getenv("META_IG_USER_ID") or None) if is_default else None),
-            "masked_token": (ig_acc.get("masked_token") if ig_acc else _mask_secret(os.getenv("META_ACCESS_TOKEN") or settings.get("meta_access_token"))) if (ig_acc or has_ig_env) else None,
-            "permissions": ["instagram_basic", "instagram_content_publish", "instagram_manage_insights"],
-            "oauth_supported": True,
-        },
-        "tiktok": {
-            "platform": "tiktok",
-            "name": "TikTok Commercial",
-            "status": "connected" if (tiktok_acc or has_tiktok_env) else "not_connected",
-            "account_name": tiktok_acc["account_name"] if tiktok_acc else ("TikTok" if has_tiktok_env else None),
-            "account_id": tiktok_acc["account_id"] if tiktok_acc else None,
-            "masked_token": (tiktok_acc.get("masked_token") if tiktok_acc else _mask_secret(settings.get("tiktok_api_key") or os.getenv("TIKTOK_API_KEY"))) if (tiktok_acc or has_tiktok_env) else None,
-            "permissions": ["video.upload", "video.publish", "user.info.stats"],
-            "oauth_supported": True,
-        },
-        "x": {
-            "platform": "x",
-            "name": "X Corp (Twitter API v2)",
-            "status": "connected" if (x_acc or has_x_env) else "not_connected",
-            "account_name": x_acc["account_name"] if x_acc else ("X" if has_x_env else None),
-            "account_id": x_acc["account_id"] if x_acc else None,
-            "masked_token": (x_acc.get("masked_token") if x_acc else _mask_secret(os.getenv("X_API_KEY") or os.getenv("TWITTER_API_KEY"))) if (x_acc or has_x_env) else None,
-            "permissions": ["tweet.read", "tweet.write", "users.read"],
-            "oauth_supported": True,
-        },
-        "xiaohongshu": {
-            "platform": "xiaohongshu",
-            "name": "Xiaohongshu (RED) Open Platform",
-            "status": "connected" if (acc_map.get("xiaohongshu") or bool(settings.get("xiaohongshu_api_key"))) else "not_connected",
-            "account_name": (acc_map.get("xiaohongshu") or {}).get("account_name"),
-            "account_id": (acc_map.get("xiaohongshu") or {}).get("account_id"),
-            "oauth_supported": False,
-        },
-        "wechat": {
-            "platform": "wechat",
-            "name": "WeChat Official Account",
-            "status": "connected" if (acc_map.get("wechat") or bool(settings.get("wechat_app_id"))) else "not_connected",
-            "account_name": (acc_map.get("wechat") or {}).get("account_name"),
-            "account_id": (acc_map.get("wechat") or {}).get("account_id") or settings.get("wechat_app_id") or None,
-            "oauth_supported": False,
-        },
+        "meta": meta,
+        "instagram": instagram,
+        "tiktok": channel("tiktok", "TikTok Commercial", ["video.upload", "video.publish"], True),
+        "x": channel("x", "X Corp (Twitter API v2)", ["tweet.read", "tweet.write"], True),
+        "xiaohongshu": channel("xiaohongshu", "Xiaohongshu (RED) Open Platform", [], False),
+        "wechat": channel("wechat", "WeChat Official Account", [], False),
+        "meta_ads": channel("meta_ads", "Meta Ad Account", ["ads_management", "ads_read"], False),
     }
 
 
@@ -962,5 +941,64 @@ def update_facebook_token(payload: FacebookTokenUpdatePayload, ctx: TenantContex
         "webhook_subscribed": webhook_subscribed,
         "confirmation_badge": f"Connected to {page_name} 🟢",
         "message": f"Successfully validated and updated Facebook token for '{page_name}' ({target_page}).",
+    }
+
+
+AD_ACCOUNT_STATUS_LABELS = {
+    1: "active",
+    2: "disabled",
+    3: "unsettled",
+    7: "pending_risk_review",
+    8: "pending_settlement",
+    9: "in_grace_period",
+    100: "pending_closure",
+    101: "closed",
+}
+
+
+@app.post("/tools/meta/ad-account/connect")
+def connect_meta_ad_account(payload: MetaAdAccountConnectRequest, ctx: TenantContext = Depends(get_tenant_context)):
+    """Verify an ad account + (System User) token against the Graph API, then save it as ``meta_ads``.
+
+    Stored separately from the Facebook Page connection: the process-wide Page settings and
+    ``.env`` are never modified here.
+    """
+    try:
+        result = MetaAPIClient().get_ad_account(payload.ad_account_id, payload.access_token)
+    except Exception as exc:  # noqa: BLE001 - transport failure
+        logger.warning("Ad account verification transport error: %s", type(exc).__name__)
+        raise HTTPException(status_code=502, detail="Could not reach Facebook. Please try again.") from exc
+
+    if not result["success"]:
+        error = result["error"]
+        status = result["status_code"]
+        raise HTTPException(
+            status_code=400 if 400 <= status < 500 else 502,
+            detail=f"Meta rejected the ad account or token: {error['message']}",
+        )
+
+    account = result["account"]
+    ad_account_id = str(account.get("id") or payload.ad_account_id)
+    name = str(account.get("name") or ad_account_id)
+    status_code = account.get("account_status")
+    store.save_connected_account(
+        user_id=ctx.user_id or "global",
+        platform="meta_ads",
+        account_id=ad_account_id,
+        account_name=name,
+        access_token=payload.access_token,
+        status="connected",
+        permissions=["ads_management", "ads_read"],
+        tenant_id=ctx.tenant_id,
+    )
+    return {
+        "success": True,
+        "connected": True,
+        "ad_account_id": ad_account_id,
+        "name": name,
+        "currency": account.get("currency"),
+        "timezone": account.get("timezone_name"),
+        "account_status": status_code,
+        "account_status_label": AD_ACCOUNT_STATUS_LABELS.get(status_code, "unknown"),
     }
 

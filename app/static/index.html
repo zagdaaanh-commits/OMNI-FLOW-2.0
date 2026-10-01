@@ -58,6 +58,24 @@
     }
   </script>
   <script>
+    // Same-origin API calls carry the signed-in user's token, so they act on that user's workspace.
+    (function () {
+      const nativeFetch = window.fetch.bind(window);
+      window.fetch = function (input, init) {
+        try {
+          const url = new URL(typeof input === 'string' ? input : input.url, window.location.href);
+          const token = localStorage.getItem('omniflow_auth_token');
+          if (token && url.origin === window.location.origin) {
+            init = Object.assign({}, init);
+            const headers = new Headers(init.headers || (typeof input === 'string' ? undefined : input.headers));
+            if (!headers.has('Authorization')) headers.set('Authorization', 'Bearer ' + token);
+            init.headers = headers;
+          }
+        } catch (_) {}
+        return nativeFetch(input, init);
+      };
+    })();
+
     // Early global bootstrap to prevent ReferenceErrors if handlers fire early
     const _win = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : this);
     _win.handleInputKey = function(event) {
@@ -79,9 +97,6 @@
     };
     _win.resetToNewChat = function() {
       if (typeof _win._resetChat === 'function') return _win._resetChat();
-    };
-    _win.triggerBoostMode = function() {
-      if (typeof _win._triggerBoostMode === 'function') return _win._triggerBoostMode();
     };
     _win.publishToFacebook = function(payload) {
       if (typeof _win._publishToFacebook === 'function') return _win._publishToFacebook(payload);
@@ -417,7 +432,7 @@
       <button onclick="openNewCampaignModal()" class="icon-btn !p-0.5" title="New campaign"><span class="material-symbols-outlined text-sm">add</span></button>
     </div>
     <div id="sidebarCampaignsList" class="space-y-0.5 flex-1 min-h-0 overflow-y-auto">
-      <div class="px-3 py-2 text-xs text-muted">No campaigns yet.</div>
+      <div class="p-4 text-xs text-zinc-500">No active campaigns yet</div>
     </div>
 
     <div class="pt-3 mt-3 border-t hairline space-y-1">
@@ -427,15 +442,15 @@
       </div>
       <div class="relative">
         <button onclick="toggleUserDropdown()" class="drawer-item">
-          <span id="sidebarUserInitials" class="w-7 h-7 rounded-full avatar flex items-center justify-center text-[11px] font-semibold"></span>
+          <span id="sidebarUserInitials" class="w-7 h-7 rounded-full avatar flex items-center justify-center text-[11px] font-semibold">M</span>
           <span class="flex-1 min-w-0 text-left">
-            <span id="sidebarUserName" class="block truncate text-ink text-xs font-medium">Not signed in</span>
+            <span id="sidebarUserName" class="block truncate text-ink text-xs font-medium">Merchant Workspace</span>
             <span id="sidebarUserRole" class="block truncate text-muted text-[11px]"></span>
           </span>
           <span class="material-symbols-outlined text-sm text-muted">unfold_more</span>
         </button>
         <div id="userDropdown" class="hidden menu absolute bottom-full left-0 mb-2 w-full">
-          <div class="px-3 py-2 border-b hairline"><div id="dropdownUserEmail" class="text-xs font-medium text-ink truncate">Not signed in</div><div id="dropdownUserCompany" class="text-[11px] text-muted truncate"></div></div>
+          <div class="px-3 py-2 border-b hairline"><div id="dropdownUserEmail" class="text-xs font-medium text-ink truncate">Merchant Workspace</div><div id="dropdownUserCompany" class="text-[11px] text-muted truncate"></div></div>
           <button onclick="openAuthModal('login')" class="menu-item"><span class="material-symbols-outlined text-base">login</span>Sign in</button>
           <button onclick="openAuthModal('register')" class="menu-item"><span class="material-symbols-outlined text-base">person_add</span>Create account</button>
           <button onclick="handleLogout()" class="menu-item text-rose-500"><span class="material-symbols-outlined text-base">logout</span>Sign out</button>
@@ -474,7 +489,7 @@
           <div id="channelsMenu" class="hidden menu absolute right-0 top-full mt-2 w-60 z-50">
             <button onclick="closeChannelsMenu(); openIntegrationsModal()" class="menu-item"><span class="material-symbols-outlined text-base">hub</span>已连接渠道 · Channels</button>
             <button onclick="closeChannelsMenu(); openFacebookTokenModal()" class="menu-item"><img src="/static/assets/logos/meta.svg" class="w-4 h-4" alt=""/><span id="headerFbBadge" class="truncate">Connect Meta</span></button>
-            <a href="/auth/facebook/login" class="menu-item"><span class="material-symbols-outlined text-base">login</span>Meta OAuth 授权</a>
+            <button onclick="closeChannelsMenu(); startMetaOAuth()" class="menu-item"><span class="material-symbols-outlined text-base">login</span>Meta OAuth 授权</button>
             <button onclick="closeChannelsMenu(); openSchedulesModal()" class="menu-item"><span class="material-symbols-outlined text-base">calendar_month</span>发布队列 · Schedule</button>
             <button onclick="closeChannelsMenu(); openNewCampaignModal()" class="menu-item"><span class="material-symbols-outlined text-base">add_circle</span>New campaign</button>
             <button onclick="closeChannelsMenu(); openMcpModal()" class="menu-item"><span class="material-symbols-outlined text-base">key</span>MCP & API keys</button>
@@ -548,6 +563,26 @@
   </main>
 
   <!-- ========================================================================= -->
+  <!-- META OAUTH NOT CONFIGURED NOTICE                                          -->
+  <!-- ========================================================================= -->
+  <div id="oauthNoticeModal" class="fixed inset-0 z-[60] hidden items-center justify-center p-4 modal-scrim" onclick="if (event.target === this) closeOAuthNotice()">
+    <div class="sheet w-full max-w-md" role="alertdialog" aria-labelledby="oauthNoticeTitle">
+      <div class="flex items-start gap-3">
+        <span class="w-10 h-10 shrink-0 rounded-xl surface-muted flex items-center justify-center"><span class="material-symbols-outlined text-xl text-muted">info</span></span>
+        <div class="min-w-0">
+          <h3 id="oauthNoticeTitle" class="text-base font-semibold text-ink">Facebook 授权暂不可用</h3>
+          <p class="text-sm text-ink mt-2 leading-relaxed">Meta App credentials not set in .env. Please use the 'System User Token' or Agency BM binding tab instead.</p>
+          <p class="text-xs text-muted mt-2 leading-relaxed">服务器尚未配置 META_APP_ID / META_APP_SECRET / META_REDIRECT_URI。请改用「已有企业账户绑定」中的 System User Token，或通过代理商 BM 绑定。</p>
+        </div>
+      </div>
+      <div class="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <button onclick="closeOAuthNotice()" class="secondary-btn">关闭</button>
+        <button onclick="closeOAuthNotice(); openMetaAccountModal('bind')" class="primary-btn">使用 System User Token</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
   <!-- META 企业广告账户快速开户 MODAL                                              -->
   <!-- ========================================================================= -->
   <div id="metaAccountModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 modal-scrim" onclick="if (event.target === this) closeMetaAccountModal()">
@@ -564,8 +599,8 @@
       </div>
 
       <div class="segmented mt-5">
-        <button id="metaTabApply" onclick="switchMetaAccountTab('apply')" class="seg-btn seg-active">申请开户</button>
-        <button id="metaTabBind" onclick="switchMetaAccountTab('bind')" class="seg-btn">已有账户？立即绑定授权</button>
+        <button id="metaTabApply" onclick="switchMetaAccountTab('apply')" class="seg-btn seg-active">申请绿色通道</button>
+        <button id="metaTabBind" onclick="switchMetaAccountTab('bind')" class="seg-btn">已有企业账户绑定</button>
       </div>
 
       <form id="metaPanelApply" class="mt-5 space-y-4" onsubmit="submitMetaAccountApplication(event)" novalidate>
@@ -610,11 +645,32 @@
         </p>
       </form>
 
-      <div id="metaPanelBind" class="mt-5 space-y-3 hidden">
-        <p class="text-xs text-muted leading-relaxed">已有 Meta 企业广告账户或 Facebook 主页？通过官方 OAuth 授权，OmniFlow 只会获取发布和读取所需的权限。</p>
-        <a href="/auth/facebook/login" class="primary-btn w-full"><img src="/static/assets/logos/meta.svg" class="w-4 h-4" alt=""/>使用 Facebook 授权连接</a>
-        <button onclick="closeMetaAccountModal(); openFacebookTokenModal()" class="secondary-btn w-full">使用 Page Access Token</button>
-      </div>
+      <form id="metaPanelBind" class="mt-5 space-y-4 hidden" onsubmit="submitAdAccountBinding(event)" novalidate>
+        <p class="text-xs text-muted leading-relaxed">已在代理商或 Business Manager 开通广告账户？填写广告账户 ID 与 System User Token，OmniFlow 会先通过 Meta Graph API 验证，再保存到当前工作区。</p>
+
+        <div id="adAccountFormError" class="form-alert hidden" role="alert"></div>
+
+        <div class="space-y-3">
+          <div>
+            <label for="adAccountId" class="field-label">广告账户 ID <span class="text-muted">Ad Account ID</span></label>
+            <input id="adAccountId" name="ad_account_id" type="text" maxlength="40" autocomplete="off" spellcheck="false" required class="field-input font-mono" placeholder="act_1234567890"/>
+            <p class="field-error hidden" data-error-for="ad_account_id"></p>
+          </div>
+          <div>
+            <label for="adAccountToken" class="field-label">System User Token <span class="text-muted">Business Manager → 系统用户</span></label>
+            <input id="adAccountToken" name="access_token" type="password" maxlength="1000" autocomplete="off" spellcheck="false" required class="field-input font-mono" placeholder="粘贴系统用户访问令牌"/>
+            <p class="field-error hidden" data-error-for="access_token"></p>
+          </div>
+        </div>
+
+        <button id="adAccountSubmitBtn" type="submit" class="primary-btn w-full">Connect &amp; Verify</button>
+
+        <div class="flex items-center gap-3 text-[11px] text-muted"><span class="flex-1 border-t hairline"></span>或连接 Facebook 主页<span class="flex-1 border-t hairline"></span></div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <button type="button" onclick="startMetaOAuth()" class="secondary-btn"><img src="/static/assets/logos/meta.svg" class="w-4 h-4" alt=""/>Facebook 授权</button>
+          <button type="button" onclick="closeMetaAccountModal(); openFacebookTokenModal()" class="secondary-btn">Page Access Token</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -1105,6 +1161,7 @@
       closeChannelsMenu();
       toggleSidebar(false);
       closeMetaAccountModal();
+      closeOAuthNotice();
     });
 
     // Composer sits centred on the empty stage and docks to the bottom once a
@@ -1139,11 +1196,17 @@
     // META 企业广告账户快速开户
     // =========================================================================
     // The optional agency website link (META_AGENCY_APPLY_URL) is shown under the form when configured.
+    let serverRequiresAuth = false;
+
     async function loadPublicConfig() {
       let url = null;
       try {
         const res = await fetch('/config/public', { cache: 'no-store' });
-        if (res.ok) url = (await res.json()).meta_agency_apply_url || null;
+        if (res.ok) {
+          const cfg = await res.json();
+          url = cfg.meta_agency_apply_url || null;
+          serverRequiresAuth = cfg.require_auth === true;
+        }
       } catch (_) {}
       const link = document.getElementById('metaApplyExternal');
       const wrap = document.getElementById('metaApplyExternalWrap');
@@ -1154,6 +1217,9 @@
     function openMetaAccountModal(tab = 'apply') {
       closeChannelsMenu();
       clearAgencyErrors();
+      const bindForm = document.getElementById('metaPanelBind');
+      ['ad_account_id', 'access_token'].forEach(f => setFormFieldError(bindForm, f, ''));
+      setFormAlert('adAccountFormError', '');
       switchMetaAccountTab(tab);
       const modal = document.getElementById('metaAccountModal');
       if (modal) modal.classList.add('open');
@@ -1174,6 +1240,119 @@
       const panelBind = document.getElementById('metaPanelBind');
       if (panelApply) panelApply.classList.toggle('hidden', !apply);
       if (panelBind) panelBind.classList.toggle('hidden', apply);
+    }
+
+    // Facebook OAuth: ask the server first so an unconfigured app shows guidance, not raw JSON.
+    async function startMetaOAuth() {
+      try {
+        const res = await fetch('/auth/facebook/login?format=json', { cache: 'no-store' });
+        if (res.status === 503) {
+          openOAuthNotice();
+          return;
+        }
+        let body = null;
+        try { body = await res.json(); } catch (_) {}
+        if (res.ok && body && body.authorization_url) {
+          window.location.href = body.authorization_url;
+          return;
+        }
+        showToast('Facebook 授权暂不可用：' + ((body && body.detail) || 'HTTP ' + res.status), false);
+      } catch (err) {
+        showToast('网络连接失败，请检查网络后重试。', false);
+      }
+    }
+
+    function openOAuthNotice() {
+      closeMetaAccountModal();
+      document.getElementById('oauthNoticeModal')?.classList.add('open');
+    }
+
+    function closeOAuthNotice() {
+      document.getElementById('oauthNoticeModal')?.classList.remove('open');
+    }
+
+    function setFormFieldError(form, field, message) {
+      if (!form) return;
+      const input = form.elements[field];
+      const slot = form.querySelector(`[data-error-for="${field}"]`);
+      if (input) {
+        input.classList.toggle('is-invalid', !!message);
+        input.setAttribute('aria-invalid', message ? 'true' : 'false');
+      }
+      if (slot) {
+        slot.textContent = message || '';
+        slot.classList.toggle('hidden', !message);
+      }
+    }
+
+    function setFormAlert(id, message) {
+      const box = document.getElementById(id);
+      if (!box) return;
+      box.textContent = message || '';
+      box.classList.toggle('hidden', !message);
+    }
+
+    async function submitAdAccountBinding(event) {
+      if (event) event.preventDefault();
+      const form = document.getElementById('metaPanelBind');
+      const button = document.getElementById('adAccountSubmitBtn');
+      if (!form || !button || button.disabled) return;
+      ['ad_account_id', 'access_token'].forEach(f => setFormFieldError(form, f, ''));
+      setFormAlert('adAccountFormError', '');
+
+      const adAccountId = form.elements.ad_account_id.value.trim();
+      const token = form.elements.access_token.value.trim();
+      let invalid = false;
+      if (!/^(act_)?\d+$/i.test(adAccountId)) {
+        setFormFieldError(form, 'ad_account_id', '请输入广告账户 ID，例如 act_1234567890');
+        invalid = true;
+      }
+      if (!token) {
+        setFormFieldError(form, 'access_token', '请粘贴 System User Token');
+        invalid = true;
+      }
+      if (invalid) {
+        form.querySelector('.is-invalid')?.focus();
+        return;
+      }
+
+      button.disabled = true;
+      button.textContent = '正在验证…';
+      try {
+        const res = await fetch('/tools/meta/ad-account/connect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ad_account_id: adAccountId, access_token: token }),
+        });
+        let body = null;
+        try { body = await res.json(); } catch (_) {}
+        if (res.ok && body && body.connected) {
+          form.reset();
+          closeMetaAccountModal();
+          const status = body.account_status_label && body.account_status_label !== 'active' ? `（状态：${body.account_status_label}）` : '';
+          showToast(`广告账户已验证并绑定：${body.name} · ${body.ad_account_id}${status}`, true, { variant: 'success', duration: 6000 });
+          return;
+        }
+        let message = `验证失败（HTTP ${res.status}）`;
+        if (res.status === 422 && Array.isArray(body?.detail)) {
+          body.detail.forEach(item => {
+            const field = Array.isArray(item.loc) ? item.loc[item.loc.length - 1] : null;
+            if (field === 'ad_account_id') setFormFieldError(form, field, '请输入广告账户 ID，例如 act_1234567890');
+            if (field === 'access_token') setFormFieldError(form, field, '令牌格式不正确，请完整粘贴一个令牌');
+          });
+          message = '请检查标红的字段后重试。';
+        } else if (typeof body?.detail === 'string') {
+          message = body.detail;
+        } else if (res.status === 401) {
+          message = '请先登录后再绑定广告账户。';
+        }
+        setFormAlert('adAccountFormError', message);
+      } catch (err) {
+        setFormAlert('adAccountFormError', '网络连接失败，请检查网络后重试。');
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Connect & Verify';
+      }
     }
 
     const AGENCY_FIELDS = ['company_name', 'credit_code', 'store_url', 'contact', 'remarks'];
@@ -1518,22 +1697,7 @@
       const thinkingId = appendThinkingIndicator();
       scrollToBottom();
 
-      const lower = text.toLowerCase();
-
-      // Check for standalone helper commands if no image attached
-      if (!currentImage) {
-        if (lower.startsWith('/boost') || lower === 'boost') {
-          removeThinkingIndicator(thinkingId);
-          await handleBoostIntent(text);
-          return;
-        } else if (lower === 'analyze' || lower === 'report' || lower === 'roas') {
-          removeThinkingIndicator(thinkingId);
-          await handleAnalyticsIntent();
-          return;
-        }
-      }
-
-      // 3. Invoke Dynamic Content Generation with Vision & glm-4-flash
+      // 3. Real copy generation (LLM, with the attached image when there is one)
       try {
         const payload = {
           prompt: text,
@@ -1576,178 +1740,123 @@
     }
 
     // =========================================================================
-    // DYNAMIC PREVIEW CARD RENDERING (USER REAL IMAGE + META & TIKTOK TABS)
+    // AI RESPONSE VIEW: only what /content/generate actually returned
     // =========================================================================
+    const PLATFORM_LABELS = { meta: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', x: 'X', xiaohongshu: '小红书', wechat: 'WeChat', douyin: '抖音' };
+
+    function normaliseGeneration(data) {
+      // /content/generate returns {copy, hashtags, drafts, image_base64} for prompts, or a bare list of drafts.
+      const drafts = Array.isArray(data) ? data : (Array.isArray(data?.drafts) ? data.drafts : []);
+      const list = drafts.map(d => ({
+        id: d.id || null,
+        platform: String(d.platform || 'meta').toLowerCase(),
+        body: d.body || '',
+        hashtags: Array.isArray(d.hashtags) ? d.hashtags : [],
+        cta: d.call_to_action || '',
+        meta: d.metadata || {},
+      })).filter(d => d.body);
+      if (!list.length && data && data.copy) {
+        const tags = Array.isArray(data.hashtags) ? data.hashtags : String(data.hashtags || '').split(/\s+/).filter(Boolean);
+        list.push({ id: data.draft_id || null, platform: 'meta', body: data.copy, hashtags: tags, cta: '', meta: {} });
+      }
+      return list;
+    }
+
+    function renderDraftBody(cardId, draft) {
+      const body = document.getElementById(`${cardId}-body`);
+      const tags = document.getElementById(`${cardId}-tags`);
+      const cta = document.getElementById(`${cardId}-cta`);
+      if (body) body.textContent = draft.body;
+      if (tags) {
+        tags.innerHTML = draft.hashtags.map(t => `<span class="px-2 py-0.5 rounded-full surface-muted text-[11px] text-muted">${escapeHtml(t.startsWith('#') ? t : '#' + t)}</span>`).join('');
+        tags.classList.toggle('hidden', !draft.hashtags.length);
+      }
+      if (cta) {
+        cta.textContent = draft.cta ? `CTA · ${draft.cta}` : '';
+        cta.classList.toggle('hidden', !draft.cta);
+      }
+    }
+
     function renderDynamicCreativeCard(userPrompt, data, userImageBase64) {
-      if (Array.isArray(data)) {
-        data = {
-          copy: data[0] ? data[0].body : '',
-          hashtags: data[0] ? data[0].hashtags : [],
-          drafts: data,
-          draft_id: data[0] ? data[0].id : null,
-          image_base64: data[0] ? data[0].image_base64 : null
-        };
+      const drafts = normaliseGeneration(data);
+      if (!drafts.length) {
+        appendAiErrorMessage('The AI did not return any copy. Please try a more specific prompt.');
+        return;
       }
       const cardId = 'card-' + Date.now();
+      const first = drafts[0];
+      const isFallback = first.meta && first.meta.status === 'fallback';
+      const model = first.meta && first.meta.model;
+      const image = userImageBase64 || (data && !Array.isArray(data) ? data.image_base64 : null) || null;
 
-      const copyText = data.copy || (data.drafts && data.drafts[0] ? data.drafts[0].body : (userPrompt || 'Modern Innovation'));
-      let hashtagsArr = [];
-      if (Array.isArray(data.hashtags)) {
-        hashtagsArr = data.hashtags;
-      } else if (typeof data.hashtags === 'string') {
-        hashtagsArr = data.hashtags.split(/\s+/).filter(t => t.length > 0);
-      } else if (data.drafts && data.drafts[0] && data.drafts[0].hashtags) {
-        hashtagsArr = data.drafts[0].hashtags;
-      }
-
-      const activeImage = userImageBase64 || data.image_base64 || '/static/assets/images/smart_device.jpg';
-
-      // Store in card state
       cachedDrafts[cardId] = {
         prompt: userPrompt,
-        copy: copyText,
-        hashtags: hashtagsArr,
-        image_base64: userImageBase64 || data.image_base64 || null,
-        active_image: activeImage,
-        draft_id: data.draft_id || (data.drafts && data.drafts[0] ? data.drafts[0].id : 'draft-1'),
-        currentPlatform: 'meta',
-        tiktokCopy: (data.drafts && data.drafts[1]) ? data.drafts[1].body : `🔥 Check this out! ${copyText}`
+        drafts,
+        copy: first.body,
+        hashtags: first.hashtags,
+        image_base64: image,
+        draft_id: first.id,
+        currentPlatform: first.platform,
       };
-      window.currentActiveCaption = copyText;
-      window.currentActiveImage = userImageBase64 || data.image_base64 || null;
+      window.currentActiveCaption = first.body;
+      window.currentActiveImage = image;
       window.currentActiveCardId = cardId;
       const previewEl = document.getElementById('previewCopy');
-      if (previewEl) previewEl.innerText = copyText;
+      if (previewEl) previewEl.innerText = first.body;
 
+      const source = isFallback
+        ? 'AI 暂不可用 · 模板草稿'
+        : (model ? `AI · ${escapeHtml(model)}` : 'AI');
+      const tabs = drafts.length > 1 ? `
+          <div class="segmented w-fit max-w-full overflow-x-auto">
+            ${drafts.map((d, idx) => `<button type="button" id="${cardId}-tab-${idx}" onclick="switchDynamicCardPlatform('${cardId}', ${idx})" class="seg-btn card-tab ${idx === 0 ? 'seg-active' : ''}">${escapeHtml(PLATFORM_LABELS[d.platform] || d.platform)}</button>`).join('')}
+          </div>` : '';
 
       const msgArea = document.getElementById('messagesContainer');
       const card = document.createElement('div');
       card.id = cardId;
-      card.className = 'space-y-4 animate-fade-in';
+      card.className = 'flex items-start gap-3 animate-fade-in';
       card.innerHTML = `
-        <div class="flex items-center gap-2 text-xs text-zinc-400">
-          <div class="w-6 h-6 rounded-lg bg-gradient-to-tr from-indigo-500 to-emerald-400 flex items-center justify-center text-white shadow-sm">
-            <span class="material-symbols-outlined text-sm">auto_awesome</span>
+        <img src="/static/assets/logos/omniflow_logo.svg" alt="" class="w-7 h-7 rounded-lg shrink-0 mt-0.5"/>
+        <div class="flex-1 min-w-0 space-y-3">
+          <div class="text-xs text-muted">OmniFlow <span class="mx-1">·</span>${source}</div>
+          ${isFallback ? `<div class="form-alert">AI 模型当前不可用，以下是模板生成的草稿，可能包含不准确的描述。发布前请务必修改。</div>` : ''}
+          ${tabs}
+          <div class="rounded-2xl border hairline p-4 space-y-3">
+            ${image ? `<img id="${cardId}-img" src="${image}" alt="Attached product image" class="max-h-64 rounded-xl object-contain"/>` : ''}
+            <div id="${cardId}-body" class="text-sm text-ink leading-relaxed whitespace-pre-line select-text"></div>
+            <div id="${cardId}-tags" class="flex flex-wrap gap-1.5"></div>
+            <div id="${cardId}-cta" class="text-xs text-muted"></div>
           </div>
-          <span class="text-white font-medium">OmniFlow 4.5 Vision</span>
-          <span>•</span>
-          <span class="text-emerald-400 font-mono text-[11px]">glm-4-flash · Dynamic Creative Synthesized</span>
-        </div>
-
-        <div class="glass-panel rounded-3xl p-6 space-y-5 border border-white/[0.08] shadow-2xl relative overflow-hidden bg-[#0D1017]/90">
-          <div>
-            <h3 class="text-base font-bold text-white flex items-center gap-2">
-              <span>Dynamic AI Creative Preview</span>
-              <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">User Asset Active 🟢</span>
-            </h3>
-            <p class="text-xs text-zinc-400 mt-1">Multi-modal tone synthesis adapted to your uploaded image and target audience.</p>
-          </div>
-
-          <!-- Segmented Platform Tabs (Meta & TikTok Priority) -->
-          <div class="flex items-center gap-1.5 p-1 bg-black/40 backdrop-blur-md rounded-2xl border border-white/5 w-fit overflow-x-auto max-w-full">
-            <button onclick="switchDynamicCardPlatform('${cardId}', 'meta')" id="${cardId}-tab-meta" class="card-tab px-4 py-1.5 rounded-xl bg-white/[0.14] text-white text-xs font-semibold shadow-sm flex items-center gap-2 transition">
-              <img src="/static/assets/logos/meta.svg" class="w-4 h-4 rounded-md"/><span>Meta Feed</span>
+          <div id="${cardId}-bannerArea" class="hidden"></div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button onclick="publishToFacebook('${cardId}')" id="publishBtn" class="primary-btn !h-9 !text-xs">
+              <span class="material-symbols-outlined text-base">send</span><span>发布到 Facebook</span>
             </button>
-            <button onclick="switchDynamicCardPlatform('${cardId}', 'tiktok')" id="${cardId}-tab-tiktok" class="card-tab px-4 py-1.5 rounded-xl text-zinc-400 hover:text-white text-xs font-medium flex items-center gap-2 transition">
-              <img src="/static/assets/logos/tiktok.svg" class="w-4 h-4 rounded-md"/><span>TikTok</span>
-            </button>
+            <button onclick="copyDraftText('${cardId}')" class="secondary-btn !h-9 !text-xs"><span class="material-symbols-outlined text-base">content_copy</span>复制</button>
+            <button onclick="regenerateCardDraft('${cardId}')" class="secondary-btn !h-9 !text-xs"><span class="material-symbols-outlined text-base">refresh</span>重新生成</button>
           </div>
-
-          <!-- Dynamic Mockup Display -->
-          <div class="grid grid-cols-1 md:grid-cols-12 gap-5 bg-black/50 p-5 rounded-2xl border border-white/[0.08]">
-            <!-- Creative Real Uploaded Thumbnail -->
-            <div class="md:col-span-5 relative group overflow-hidden rounded-2xl bg-zinc-900 aspect-square border border-white/10 flex items-center justify-center">
-              <img id="${cardId}-img" src="${activeImage}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"/>
-              <div class="absolute top-3 left-3 px-2 py-1 rounded-lg bg-black/70 backdrop-blur-md border border-white/10 text-[10px] font-mono text-emerald-300 flex items-center gap-1.5">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                <span>${userImageBase64 ? 'Live User Photo' : 'Asset Preview'}</span>
-              </div>
-            </div>
-
-            <!-- Generated Copy & Hashtags -->
-            <div class="md:col-span-7 flex flex-col justify-between space-y-4">
-              <div class="space-y-3">
-                <div class="flex items-center justify-between">
-                  <span id="${cardId}-channelLabel" class="px-2.5 py-1 rounded-lg bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 text-[11px] font-semibold uppercase flex items-center gap-1.5">
-                    <img src="/static/assets/logos/meta.svg" class="w-3.5 h-3.5"/> Meta Feed
-                  </span>
-                  <span class="text-[11px] text-zinc-400 font-mono">Vision Cohort #1</span>
-                </div>
-                <div id="${cardId}-body" class="text-xs text-zinc-200 leading-relaxed font-normal whitespace-pre-line max-h-56 overflow-y-auto pr-1 select-text">${escapeHtml(copyText)}</div>
-                <div id="${cardId}-tags" class="flex flex-wrap gap-1.5 pt-1">
-                  ${hashtagsArr.map(t => `<span class="px-2 py-0.5 rounded-full bg-white/[0.04] text-[11px] text-zinc-400 font-mono border border-white/5">${escapeHtml(t.startsWith('#') ? t : '#' + t)}</span>`).join('')}
-                </div>
-              </div>
-
-              <div class="pt-3 border-t border-white/[0.08] flex items-center justify-between text-xs text-zinc-400">
-                <span class="flex items-center gap-1 text-emerald-400 font-mono text-[11px]">
-                  <span class="material-symbols-outlined text-xs">auto_graph</span> Projected Conversion: 4.85%
-                </span>
-                <span id="${cardId}-ctaTitle" class="text-white font-medium">${escapeHtml(data.call_to_action || (data.drafts && data.drafts[0] && data.drafts[0].call_to_action) || 'Learn More')}</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Instant Visual Success Banner Area -->
-          <div id="${cardId}-bannerArea" class="hidden my-2"></div>
-
-          <!-- Real Facebook Dispatch Action Bar -->
-          <div class="pt-3 border-t border-white/[0.08] flex flex-wrap items-center justify-between gap-3">
-            <div class="flex items-center gap-2.5 flex-wrap">
-              <button onclick="publishToFacebook('${cardId}')" id="publishBtn" class="publish-fb-btn bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-6 rounded-xl shadow-lg cursor-pointer flex items-center gap-2 transition active:scale-95 text-xs">
-                <span class="material-symbols-outlined text-base font-bold">check_circle</span>
-                <span>Approve & Publish to Facebook</span>
-              </button>
-              <button onclick="regenerateCardDraft('${cardId}')" class="px-3.5 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.1] text-zinc-200 text-xs font-medium flex items-center gap-1.5 transition">
-                <span class="material-symbols-outlined text-sm">refresh</span>
-                <span>Regenerate</span>
-              </button>
-            </div>
-            <button onclick="copyDraftText('${cardId}')" class="px-3 py-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-zinc-400 hover:text-white text-xs transition flex items-center gap-1.5">
-              <span class="material-symbols-outlined text-sm">content_copy</span>
-              <span>Copy Copy</span>
-            </button>
-          </div>
-
         </div>
       `;
       msgArea.appendChild(card);
+      renderDraftBody(cardId, first);
       scrollToBottom();
     }
 
     function regenerateCardDraft(cardId) {
       const cardData = cachedDrafts[cardId];
-      const p = (cardData && cardData.prompt) ? cardData.prompt : 'product';
-      fillAndSend(`Regenerate copy with more urgency for ${p}`);
+      if (cardData && cardData.prompt) fillAndSend(cardData.prompt);
     }
 
-    function switchDynamicCardPlatform(cardId, platform) {
-      const card = document.getElementById(cardId);
-      if (!card) return;
-
-      const data = cachedDrafts[cardId] || {};
-      data.currentPlatform = platform;
-
-      card.querySelectorAll('.card-tab').forEach(t => {
-        t.classList.remove('bg-white/[0.14]', 'text-white', 'font-semibold');
-        t.classList.add('text-zinc-400');
-      });
-      const activeTab = document.getElementById(`${cardId}-tab-${platform}`);
-      if (activeTab) {
-        activeTab.classList.add('bg-white/[0.14]', 'text-white', 'font-semibold');
-        activeTab.classList.remove('text-zinc-400');
-      }
-
-      const channelLabel = document.getElementById(`${cardId}-channelLabel`);
-      const bodyEl = document.getElementById(`${cardId}-body`);
-
-      if (platform === 'tiktok') {
-        if (channelLabel) channelLabel.innerHTML = '<img src="/static/assets/logos/tiktok.svg" class="w-3.5 h-3.5"/> TikTok Viral';
-        if (bodyEl) bodyEl.textContent = data.tiktokCopy || data.copy;
-      } else {
-        if (channelLabel) channelLabel.innerHTML = '<img src="/static/assets/logos/meta.svg" class="w-3.5 h-3.5"/> Meta Feed';
-        if (bodyEl) bodyEl.textContent = data.copy;
-      }
+    function switchDynamicCardPlatform(cardId, index) {
+      const data = cachedDrafts[cardId];
+      if (!data || !data.drafts || !data.drafts[index]) return;
+      const draft = data.drafts[index];
+      data.currentPlatform = draft.platform;
+      data.copy = draft.body;
+      window.currentActiveCaption = draft.body;
+      document.querySelectorAll(`#${cardId} .card-tab`).forEach((tab, idx) => tab.classList.toggle('seg-active', idx === index));
+      renderDraftBody(cardId, draft);
     }
 
     // =========================================================================
@@ -1775,7 +1884,8 @@
         || (typeof event !== 'undefined' ? (event?.target?.closest?.('button') || event?.target) : (typeof window !== 'undefined' && window.event ? window.event.target : null));
 
       if (!connectedFacebookPageId) {
-        showToast('Connect a Facebook Page before publishing.', false);
+        showToast('请先连接 Facebook 主页后再发布。', false);
+        openMetaAccountModal('bind');
         return;
       }
 
@@ -1825,7 +1935,7 @@
         console.log("[PUBLISH RESULT]", data);
 
         if (res.ok && data.success) {
-          alert("Success! Published to Facebook.\nPost ID: " + data.post_id);
+          showToast('已发布到 Facebook', true, { variant: 'success' });
           if (btn) {
             btn.innerText = "Published to Facebook";
             if (btn.classList && typeof btn.classList.remove === 'function') {
@@ -1851,7 +1961,7 @@
             bannerArea.classList.remove('hidden');
           }
         } else {
-          alert("Publish Failed: " + (data.error || JSON.stringify(data)));
+          showToast('发布失败：' + (data.error || data.detail || ('HTTP ' + res.status)), false);
           if (btn) {
             btn.innerText = originalText;
             btn.disabled = false;
@@ -1859,7 +1969,7 @@
         }
       } catch (err) {
         console.error(err);
-        alert("Network error: " + err.message);
+        showToast('网络连接失败：' + err.message, false);
         if (btn) {
           btn.innerText = originalText;
           btn.disabled = false;
@@ -1879,7 +1989,7 @@
     function copyDraftText(cardId) {
       const body = document.getElementById(`${cardId}-body`).textContent;
       navigator.clipboard.writeText(body);
-      showToast('Copy text copied to clipboard!');
+      showToast('已复制到剪贴板');
     }
 
     // Append Campaign Card from AI creation
@@ -1964,7 +2074,7 @@
         const sidebarList = document.getElementById('sidebarCampaignsList');
         if (sidebarList) {
           if (campaigns.length === 0) {
-            sidebarList.innerHTML = '<div class="text-zinc-500 text-[11px] px-3 py-2">No active campaigns yet.</div>';
+            sidebarList.innerHTML = '<div class="p-4 text-xs text-zinc-500">No active campaigns yet</div>';
           } else {
             sidebarList.innerHTML = campaigns.map(c => `
               <div onclick="openCampaignDetailsModal('${c.id}')" class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-white hover:bg-white/[0.09] bg-white/[0.05] border border-white/5 shadow-sm cursor-pointer transition active:scale-[0.98]">
@@ -2185,244 +2295,6 @@
     async function handleCreateCampaignIntent(prompt) {
       openNewCampaignModal();
       document.getElementById('modalCampName').value = prompt.replace(/create|launch|campaign/gi, '').trim() || 'New Autonomous Launch';
-    }
-
-    function triggerQuickTool(tool) {
-      if (tool === 'analytics') {
-        document.getElementById('emptyHeroState').classList.add('hidden');
-        document.getElementById('messagesContainer').classList.remove('hidden');
-        appendUserMessage('Run growth audit and display Campaign Analytics report', null);
-        const tid = 'tid-' + Date.now();
-        appendThinkingIndicator(tid);
-        setTimeout(async () => {
-          removeThinkingIndicator(tid);
-          await handleAnalyticsIntent();
-          scrollToBottom();
-        }, 500);
-      }
-    }
-
-    async function handleAnalyticsIntent() {
-      try {
-        const res = await fetch('/analytics/report?period_days=30');
-        if (!res.ok) throw new Error('Analytics are unavailable until a live account is connected.');
-        const report = await res.json();
-        const msgArea = document.getElementById('messagesContainer');
-        if (!msgArea) return;
-
-        const card = document.createElement('div');
-        card.className = 'space-y-4 animate-fade-in';
-        const totals = report.totals || {};
-        const impressions = totals.impressions != null ? Number(totals.impressions).toLocaleString() : '—';
-        const clicks = totals.clicks != null ? Number(totals.clicks).toLocaleString() : '—';
-        const spend = totals.spend != null ? ('$' + Number(totals.spend).toLocaleString()) : '—';
-        const ctr = totals.ctr != null ? totals.ctr : '—';
-
-        card.innerHTML = `
-          <div class="flex items-center gap-2 text-xs text-zinc-400">
-            <div class="w-6 h-6 rounded-lg bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white">
-              <span class="material-symbols-outlined text-sm">analytics</span>
-            </div>
-            <span class="text-white font-medium">OmniFlow Analytics Agent</span>
-            <span>•</span>
-            <span class="text-indigo-400 font-mono text-[11px]">GET /analytics/report · Live Audit</span>
-          </div>
-
-          <div class="glass-panel rounded-3xl p-6 space-y-5 border border-white/[0.08] shadow-2xl bg-[#0D1017]/90">
-            <div class="flex items-center justify-between">
-              <div>
-                <h3 class="text-base font-bold text-white">Campaign Performance & ROI Audit</h3>
-                <p class="text-xs text-zinc-400 mt-0.5">Aggregated cross-platform intelligence (Past 30 Days)</p>
-              </div>
-              <span class="px-2.5 py-0.5 rounded-full text-xs font-mono bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">Live Data</span>
-            </div>
-
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-              <div class="p-3.5 rounded-2xl bg-black/40 border border-white/[0.08] space-y-1">
-                <span class="text-zinc-500 block text-[10px] uppercase font-medium">Total Impressions</span>
-                <span class="text-lg font-extrabold text-white font-mono">${impressions}</span>
-                <span class="text-[10px] text-zinc-500 font-mono block">Live data only</span>
-              </div>
-              <div class="p-3.5 rounded-2xl bg-black/40 border border-white/[0.08] space-y-1">
-                <span class="text-zinc-500 block text-[10px] uppercase font-medium">Total Clicks</span>
-                <span class="text-lg font-extrabold text-indigo-300 font-mono">${clicks}</span>
-                <span class="text-[10px] text-zinc-400 font-mono block">CTR: ${ctr}</span>
-              </div>
-              <div class="p-3.5 rounded-2xl bg-black/40 border border-white/[0.08] space-y-1">
-                <span class="text-zinc-500 block text-[10px] uppercase font-medium">Ad Spend</span>
-                <span class="text-lg font-extrabold text-amber-300 font-mono">${spend}</span>
-                <span class="text-[10px] text-zinc-400 font-mono block">Optimized</span>
-              </div>
-              <div class="p-3.5 rounded-2xl bg-black/40 border border-white/[0.08] space-y-1">
-                <span class="text-zinc-500 block text-[10px] uppercase font-medium">Avg ROAS</span>
-                <span class="text-lg font-extrabold text-emerald-400 font-mono">${totals.roas != null ? totals.roas : '—'}</span>
-                <span class="text-[10px] text-zinc-500 font-mono block">Live data only</span>
-              </div>
-            </div>
-
-            ${(report.recommendations && report.recommendations.length > 0) ? `
-              <div class="p-3.5 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2">
-                <span class="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
-                  <span class="material-symbols-outlined text-sm text-indigo-400">lightbulb</span>
-                  Strategic AI Recommendations:
-                </span>
-                <div class="space-y-1 text-xs text-zinc-400">
-                  ${report.recommendations.map(r => `
-                    <div class="flex items-start gap-2">
-                      <span class="material-symbols-outlined text-xs text-emerald-400 mt-0.5">check_circle</span>
-                      <span>${escapeHtml(r)}</span>
-                    </div>
-                  `).join('')}
-                </div>
-              </div>
-            ` : ''}
-          </div>
-        `;
-        msgArea.appendChild(card);
-        scrollToBottom();
-      } catch (err) {
-        showToast('Failed to load analytics: ' + err.message, false);
-      }
-    }
-
-    
-    // =========================================================================
-    // INTENT 4: AI /BOOST TURBO MODE (POST /boost & /campaign/boost)
-    // =========================================================================
-    function triggerBoostMode() {
-      document.getElementById('emptyHeroState').classList.add('hidden');
-      document.getElementById('messagesContainer').classList.remove('hidden');
-      appendUserMessage('/boost — Overclock multi-agent swarm performance', null);
-      const tid = 'tid-' + Date.now();
-      appendThinkingIndicator(tid);
-      setTimeout(async () => {
-        removeThinkingIndicator(tid);
-        await handleBoostIntent('/boost');
-        scrollToBottom();
-      }, 600);
-    }
-
-    async function handleBoostIntent(prompt) {
-      try {
-        const res = await fetch('/campaign/boost');
-        const data = await res.json();
-
-        const msgArea = document.getElementById('messagesContainer');
-        const card = document.createElement('div');
-        card.className = 'space-y-4 animate-fade-in';
-        card.innerHTML = `
-          <div class="flex items-center gap-2 text-xs text-zinc-400">
-            <div class="w-6 h-6 rounded-lg bg-gradient-to-tr from-amber-500 via-orange-500 to-indigo-500 flex items-center justify-center text-white shadow-md">
-              <span class="material-symbols-outlined text-sm font-bold">bolt</span>
-            </div>
-            <span class="text-white font-medium">OmniFlow Boost Engine</span>
-            <span>•</span>
-            <span class="text-amber-400 font-mono text-[11px]">POST /campaign/boost · OVERCLOCK ACTIVE</span>
-          </div>
-
-          <div class="glass-panel rounded-3xl p-6 space-y-5 border border-amber-500/20 shadow-2xl relative overflow-hidden group">
-            <!-- Ambient Card Backglow -->
-            <div class="absolute -right-20 -top-20 w-72 h-72 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
-
-            <!-- Master Boost Visual Graphic Banner -->
-            <div class="relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl group/banner cursor-pointer" onclick="openBoostModal()">
-              <img src="/static/assets/logos/omniflow_boost.svg" alt="OmniFlow /boost" class="w-full h-auto object-cover transform group-hover/banner:scale-[1.01] transition-transform duration-500"/>
-              <div class="absolute bottom-3 right-3 px-3 py-1 rounded-lg bg-black/70 backdrop-blur-md border border-white/10 text-[11px] font-mono text-amber-300 flex items-center gap-1.5 opacity-90 group-hover/banner:opacity-100 transition">
-                <span class="material-symbols-outlined text-xs">zoom_in</span>
-                <span>Click to Expand Artwork</span>
-              </div>
-            </div>
-
-            <!-- Telemetry Header -->
-            <div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-b border-white/[0.08] pb-4">
-              <div>
-                <h3 class="text-lg font-bold text-white flex items-center gap-2">
-                  <span>Campaign optimization</span>
-                  <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">Live data only</span>
-                </h3>
-                <p class="text-xs text-zinc-400 mt-1">Target Campaign: <span class="text-zinc-200 font-medium">${escapeHtml(data.campaign_name || 'Connected campaign')}</span></p>
-              </div>
-              <div class="flex items-center gap-2">
-                <span class="text-xs font-mono px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-bold">
-                  Target ROAS: ${data.boost_multiplier || '—'}
-                </span>
-                <span class="text-xs font-mono px-2.5 py-1 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
-                  Lift: ${data.lift_percentage || '—'}
-                </span>
-              </div>
-            </div>
-
-            <!-- 4-Stat Overclock Grid -->
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div class="p-3.5 rounded-2xl bg-black/40 border border-white/[0.08] space-y-1">
-                <div class="text-[11px] text-zinc-400">Boosted Reach</div>
-                <div class="text-lg font-extrabold text-white font-mono">${data.projected_reach || '—'}</div>
-                <div class="text-[10px] text-zinc-500">Live data only</div>
-              </div>
-              <div class="p-3.5 rounded-2xl bg-black/40 border border-white/[0.08] space-y-1">
-                <div class="text-[11px] text-zinc-400">Swarm Concurrency</div>
-                <div class="text-lg font-extrabold text-amber-300 font-mono">—</div>
-                <div class="text-[10px] text-zinc-500">Live data only</div>
-              </div>
-              <div class="p-3.5 rounded-2xl bg-black/40 border border-white/[0.08] space-y-1">
-                <div class="text-[11px] text-zinc-400">Target ROAS</div>
-                <div class="text-lg font-extrabold text-emerald-400 font-mono">${data.boost_multiplier || '—'}</div>
-                <div class="text-[10px] text-zinc-500">Live data only</div>
-              </div>
-              <div class="p-3.5 rounded-2xl bg-black/40 border border-white/[0.08] space-y-1">
-                <div class="text-[11px] text-zinc-400">Swarm Latency</div>
-                <div class="text-lg font-extrabold text-indigo-300 font-mono">—</div>
-                <div class="text-[10px] text-zinc-500">Live data only</div>
-              </div>
-            </div>
-
-            <!-- Active Optimization Callouts -->
-            <div class="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.06] space-y-2.5">
-              <div class="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
-                <span class="material-symbols-outlined text-sm text-amber-400">tune</span>
-                <span>Active Swarm Optimizations Dispatched:</span>
-              </div>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-zinc-400">
-                ${(data.optimizations || []).map(opt => `
-                  <div class="flex items-start gap-2 p-2 rounded-xl bg-white/[0.02] border border-white/5">
-                    <span class="material-symbols-outlined text-xs text-emerald-400 mt-0.5 shrink-0">check_circle</span>
-                    <span class="text-[11px] leading-relaxed">${escapeHtml(opt)}</span>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-
-            <!-- Action Bar -->
-            <div class="flex flex-wrap items-center justify-between gap-3 pt-2">
-              <div class="flex items-center gap-2">
-                <button onclick="showToast('Turbocharged dispatch triggered across 7 platform feeds!')" class="px-5 py-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-neutral-950 text-xs font-bold shadow-lg shadow-amber-500/20 flex items-center gap-2 transition active:scale-95">
-                  <span class="material-symbols-outlined text-base">rocket_launch</span>
-                  <span>Deploy Boost to All Channels</span>
-                </button>
-                <button onclick="fillAndSend('Generate viral video hooks for TikTok and Douyin under boost mode')" class="px-4 py-2 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white text-xs font-medium transition flex items-center gap-1.5">
-                  <span class="material-symbols-outlined text-sm text-indigo-400">auto_fix_high</span>
-                  <span>Synthesize Viral Hooks</span>
-                </button>
-              </div>
-              <button onclick="openBoostModal()" class="text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1 font-mono">
-                <span>View Full-Res Boost Graphic</span>
-                <span class="material-symbols-outlined text-sm">open_in_new</span>
-              </button>
-            </div>
-          </div>
-        `;
-        msgArea.appendChild(card);
-      } catch (err) {
-        showToast('Error executing boost mode: ' + err.message, false);
-      }
-    }
-
-    function openBoostModal() {
-      document.getElementById('boostModal').classList.remove('hidden');
-    }
-
-    function closeBoostModal() {
-      document.getElementById('boostModal').classList.add('hidden');
     }
 
     // =========================================================================
@@ -2671,41 +2543,55 @@
     // =========================================================================
     let authMode = 'login'; // 'login' or 'register'
 
+    // Only a real session shows a person; anonymous visitors work in the shared merchant workspace.
+    // (Anonymous /auth/me may return another account in development, so it is never displayed.)
     async function checkAuthSession() {
-      try {
-        let token = null;
+      let token = null;
+      try { token = localStorage.getItem('omniflow_auth_token'); } catch (_) {}
+      if (token) {
         try {
-          token = localStorage.getItem('omniflow_auth_token');
-        } catch (_) {}
-        const res = await fetch('/auth/me', {
-          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-        });
-        if (res.ok) {
-          currentUser = await res.json();
-          updateSidebarUserProfile(currentUser);
-          closeAuthModal();
-        } else if (res.status === 401) {
-          openAuthModal('login');
+          const res = await fetch('/auth/me');
+          if (res.ok) {
+            currentUser = await res.json();
+            updateSidebarUserProfile(currentUser);
+            closeAuthModal();
+            return;
+          }
+          if (res.status === 401) {
+            try { localStorage.removeItem('omniflow_auth_token'); } catch (_) {}
+          }
+        } catch (err) {
+          console.warn('Could not load session:', err);
         }
-      } catch (err) {
-        console.warn('Could not load session:', err);
       }
+      currentUser = null;
+      showMerchantWorkspace();
+      if (serverRequiresAuth) openAuthModal('login');
+    }
+
+    function showMerchantWorkspace() {
+      const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+      set('sidebarUserInitials', 'M');
+      set('sidebarUserName', 'Merchant Workspace');
+      set('sidebarUserRole', '');
+      set('dropdownUserEmail', 'Merchant Workspace');
+      set('dropdownUserCompany', '登录后同步您的账户');
     }
 
     function updateSidebarUserProfile(user) {
       if (!user) return;
       try {
-        const initials = (user.full_name || user.email || '?').split(/[\s@]+/).filter(Boolean).map(n => n[0]).join('').toUpperCase().slice(0, 2);
+        const initials = (user.full_name || user.email || 'M').split(/[\s@]+/).filter(Boolean).map(n => n[0]).join('').toUpperCase().slice(0, 2);
         const initEl = document.getElementById('sidebarUserInitials');
         if (initEl) initEl.textContent = initials;
         const nameEl = document.getElementById('sidebarUserName');
-        if (nameEl) nameEl.textContent = user.full_name || 'Your workspace';
+        if (nameEl) nameEl.textContent = user.full_name || 'Merchant Workspace';
         const roleEl = document.getElementById('sidebarUserRole');
         if (roleEl) roleEl.textContent = user.company || user.role || 'Merchant workspace';
         
         const emailEl = document.getElementById('dropdownUserEmail');
         const compEl = document.getElementById('dropdownUserCompany');
-        if (emailEl) emailEl.textContent = user.email || 'Workspace not signed in';
+        if (emailEl) emailEl.textContent = user.email || 'Merchant Workspace';
         if (compEl) compEl.textContent = user.role ? `Role: ${user.role}` : 'Connect an account to personalize';
       } catch (e) {
         console.warn('Error updating sidebar profile:', e);
@@ -2874,20 +2760,20 @@
         container.innerHTML = Object.entries(data).map(([key, item]) => {
           cachedPlatforms[key] = item;
           const isConn = item.status === 'connected';
+          const logo = key === 'meta_ads' ? 'meta.svg' : (key + '.svg');
+          const accountLine = isConn
+            ? [item.account_name, item.account_id].filter(Boolean).map(v => escapeHtml(v)).join(' · ')
+            : (item.error ? escapeHtml(item.error) : '未连接');
           return `
-            <div class="flex items-center justify-between p-3.5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-white/10 transition">
-              <div class="flex items-center gap-3">
-                <img src="/static/assets/logos/${key === 'instagram' ? 'instagram.svg' : (key + '.svg')}" class="w-8 h-8 rounded-xl shrink-0" onerror="this.src='/static/assets/logos/omniflow_logo.svg'"/>
-                <div>
-                  <div class="text-xs font-semibold text-white flex items-center gap-2">
+            <div class="flex items-center justify-between gap-3 p-3.5 rounded-2xl border hairline">
+              <div class="flex items-center gap-3 min-w-0">
+                <img src="/static/assets/logos/${logo}" alt="" class="w-8 h-8 rounded-xl shrink-0" onerror="this.src='/static/assets/logos/omniflow_logo.svg'"/>
+                <div class="min-w-0">
+                  <div class="text-xs font-semibold text-ink flex items-center gap-2 flex-wrap">
                     <span>${escapeHtml(item.name)}</span>
-                    <span class="text-[10px] px-2 py-0.2 rounded-full font-mono ${isConn ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-zinc-800 text-zinc-400'}">
-                      ${isConn ? 'Connected 🟢' : 'Not Connected'}
-                    </span>
+                    <span class="text-[10px] px-2 py-0.5 rounded-full ${isConn ? 'bg-emerald-500/15 text-emerald-600 border border-emerald-500/30' : 'surface-muted text-muted'}">${isConn ? 'Connected' : 'Not Connected'}</span>
                   </div>
-                  <div class="text-[11px] text-zinc-400 mt-0.5">
-                    ${isConn ? `Account: <span class="text-zinc-200 font-mono">${escapeHtml(item.account_name || item.account_id)}</span>` : 'Requires API Key / OAuth permission'}
-                  </div>
+                  <div class="text-[11px] text-muted mt-0.5 truncate">${accountLine}</div>
                 </div>
               </div>
               <div class="flex items-center gap-2">
@@ -2896,7 +2782,7 @@
                     Disconnect
                   </button>
                 ` : `
-                  <button onclick="promptConnectChannel('${key}')" class="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-medium shadow transition">
+                  <button onclick="connectChannel('${key}')" class="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-medium shadow transition">
                     Connect
                   </button>
                 `}
@@ -2907,6 +2793,16 @@
       } catch (err) {
         container.innerHTML = `<div class="text-rose-400 text-xs text-center py-4">Error loading integrations: ${err.message}</div>`;
       }
+    }
+
+    // Meta channels connect through OAuth / verified tokens, never the unverified generic form.
+    function connectChannel(platform) {
+      if (['meta', 'instagram', 'meta_ads'].includes(platform)) {
+        closeIntegrationsModal();
+        openMetaAccountModal('bind');
+        return;
+      }
+      promptConnectChannel(platform);
     }
 
     function promptConnectChannel(platform, platformName) {
@@ -2924,19 +2820,21 @@
           <span>Connect ${escapeHtml(name)}</span>
         `;
       }
-      const accNameEl = document.getElementById('connectAccountName');
-      if (accNameEl) accNameEl.value = `Official ${name} Brand`;
-      const accIdEl = document.getElementById('connectAccountId');
-      if (accIdEl) accIdEl.value = `${platform}-act-live`;
-      const accTokenEl = document.getElementById('connectAccessToken');
-      if (accTokenEl) accTokenEl.value = '';
+      ['connectAccountName', 'connectAccountId', 'connectAccessToken'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+      });
     }
 
     async function submitConnectChannel() {
       const platform = document.getElementById('connectPlatformKey').value;
-      const account_name = document.getElementById('connectAccountName').value.trim() || 'Brand Official';
-      const account_id = document.getElementById('connectAccountId').value.trim() || `${platform}-act`;
-      const access_token = document.getElementById('connectAccessToken').value.trim() || 'EAAB_live_token_mock';
+      const account_name = document.getElementById('connectAccountName').value.trim();
+      const account_id = document.getElementById('connectAccountId').value.trim();
+      const access_token = document.getElementById('connectAccessToken').value.trim();
+      if (!account_name || !account_id || !access_token) {
+        showToast('请填写账户名称、账户 ID 和访问令牌。', false);
+        return;
+      }
 
       try {
         const res = await fetch('/integrations/connect', {
@@ -2946,11 +2844,11 @@
         });
         const data = await res.json();
         if (res.ok) {
-          showToast(`Connected ${platform.toUpperCase()} account successfully!`);
+          showToast(`${platform.toUpperCase()} 账户已保存`, true, { variant: 'success' });
           document.getElementById('connectFormSheet').classList.add('hidden');
           loadIntegrationsStatus();
         } else {
-          showToast('Failed to connect channel', false);
+          showToast('保存失败：' + (typeof data.detail === 'string' ? data.detail : 'HTTP ' + res.status), false);
         }
       } catch (err) {
         showToast('Error connecting channel: ' + err.message, false);
@@ -2972,9 +2870,26 @@
       }
     }
 
+    // The chat stays pinned to the newest message while late layout (fonts, images) settles,
+    // unless the user has scrolled up to read earlier messages.
+    let stickToBottom = true;
+
     function scrollToBottom() {
       const el = document.getElementById('chatScrollArea');
+      stickToBottom = true;
       el.scrollTop = el.scrollHeight;
+    }
+
+    function keepChatPinned() {
+      const area = document.getElementById('chatScrollArea');
+      const msgs = document.getElementById('messagesContainer');
+      if (!area || !msgs || typeof ResizeObserver === 'undefined') return;
+      area.addEventListener('scroll', () => {
+        stickToBottom = area.scrollHeight - area.scrollTop - area.clientHeight < 80;
+      }, { passive: true });
+      new ResizeObserver(() => {
+        if (stickToBottom) area.scrollTop = area.scrollHeight;
+      }).observe(msgs);
     }
 
     function escapeHtml(str) {
@@ -3193,8 +3108,6 @@
     window.toggleSidebar = toggleSidebar;
     window.toggleTheme = toggleTheme;
     window.showToast = showToast;
-    window.openBoostModal = openBoostModal;
-    window.closeBoostModal = closeBoostModal;
     window.openNewCampaignModal = openNewCampaignModal;
     window.closeNewCampaignModal = closeNewCampaignModal;
     window.openMcpModal = openMcpModal;
@@ -3206,9 +3119,7 @@
     window.openCampaignDetailsModal = openCampaignDetailsModal;
     window.closeCampaignDetailsModal = closeCampaignDetailsModal;
     window.switchDynamicCardPlatform = switchDynamicCardPlatform;
-    window.triggerBoostMode = triggerBoostMode;
     window.triggerImmediatePublishAll = triggerImmediatePublishAll;
-    window.triggerQuickTool = triggerQuickTool;
     window.synthesizeDraftsForCampaign = synthesizeDraftsForCampaign;
     window.writeMoreForCurrentCampaign = writeMoreForCurrentCampaign;
     window.dispatchCampaignImmediate = dispatchCampaignImmediate;
@@ -3233,14 +3144,15 @@
     window.checkNetworkHealth = checkNetworkHealth;
 
     // Boot: stay on the empty workspace until a real account is connected
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
       initTheme();
       syncComposerPosition();
+      keepChatPinned();
       const hero = document.getElementById('emptyHeroState');
       if (hero) new MutationObserver(syncComposerPosition).observe(hero, { attributes: true, attributeFilter: ['class'] });
-      loadPublicConfig();
       renderMetaConnectionState(false);
-      checkAuthSession();
+      await loadPublicConfig();
+      await checkAuthSession();
       loadCampaigns();
       checkFacebookLiveStatus();
       checkNetworkHealth();
@@ -3260,51 +3172,6 @@
       }
     });
   </script>
-  <!-- ========================================================================= -->
-  <!-- 8. HIGH-RES OMNIFLOW /BOOST GRAPHIC LIGHTBOX MODAL                         -->
-  <!-- ========================================================================= -->
-  <div id="boostModal" class="fixed inset-0 bg-black/85 backdrop-blur-2xl z-50 hidden flex items-center justify-center p-4 md:p-8 animate-fade-in">
-    <div class="glass-panel max-w-5xl w-full rounded-3xl p-6 border border-white/15 shadow-2xl space-y-5 relative max-h-[90vh] overflow-y-auto">
-      <div class="flex items-center justify-between border-b border-white/10 pb-4">
-        <div class="flex items-center gap-3">
-          <img src="/static/assets/logos/omniflow_boost_icon.svg" class="w-8 h-8 rounded-xl shadow-lg"/>
-          <div>
-            <h3 class="text-lg font-bold text-white flex items-center gap-2">
-              <span>OmniFlow AI /boost Master Graphic</span>
-              <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">Vector 8K</span>
-            </h3>
-            <p class="text-xs text-zinc-400">Cross-Border Autonomous Marketing Engine · Multi-Agent Swarm Acceleration</p>
-          </div>
-        </div>
-        <button onclick="closeBoostModal()" class="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/10 transition">
-          <span class="material-symbols-outlined text-lg">close</span>
-        </button>
-      </div>
-
-      <!-- Large Image Display -->
-      <div class="rounded-2xl overflow-hidden border border-white/15 shadow-2xl bg-black">
-        <img src="/static/assets/logos/omniflow_boost.svg" alt="OmniFlow Boost Master Artwork" class="w-full h-auto"/>
-      </div>
-
-      <!-- Modal Footer -->
-      <div class="flex items-center justify-between pt-2 text-xs text-zinc-400">
-        <div class="flex items-center gap-3">
-          <span class="flex items-center gap-1.5"><img src="/static/assets/logos/meta.svg" class="w-3.5 h-3.5"/> Meta</span>
-          <span class="flex items-center gap-1.5"><img src="/static/assets/logos/tiktok.svg" class="w-3.5 h-3.5"/> TikTok</span>
-          <span class="flex items-center gap-1.5"><img src="/static/assets/logos/xiaohongshu.svg" class="w-3.5 h-3.5"/> RED</span>
-          <span class="flex items-center gap-1.5"><img src="/static/assets/logos/wechat.svg" class="w-3.5 h-3.5"/> WeChat</span>
-          <span class="flex items-center gap-1.5"><img src="/static/assets/logos/instagram.svg" class="w-3.5 h-3.5"/> Instagram</span>
-          <span class="flex items-center gap-1.5"><img src="/static/assets/logos/x.svg" class="w-3.5 h-3.5"/> X</span>
-        </div>
-        <a href="/static/assets/logos/omniflow_boost.svg" target="_blank" download="omniflow_boost_artwork.svg" class="px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white font-medium transition flex items-center gap-2">
-          <span class="material-symbols-outlined text-sm">download</span>
-          <span>Download SVG Vector</span>
-        </a>
-      </div>
-    </div>
-  </div>
-
-
   <!-- ========================================================================= -->
   <!-- 9. USER AUTHENTICATION MODAL (Sign In & Register)                         -->
   <!-- ========================================================================= -->
