@@ -73,6 +73,33 @@ Supabase provides daily backups; enable point-in-time recovery for production. R
 - The dashboard must send `Authorization: Bearer <token>` on every API call for tenant isolation to apply; anonymous calls use the shared `default` workspace. Set `REQUIRE_AUTH=true` once the dashboard sends tokens.
 - Process-wide settings endpoints (`/settings/apis`, default-workspace Facebook token) are restricted to the default workspace.
 
+## Plans and billing
+
+There is no free tier. Plans are defined in `app/plans.py`:
+
+| Plan | Price | Limits |
+| --- | --- | --- |
+| Pro Growth | ¥66/month or ¥666/year | 3 connected channels/Pages, 300 AI runs per 30-day cycle, 5 GB storage |
+| Agency VIP | ¥166/month or ¥1666/year | unlimited channels and AI runs, 50 GB storage, priority routing |
+
+- New workspaces start a Pro trial (`SUBSCRIPTION_TRIAL_DAYS`, default 7). Workspaces that existed before billing get the same trial when the migration runs. The `default` workspace is the house account (Agency VIP, no end date); keep `REQUIRE_AUTH=true` in production so nobody else can act as it.
+- After the trial or a paid period ends, AI generation and channel binding answer 402 and the dashboard opens the pricing page. Reading data, disconnecting channels and the 快速开户 form keep working.
+- AI runs are counted only when the model actually wrote copy; template drafts (AI unavailable) and failed calls are free. Storage sizes and priority routing are listed on the pricing page but not metered yet.
+
+Payment is manual for now:
+
+1. The merchant clicks "Upgrade to Pro" or "Contact VIP / Upgrade". The request is stored in `upgrade_requests`, POSTed to `LEAD_NOTIFICATION_WEBHOOK` (event `upgrade_request.created`, with the merchant's email), and the merchant sees the payment link for that plan and cycle if you set `BILLING_CHECKOUT_URL_<PLAN>_<CYCLE>`.
+2. Collect payment (WeChat Pay, Alipay, bank transfer, invoice).
+3. Activate it. Paying again before the end extends from the current end date:
+
+   ```bash
+   docker compose -p omniflow -f docker-compose.prod.yml run --rm --no-deps -e SCHEDULER_MODE=off app      python scripts/set_plan.py --email boss@shop.com --plan agency --cycle annual
+   ```
+
+   `--list` shows pending requests, `--show` a workspace's plan and usage, `--expire` ends access immediately.
+
+The tables (`subscriptions`, `usage_tracking`, `upgrade_requests`) and `increment_ai_runs()` come from `scripts/supabase_subscriptions.sql`, which `scripts/migrate.py` applies after `init_supabase.sql` on every deploy. Only the API can change a plan or usage: Supabase clients can at most read their own workspace's rows.
+
 ## File storage (business licenses, ad creatives)
 
 Uploads go to Supabase Storage. Without the two settings below, the API answers uploads with 503 and the 快速开户 form shows a note instead of the upload field.

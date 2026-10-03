@@ -21,7 +21,7 @@ import logging
 from contextlib import contextmanager
 from datetime import datetime
 from typing import Any, Dict, Iterator, List, Optional
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import psycopg
 from psycopg.rows import dict_row
@@ -284,6 +284,120 @@ class PostgresStore:
             ).fetchall()
         return [_stringify(r) for r in rows]  # type: ignore[misc]
 
+    # ------------------------------------------------- subscriptions & usage
+    # Tables and increment_ai_runs() come from scripts/supabase_subscriptions.sql.
+    def get_subscription(self, *, tenant_id: str = DEFAULT_TENANT_ID) -> Optional[Dict[str, Any]]:
+        with self._tx(tenant_id) as conn:
+            row = conn.execute("SELECT * FROM subscriptions WHERE tenant_id = %s", (tenant_id,)).fetchone()
+        return _stringify(row)
+
+    def ensure_subscription(
+        self, *, tenant_id: str, plan: str, billing_cycle: str, status: str, current_period_end: Optional[datetime]
+    ) -> Dict[str, Any]:
+        with self._tx(tenant_id) as conn:
+            conn.execute(
+                """
+                INSERT INTO subscriptions (tenant_id, plan, billing_cycle, status, current_period_end)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (tenant_id) DO NOTHING
+                """,
+                (tenant_id, plan, billing_cycle, status, current_period_end),
+            )
+            row = conn.execute("SELECT * FROM subscriptions WHERE tenant_id = %s", (tenant_id,)).fetchone()
+        return _stringify(row)  # type: ignore[return-value]
+
+    def save_subscription(
+        self, *, tenant_id: str, plan: str, billing_cycle: str, status: str, current_period_end: Optional[datetime]
+    ) -> Dict[str, Any]:
+        with self._tx(tenant_id) as conn:
+            row = conn.execute(
+                """
+                INSERT INTO subscriptions (tenant_id, plan, billing_cycle, status, current_period_end)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (tenant_id) DO UPDATE SET
+                    plan = EXCLUDED.plan, billing_cycle = EXCLUDED.billing_cycle, status = EXCLUDED.status,
+                    current_period_end = EXCLUDED.current_period_end
+                RETURNING *
+                """,
+                (tenant_id, plan, billing_cycle, status, current_period_end),
+            ).fetchone()
+        return _stringify(row)  # type: ignore[return-value]
+
+    def get_usage(self, *, tenant_id: str = DEFAULT_TENANT_ID) -> Optional[Dict[str, Any]]:
+        with self._tx(tenant_id) as conn:
+            row = conn.execute("SELECT * FROM usage_tracking WHERE tenant_id = %s", (tenant_id,)).fetchone()
+        return _stringify(row)
+
+    def save_usage(
+        self, *, tenant_id: str, ai_runs_count: int, cycle_start: datetime, cycle_end: datetime
+    ) -> Dict[str, Any]:
+        with self._tx(tenant_id) as conn:
+            row = conn.execute(
+                """
+                INSERT INTO usage_tracking (tenant_id, ai_runs_count, cycle_start, cycle_end)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (tenant_id) DO UPDATE SET
+                    ai_runs_count = EXCLUDED.ai_runs_count, cycle_start = EXCLUDED.cycle_start, cycle_end = EXCLUDED.cycle_end
+                RETURNING *
+                """,
+                (tenant_id, ai_runs_count, cycle_start, cycle_end),
+            ).fetchone()
+        return _stringify(row)  # type: ignore[return-value]
+
+    def increment_ai_runs(self, *, tenant_id: str, limit: Optional[int] = None) -> Optional[int]:
+        with self._tx(tenant_id) as conn:
+            row = conn.execute("SELECT increment_ai_runs(%s, %s) AS runs", (tenant_id, limit)).fetchone()
+        return None if row is None or row["runs"] is None else int(row["runs"])
+
+    def release_ai_run(self, *, tenant_id: str) -> None:
+        with self._tx(tenant_id) as conn:
+            conn.execute(
+                "UPDATE usage_tracking SET ai_runs_count = ai_runs_count - 1 "
+                "WHERE tenant_id = %s AND ai_runs_count > 0 AND now() <= cycle_end",
+                (tenant_id,),
+            )
+
+    def save_upgrade_request(self, request: Dict[str, Any], *, tenant_id: str) -> Dict[str, Any]:
+        with self._tx(tenant_id) as conn:
+            row = conn.execute(
+                """
+                INSERT INTO upgrade_requests (id, tenant_id, user_id, plan, billing_cycle, status)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING *
+                """,
+                (str(uuid4()), tenant_id, request.get("user_id"), request["plan"], request["billing_cycle"],
+                 request.get("status") or "pending"),
+            ).fetchone()
+        return _stringify(row)  # type: ignore[return-value]
+
+    def list_upgrade_requests(
+        self, *, tenant_id: str = DEFAULT_TENANT_ID, status: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        query = "SELECT * FROM upgrade_requests WHERE tenant_id = %s"
+        args: List[Any] = [tenant_id]
+        if status:
+            query += " AND status = %s"
+            args.append(status)
+        with self._tx(tenant_id) as conn:
+            rows = conn.execute(query + " ORDER BY created_at DESC", args).fetchall()
+        return [_stringify(r) for r in rows]  # type: ignore[misc]
+
+    def list_upgrade_requests_any_tenant(self, *, status: Optional[str] = "pending") -> List[Dict[str, Any]]:
+        query, args = "SELECT * FROM upgrade_requests", []
+        if status:
+            query, args = query + " WHERE status = %s", [status]
+        with self._tx(None) as conn:
+            rows = conn.execute(query + " ORDER BY created_at", args).fetchall()
+        return [_stringify(r) for r in rows]  # type: ignore[misc]
+
+    def set_upgrade_requests_status(self, status: str, *, tenant_id: str, from_status: str = "pending") -> int:
+        with self._tx(tenant_id) as conn:
+            cur = conn.execute(
+                "UPDATE upgrade_requests SET status = %s WHERE tenant_id = %s AND status = %s",
+                (status, tenant_id, from_status),
+            )
+            return cur.rowcount
+
     # -------------------------------------------------------- page comments
     def save_page_comment(self, comment: Dict[str, Any], *, tenant_id: str = DEFAULT_TENANT_ID) -> Dict[str, Any]:
         with self._tx(tenant_id) as conn:
@@ -539,5 +653,9 @@ def _stringify(row: Optional[dict]) -> Optional[Dict[str, Any]]:
         return None
     out: Dict[str, Any] = {}
     for key, value in row.items():
-        out[key] = value.isoformat() if isinstance(value, datetime) else value
+        if isinstance(value, datetime):
+            value = value.isoformat()
+        elif isinstance(value, UUID):
+            value = str(value)
+        out[key] = value
     return out

@@ -110,6 +110,12 @@ Open your browser at:
 - `POST /integrations/disconnect`: Disconnect an active account.
 - `GET /auth/oauth/meta/url`: Generate official Meta OAuth2 authorization URL.
 
+### Plans & Billing (Pro Growth / Agency VIP, no free tier)
+- `GET /api/billing/plans`: Public price list (¥66/¥666 Pro, ¥166/¥1666 Agency VIP).
+- `GET /api/billing/subscription`: The workspace's plan, status (trial / active / expired), limits and usage.
+- `POST /api/billing/upgrade-request`: Records an upgrade request for the operator; plans are activated after payment with `scripts/set_plan.py`.
+- AI generation (`/content/generate`, `/assistant/chat`) and channel binding are gated by `app/dependencies/limits.py`: 402 `SUBSCRIPTION_REQUIRED`, 403 `AI_LIMIT_REACHED` (Pro: 300 runs per 30 days) or 403 `CHANNEL_LIMIT_REACHED` (Pro: 3 channels).
+
 ### Agency Applications & File Storage (Supabase Storage)
 - `POST /api/upload/document`: Business license (PDF / PNG / JPG, ≤ 10 MB) into the private `agency-documents` bucket; returns its storage path and a 10-minute signed URL.
 - `POST /api/upload/creative`: Campaign image (PNG / JPG / WebP, ≤ 10 MB) into the public `ad-creatives` bucket; returns its public URL.

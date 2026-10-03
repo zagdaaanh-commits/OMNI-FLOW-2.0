@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 """Apply database migrations.
 
-* ``DATABASE_URL`` set to postgres://... -> runs ``scripts/init_supabase.sql`` in ONE
-  transaction (idempotent; safe on every deploy).
+* ``DATABASE_URL`` set to postgres://... -> runs ``scripts/init_supabase.sql`` and then
+  ``scripts/supabase_subscriptions.sql`` in ONE transaction (idempotent; safe on every deploy).
 * otherwise -> initialises / migrates the SQLite database at ``DATABASE_PATH``.
 
 Usage (project root, or /app inside Docker)::
 
     python scripts/migrate.py
-    python scripts/migrate.py --sql path/to/custom.sql
+    python scripts/migrate.py --sql path/to/custom.sql            # only that file
     python scripts/migrate.py --sql scripts/supabase_storage_setup.sql   # Supabase Storage (once)
 """
 from __future__ import annotations
@@ -26,18 +26,18 @@ from app.config import env_str, load_environment  # noqa: E402
 from db import is_postgres_url  # noqa: E402
 
 logger = logging.getLogger("omniflow.migrate")
-DEFAULT_SQL = PROJECT_ROOT / "scripts" / "init_supabase.sql"
+DEFAULT_SQL = [PROJECT_ROOT / "scripts" / "init_supabase.sql", PROJECT_ROOT / "scripts" / "supabase_subscriptions.sql"]
 
 
-def migrate_postgres(dsn: str, sql_path: Path) -> None:
+def migrate_postgres(dsn: str, sql_paths: list[Path]) -> None:
     import psycopg
 
-    sql = sql_path.read_text(encoding="utf-8")
-    logger.info("Applying %s to PostgreSQL ...", sql_path.name)
-    # autocommit=False + an explicit transaction: either the whole script applies or nothing does.
+    # autocommit=False + an explicit transaction: either every script applies or nothing does.
     with psycopg.connect(dsn, autocommit=False, prepare_threshold=None) as conn:
         with conn.cursor() as cur:
-            cur.execute(sql)  # simple-query protocol: multiple statements allowed
+            for sql_path in sql_paths:
+                logger.info("Applying %s to PostgreSQL ...", sql_path.name)
+                cur.execute(sql_path.read_text(encoding="utf-8"))  # simple-query protocol: many statements
         conn.commit()
     logger.info("PostgreSQL schema is up to date.")
 
@@ -52,7 +52,9 @@ def migrate_sqlite(path: str) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--sql", type=Path, default=DEFAULT_SQL, help="SQL file for PostgreSQL migrations")
+    parser.add_argument(
+        "--sql", type=Path, action="append", help="SQL file for PostgreSQL (repeatable; default: the schema + billing files)"
+    )
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -60,10 +62,12 @@ def main(argv: list[str] | None = None) -> int:
     dsn = env_str("DATABASE_URL")
     try:
         if dsn and is_postgres_url(dsn):
-            if not args.sql.is_file():
-                logger.error("SQL file not found: %s", args.sql)
+            sql_paths = args.sql or DEFAULT_SQL
+            missing = [str(p) for p in sql_paths if not p.is_file()]
+            if missing:
+                logger.error("SQL file not found: %s", ", ".join(missing))
                 return 2
-            migrate_postgres(dsn, args.sql)
+            migrate_postgres(dsn, sql_paths)
         else:
             migrate_sqlite(env_str("DATABASE_PATH", default="./data/marketing.db"))
     except Exception as exc:  # noqa: BLE001 - report and fail the deploy

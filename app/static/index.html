@@ -75,6 +75,8 @@
             init.headers = headers;
           }
         } catch (_) {}
+        let url = null;
+        try { url = new URL(typeof input === 'string' ? input : input.url, window.location.href); } catch (_) {}
         return nativeFetch(input, init).then((res) => {
           // A rejected session on an API call (not the sign-in calls themselves) re-opens sign-in.
           try {
@@ -82,6 +84,17 @@
             if (res.status === 401 && !path.startsWith('/auth/login') && !path.startsWith('/auth/register')
                 && typeof window.onApiUnauthorized === 'function') {
               window.onApiUnauthorized(path);
+            }
+            // Plan limits: 402 (subscription ended) and the plan codes of 403 open the pricing modal.
+            if ((res.status === 402 || res.status === 403) && url.origin === window.location.origin
+                && typeof window.onPlanLimit === 'function') {
+              res.clone().json().then((body) => {
+                const detail = body && body.detail;
+                const code = detail && typeof detail === 'object' ? detail.code : null;
+                if (res.status === 402 || ['SUBSCRIPTION_REQUIRED', 'AI_LIMIT_REACHED', 'CHANNEL_LIMIT_REACHED'].includes(code)) {
+                  window.onPlanLimit({ code: code || 'SUBSCRIPTION_REQUIRED', message: detail && detail.message });
+                }
+              }).catch(() => {});
             }
           } catch (_) {}
           return res;
@@ -406,6 +419,31 @@
     .upload-file.done .upload-icon { color: #16a34a; }
     a.upload-name[href]:hover { text-decoration: underline; text-underline-offset: 2px; }
 
+    /* ------------------------------------------------------------ pricing --- */
+    .plan-card {
+      position: relative; display: flex; flex-direction: column;
+      padding: 1.35rem; border-radius: 1.1rem;
+      border: 1px solid var(--border); background: var(--surface);
+    }
+    .plan-card-featured { border-color: var(--border-strong); box-shadow: 0 0 0 1px var(--border-strong), 0 12px 32px -18px rgba(99,102,241,0.55); }
+    .plan-badge {
+      position: absolute; top: -0.65rem; right: 1rem;
+      padding: 0.18rem 0.6rem; border-radius: 999px;
+      font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em;
+      background: linear-gradient(90deg, #6366f1, #a855f7); color: #fff;
+    }
+    .plan-price { font-size: 2.1rem; line-height: 1; font-weight: 700; letter-spacing: -0.03em; color: var(--ink); }
+    .plan-features { margin-top: 1rem; display: grid; gap: 0.45rem; align-content: start; }
+    .plan-features li { display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.8rem; line-height: 1.35; color: var(--ink); }
+    .plan-features .material-symbols-outlined { font-size: 1rem; color: #16a34a; margin-top: 0.05rem; }
+    .save-badge { margin-left: 0.35rem; padding: 0.05rem 0.4rem; border-radius: 999px; font-size: 0.62rem; font-weight: 600; background: rgba(34,197,94,0.14); color: #16a34a; white-space: nowrap; }
+    html.dark .save-badge, html.dark .plan-features .material-symbols-outlined { color: #4ade80; }
+    .plan-tag { padding: 0.08rem 0.45rem; border-radius: 999px; font-size: 0.64rem; font-weight: 600; border: 1px solid var(--border); color: var(--muted); background: var(--surface-muted); white-space: nowrap; }
+    .plan-tag.is-expired { color: #dc2626; border-color: rgba(239,68,68,0.35); background: rgba(239,68,68,0.08); }
+    html.dark .plan-tag.is-expired { color: #f87171; }
+    .form-note { padding: 0.75rem 0.85rem; border-radius: 0.75rem; font-size: 0.8rem; line-height: 1.5; color: #047857; background: #ecfdf5; border: 1px solid #a7f3d0; }
+    html.dark .form-note { color: #a7f3d0; background: #052e1f; border-color: rgba(52,211,153,0.35); }
+
     /* Green success toast (both themes). */
     #toast.toast-success { background: #ecfdf5 !important; border-color: #a7f3d0 !important; }
     #toast.toast-success #toastMsg, #toast.toast-success #toastIcon { color: #047857 !important; }
@@ -487,6 +525,10 @@
     </button>
 
     <div class="drawer-label" data-i18n="nav.workspace">Workspace</div>
+    <button onclick="toggleSidebar(false); openPricingModal()" class="drawer-item">
+      <span class="material-symbols-outlined text-base">workspace_premium</span><span class="flex-1" data-i18n="plan.menu">方案与账单</span>
+      <span id="drawerPlanTag" class="plan-tag hidden"></span>
+    </button>
     <button onclick="toggleSidebar(false); openIntegrationsModal()" class="drawer-item">
       <span class="material-symbols-outlined text-base">hub</span><span class="flex-1" data-i18n="nav.integrations">渠道与 API 接入</span>
       <span id="sidebarMetaDot" class="w-1.5 h-1.5 rounded-full bg-zinc-400" title="Meta connection" data-i18n-title="nav.metaConnection"></span>
@@ -570,6 +612,14 @@
               <div id="accountMenuEmail" class="text-xs font-medium text-ink truncate"></div>
               <div id="accountMenuName" class="text-[11px] text-muted truncate"></div>
             </div>
+            <div id="accountPlan" class="hidden px-3 py-2 border-b hairline">
+              <div class="flex items-center justify-between gap-2">
+                <span id="accountPlanName" class="text-xs font-medium text-ink truncate"></span>
+                <span id="accountPlanTag" class="plan-tag"></span>
+              </div>
+              <div id="accountPlanUsage" class="text-[11px] text-muted mt-1"></div>
+            </div>
+            <button onclick="closeAccountMenu(); openPricingModal()" class="menu-item" role="menuitem"><span class="material-symbols-outlined text-base">workspace_premium</span><span data-i18n="plan.upgrade">升级方案</span></button>
             <button onclick="handleLogout()" class="menu-item text-rose-500" role="menuitem"><span class="material-symbols-outlined text-base">logout</span><span data-i18n="nav.logout">Log out</span></button>
           </div>
         </div>
@@ -1267,6 +1317,51 @@
       'net.viaProxy': [' · 经代理', ' · via proxy'],
       'net.unreachable': ['无法访问', 'unreachable'],
       'net.zhipu': ['智谱 AI', 'Zhipu AI'],
+
+      'plan.menu': ['方案与账单', 'Plan & billing'],
+      'plan.upgrade': ['升级方案', 'Upgrade plan'],
+      'plan.trialLeft': ['试用 · 剩余 {n} 天', 'Trial · {n} days left'],
+      'plan.trialEndsToday': ['试用 · 今天到期', 'Trial · ends today'],
+      'plan.active': ['已开通', 'Active'],
+      'plan.activeUntil': ['有效期至 {date}', 'Renews {date}'],
+      'plan.expired': ['已到期', 'Expired'],
+      'plan.usage': ['AI 文案 {ai} · 渠道 {channels}', 'AI copy {ai} · Channels {channels}'],
+      'plan.unlimited': ['不限', 'unlimited'],
+      'plan.chatHint': ['升级或续费方案后即可继续生成。', 'Upgrade or renew your plan to keep generating.'],
+      'plan.required': ['订阅已到期或尚未开通，请选择方案后继续使用。', 'Your subscription has ended. Choose a plan to continue.'],
+      'plan.aiLimit': ['Pro 本周期 AI 额度（300/300）已用完，升级 VIP 即可不限量使用。', 'Pro monthly AI quota (300/300) reached. Upgrade to VIP.'],
+      'plan.channelLimit': ['Pro 最多连接 3 个渠道，升级 VIP 即可不限渠道。', 'Pro channel cap (3 max) reached. Upgrade to VIP.'],
+      'price.title': ['选择你的方案', 'Choose your plan'],
+      'price.subtitle': ['两档付费方案，随时升级。价格以人民币计。', 'Two paid plans, upgrade any time. Prices in CNY.'],
+      'price.monthly': ['月付', 'Monthly'],
+      'price.annual': ['年付', 'Annual'],
+      'price.save': ['省 16% · 送 2 个月', 'Save 16% / 2 Months Free'],
+      'price.perMonth': ['/月', '/mo'],
+      'price.perYear': ['/年', '/yr'],
+      'price.equivMonthly': ['约 ¥{amount}/月 · 每年省 ¥{saved}', '≈ ¥{amount}/mo · save ¥{saved} a year'],
+      'price.recommended': ['推荐', 'RECOMMENDED'],
+      'price.current': ['当前方案', 'Current plan'],
+      'price.pro.tagline': ['适合成长中的跨境店铺', 'For growing cross-border stores'],
+      'price.vip.tagline': ['适合代运营团队与多品牌卖家', 'For agencies and multi-brand sellers'],
+      'price.pro.channels': ['最多 3 个广告渠道 / 主页', 'Up to 3 connected ad channels / Pages'],
+      'price.pro.ai': ['每周期 300 次 AI 文案生成', '300 AI copy generations per cycle'],
+      'price.pro.storage': ['5GB 文件存储', '5GB document storage'],
+      'price.vip.channels': ['不限广告渠道 / 主页', 'Unlimited connected channels'],
+      'price.vip.ai': ['不限 AI 文案生成', 'Unlimited AI generations'],
+      'price.vip.storage': ['50GB 文件存储', '50GB storage'],
+      'price.vip.priority': ['优先处理通道', 'Priority routing'],
+      'price.upgradePro': ['升级到 Pro', 'Upgrade to Pro'],
+      'price.upgradeAgency': ['联系开通 VIP / 升级', 'Contact VIP / Upgrade'],
+      'price.sending': ['提交中…', 'Sending…'],
+      'price.pay': ['前往付款 ↗', 'Pay now ↗'],
+      'price.note': ['提交后我们会在 1 个工作日内联系你完成付款，付款确认后立即开通。', "After you submit, we'll contact you within 1 business day to complete payment; the plan is activated as soon as payment is confirmed."],
+      'price.received': ['已收到 {plan}（{cycle}，¥{price}）开通申请，我们会尽快联系你完成付款。', "We've received your {plan} request ({cycle}, ¥{price}) and will contact you shortly to complete payment."],
+      'price.pending': ['已提交 {plan}（{cycle}）开通申请，等待付款开通。', 'Your {plan} request ({cycle}) is waiting for payment.'],
+      'price.failed': ['提交失败，请稍后重试。', 'Could not send the request. Please try again.'],
+      'price.signIn': ['请先登录后再升级。', 'Please sign in to upgrade.'],
+      'oauth.connected': ['已连接 {n} 个 Facebook 主页', 'Connected {n} Facebook Page(s)'],
+      'oauth.partial': ['已连接 {n} 个 Facebook 主页，其余超出 Pro 渠道上限。', 'Connected {n} Facebook Page(s); the rest exceed the Pro channel cap.'],
+      'oauth.failed': ['Facebook 授权未完成，请重试。', "Facebook authorization didn't complete. Please try again."],
     };
 
     let currentLang = (() => {
@@ -1336,6 +1431,8 @@
       });
       document.querySelectorAll('[data-lang-opt]').forEach(el => el.classList.toggle('active', el.dataset.langOpt === currentLang));
       renderNetworkHealth();
+      renderPlanSummary();
+      renderPricing();
     }
 
     function toggleLanguage() {
@@ -1432,6 +1529,7 @@
       closeMetaAccountModal();
       closeIntegrationsModal();
       closeOAuthNotice();
+      closePricingModal();
       closeAuthModal();
     });
 
@@ -1512,6 +1610,7 @@
           window.location.href = body.authorization_url;
           return;
         }
+        if (planErrorMessage(body)) return;  // the pricing modal explains it
         showToast(msg('oauth.unavailable', { detail: (body && body.detail) || 'HTTP ' + res.status }), false);
       } catch (err) {
         showToast(msg('common.network'), false);
@@ -1597,6 +1696,8 @@
             if (field === 'access_token') setFormFieldError(form, field, msg('int.adTokenFormat'));
           });
           message = msg('common.fixFields');
+        } else if (planErrorMessage(body)) {
+          message = planErrorMessage(body);
         } else if (typeof body?.detail === 'string') {
           message = body.detail;
         } else if (res.status === 401) {
@@ -2020,7 +2121,7 @@
       document.querySelectorAll('.thinking-indicator').forEach(el => el.remove());
     }
 
-    function appendAiErrorMessage(text) {
+    function appendAiErrorMessage(text, hintKey = 'chat.errorHint') {
       const hero = document.getElementById('emptyHeroState');
       if (hero) hero.classList.add('hidden');
       const msgArea = document.getElementById('messagesContainer');
@@ -2040,7 +2141,7 @@
         </div>
         <div class="glass-panel p-4 rounded-2xl border border-rose-500/25 bg-rose-950/20 text-rose-200 text-xs leading-relaxed max-w-xl">
           <p class="font-medium">${msgHtml(text)}</p>
-          <p class="text-[11px] text-zinc-400 mt-1">${i18nSpan('chat.errorHint')}</p>
+          <p class="text-[11px] text-zinc-400 mt-1">${i18nSpan(hintKey)}</p>
         </div>
       `;
       msgArea.appendChild(errCard);
@@ -2126,13 +2227,20 @@
           renderDynamicCreativeCard(text, data, currentImage);
         } else {
           let errDetail = msg('chat.genFailed', { status: res.status });
+          let planLimited = false;
           try {
             const errJson = await res.json();
-            if (errJson && errJson.detail) errDetail = errJson.detail;
+            const planMessage = planErrorMessage(errJson);
+            if (planMessage) {
+              errDetail = planMessage;
+              planLimited = true;
+            } else if (errJson && typeof errJson.detail === 'string') {
+              errDetail = errJson.detail;
+            }
           } catch (_) {}
           console.error('submitChat generation failure:', errDetail);
-          appendAiErrorMessage(errDetail);
-          showToast(errDetail, false);
+          appendAiErrorMessage(errDetail, planLimited ? 'plan.chatHint' : undefined);
+          if (!planLimited) showToast(errDetail, false);  // plan limits already show a toast + the pricing modal
         }
       } catch (err) {
         console.error('submitChat network error:', err);
@@ -2919,6 +3027,8 @@
     function startWorkspace() {
       loadCampaigns();
       checkFacebookLiveStatus();
+      loadSubscription();
+      handleMetaReturn();
     }
 
     function updateSidebarUserProfile(user) {
@@ -3044,6 +3154,8 @@
       cachedCampaigns = {};
       cachedPlatforms = {};
       integrationStatus = {};
+      currentSubscription = null;
+      renderPlanSummary();
       clearAgencyLicense();
       resetToNewChat();
       const list = document.getElementById('sidebarCampaignsList');
@@ -3193,6 +3305,8 @@
             if (target && form.elements[target]) setFormFieldError(form, target, msg('common.badFormat'));
           });
           message = msg('common.fixFields');
+        } else if (planErrorMessage(body)) {
+          message = planErrorMessage(body);
         } else if (typeof body?.detail === 'string') {
           message = body.detail;
         }
@@ -3354,6 +3468,207 @@
       if (dot) dot.className = connected ? 'w-1.5 h-1.5 rounded-full bg-emerald-500' : 'w-1.5 h-1.5 rounded-full bg-zinc-400';
     }
 
+
+    // =========================================================================
+    // PLANS: Pro Growth / Agency VIP (no free tier). Limits are enforced by the API;
+    // 402 / 403 plan errors reach window.onPlanLimit through the fetch wrapper.
+    // =========================================================================
+    const PLAN_ERROR_KEYS = { SUBSCRIPTION_REQUIRED: 'plan.required', AI_LIMIT_REACHED: 'plan.aiLimit', CHANNEL_LIMIT_REACHED: 'plan.channelLimit' };
+    const PLAN_NAMES = { pro: 'Pro Growth', agency: 'Agency VIP' };
+    let planCatalog = { pro: { monthly: 66, annual: 666 }, agency: { monthly: 166, annual: 1666 } };
+    let billingCycle = 'monthly';
+    let currentSubscription = null;
+    let pricingReason = null;
+
+    // A localized message for a plan error response body ({detail: {code, message}}), else null.
+    function planErrorMessage(body) {
+      const code = body && body.detail && typeof body.detail === 'object' ? body.detail.code : null;
+      return PLAN_ERROR_KEYS[code] ? msg(PLAN_ERROR_KEYS[code]) : null;
+    }
+
+    window.onPlanLimit = function (detail, options = {}) {
+      if (authGateOpen) return;
+      const key = PLAN_ERROR_KEYS[detail && detail.code] || 'plan.required';
+      if (!options.silent) showToast(msg(key), false, { duration: 6000 });
+      openPricingModal(key);
+      loadSubscription();
+    };
+
+    async function loadPlanCatalog() {
+      try {
+        const res = await fetch('/api/billing/plans', { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        (data.plans || []).forEach(plan => { if (plan && plan.id && plan.prices) planCatalog[plan.id] = plan.prices; });
+        renderPricing();
+      } catch (_) {}
+    }
+
+    async function loadSubscription() {
+      try {
+        const res = await fetch('/api/billing/subscription', { cache: 'no-store' });
+        if (!res.ok) return;
+        currentSubscription = await res.json();
+      } catch (_) {
+        return;
+      }
+      renderPlanSummary();
+      renderPricing();
+    }
+
+    function planStatusText(sub) {
+      if (!sub) return '';
+      if (sub.status === 'expired') return t('plan.expired');
+      if (sub.status === 'trial') return sub.days_left > 0 ? t('plan.trialLeft', { n: sub.days_left }) : t('plan.trialEndsToday');
+      if (sub.current_period_end) {
+        const date = new Date(sub.current_period_end).toLocaleDateString(currentLang === 'en' ? 'en' : 'zh-CN');
+        return t('plan.activeUntil', { date });
+      }
+      return t('plan.active');
+    }
+
+    function renderPlanSummary() {
+      const sub = currentSubscription;
+      const box = document.getElementById('accountPlan');
+      const drawerTag = document.getElementById('drawerPlanTag');
+      if (box) box.classList.toggle('hidden', !sub);
+      if (drawerTag) drawerTag.classList.toggle('hidden', !sub);
+      if (!sub) return;
+      const expired = sub.status === 'expired';
+      const limit = (n) => (n == null ? t('plan.unlimited') : n);
+      document.getElementById('accountPlanName').textContent = PLAN_NAMES[sub.plan] || sub.plan_name || sub.plan;
+      const tag = document.getElementById('accountPlanTag');
+      tag.textContent = planStatusText(sub);
+      tag.classList.toggle('is-expired', expired);
+      document.getElementById('accountPlanUsage').textContent = t('plan.usage', {
+        ai: sub.limits.ai_runs == null ? sub.usage.ai_runs : `${sub.usage.ai_runs}/${sub.limits.ai_runs}`,
+        channels: sub.limits.channels == null ? `${sub.usage.channels} · ${limit(null)}` : `${sub.usage.channels}/${sub.limits.channels}`,
+      });
+      if (drawerTag) {
+        drawerTag.textContent = expired ? t('plan.expired') : (PLAN_NAMES[sub.plan] || '').split(' ')[0];
+        drawerTag.classList.toggle('is-expired', expired);
+      }
+    }
+
+    function setBillingCycle(cycle) {
+      billingCycle = cycle === 'annual' ? 'annual' : 'monthly';
+      document.querySelectorAll('#pricingModal [data-cycle]').forEach(b => b.classList.toggle('seg-active', b.dataset.cycle === billingCycle));
+      renderPricing();
+    }
+
+    function renderPricing() {
+      const annual = billingCycle === 'annual';
+      ['pro', 'agency'].forEach(plan => {
+        const prices = planCatalog[plan] || {};
+        const price = document.querySelector(`[data-price-for="${plan}"]`);
+        if (price) price.textContent = '¥' + (annual ? prices.annual : prices.monthly);
+        const equiv = document.querySelector(`[data-equiv-for="${plan}"]`);
+        if (equiv) {
+          const perMonth = Math.round((prices.annual / 12) * 10) / 10;
+          equiv.textContent = annual ? t('price.equivMonthly', { amount: perMonth, saved: prices.monthly * 12 - prices.annual }) : '';
+        }
+        const tag = document.querySelector(`[data-plan-tag="${plan}"]`);
+        const sub = currentSubscription;
+        const isCurrent = sub && sub.plan === plan && sub.status !== 'expired';
+        if (tag) {
+          tag.classList.toggle('hidden', !isCurrent);
+          tag.textContent = isCurrent ? (sub.status === 'trial' ? planStatusText(sub) : t('price.current')) : '';
+        }
+      });
+      document.querySelectorAll('#pricingModal [data-period-label]').forEach(el => { el.textContent = t(annual ? 'price.perYear' : 'price.perMonth'); });
+
+      const reason = document.getElementById('pricingReason');
+      if (reason) {
+        setText(reason, pricingReason ? msg(pricingReason) : '');
+        reason.classList.toggle('hidden', !pricingReason);
+      }
+      const pending = currentSubscription && currentSubscription.pending_request;
+      const pendingBox = document.getElementById('pricingPending');
+      const done = document.getElementById('pricingDone');
+      if (pendingBox) {
+        const show = !!pending && (!done || done.classList.contains('hidden'));
+        pendingBox.classList.toggle('hidden', !show);
+        if (pending) {
+          pendingBox.textContent = t('price.pending', { plan: PLAN_NAMES[pending.plan] || pending.plan, cycle: t(pending.billing_cycle === 'annual' ? 'price.annual' : 'price.monthly') });
+        }
+      }
+    }
+
+    function openPricingModal(reasonKey = null) {
+      closeChannelsMenu();
+      closeAccountMenu();
+      pricingReason = reasonKey;
+      document.getElementById('pricingDone')?.classList.add('hidden');
+      document.getElementById('pricingError')?.classList.add('hidden');
+      renderPricing();
+      document.getElementById('pricingModal')?.classList.add('open');
+    }
+
+    function closePricingModal() {
+      document.getElementById('pricingModal')?.classList.remove('open');
+    }
+
+    async function requestUpgrade(plan) {
+      const button = document.getElementById(plan === 'agency' ? 'upgradeAgencyBtn' : 'upgradeProBtn');
+      if (!button || button.disabled) return;
+      const done = document.getElementById('pricingDone');
+      const error = document.getElementById('pricingError');
+      done?.classList.add('hidden');
+      error?.classList.add('hidden');
+      setButtonBusy(button, 'price.sending');
+      try {
+        const res = await fetch('/api/billing/upgrade-request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ plan, billing_cycle: billingCycle }),
+        });
+        let body = null;
+        try { body = await res.json(); } catch (_) {}
+        if (!res.ok || !body) {
+          setText(error, msg(res.status === 401 ? 'price.signIn' : 'price.failed'));
+          error?.classList.remove('hidden');
+          return;
+        }
+        setText(document.getElementById('pricingDoneText'), msg('price.received', {
+          plan: body.plan_name || PLAN_NAMES[plan],
+          cycle: t(body.billing_cycle === 'annual' ? 'price.annual' : 'price.monthly'),
+          price: body.price,
+        }));
+        const checkout = document.getElementById('pricingCheckout');
+        if (checkout) {
+          checkout.classList.toggle('hidden', !body.checkout_url);
+          if (body.checkout_url) checkout.href = body.checkout_url;
+        }
+        done?.classList.remove('hidden');
+        pricingReason = null;
+        loadSubscription();
+      } catch (_) {
+        setText(error, msg('common.network'));
+        error?.classList.remove('hidden');
+      } finally {
+        setButtonBusy(button, null);
+      }
+    }
+
+    // Back from Facebook Login (/auth/facebook/callback redirects with meta_connected / meta_error).
+    function handleMetaReturn() {
+      const params = new URLSearchParams(window.location.search);
+      if (!params.has('meta_connected') && !params.has('meta_error')) return;
+      const connected = parseInt(params.get('meta_connected') || '0', 10) || 0;
+      const error = params.get('meta_error');
+      try { window.history.replaceState(null, '', window.location.pathname); } catch (_) {}
+      if (error === 'channel_limit') {
+        if (connected) showToast(msg('oauth.partial', { n: connected }), true, { duration: 6000 });
+        window.onPlanLimit({ code: 'CHANNEL_LIMIT_REACHED' }, { silent: connected > 0 });
+      } else if (error === 'subscription_required') {
+        window.onPlanLimit({ code: 'SUBSCRIPTION_REQUIRED' });
+      } else if (error) {
+        showToast(msg('oauth.failed'), false);
+      } else if (connected) {
+        showToast(msg('oauth.connected', { n: connected }), true, { variant: 'success' });
+      }
+    }
+
     // Last /health/network result, kept so a language switch can redraw the status text.
     let lastNetworkCheck = null;
 
@@ -3493,6 +3808,7 @@
       checkNetworkHealth();
       window.setInterval(checkNetworkHealth, 30000);
       loadPublicConfig();
+      loadPlanCatalog();
       if (await checkAuthSession()) startWorkspace();
 
       const pubBtn = document.querySelector("#publishBtn");
@@ -3509,6 +3825,78 @@
       }
     });
   </script>
+  <!-- ========================================================================= -->
+  <!-- 11. PRICING: Pro Growth / Agency VIP (no free tier)                         -->
+  <!-- ========================================================================= -->
+  <div id="pricingModal" class="fixed inset-0 z-[60] hidden items-center justify-center p-4 modal-scrim" onclick="if (event.target === this) closePricingModal()">
+    <div class="sheet w-full max-w-3xl max-h-[calc(100vh-2rem)] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="pricingTitle">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h3 id="pricingTitle" class="text-lg font-semibold text-ink" data-i18n="price.title">选择你的方案</h3>
+          <p class="text-xs text-muted mt-1" data-i18n="price.subtitle">两档付费方案，随时升级。价格以人民币计。</p>
+        </div>
+        <button onclick="closePricingModal()" class="icon-btn" title="Close" data-i18n-title="common.close"><span class="material-symbols-outlined text-lg">close</span></button>
+      </div>
+
+      <div id="pricingReason" class="form-alert hidden mt-4" role="alert"></div>
+      <div id="pricingPending" class="form-note hidden mt-4"></div>
+
+      <div class="flex justify-center mt-5">
+        <div class="segmented w-full sm:w-[26rem]" role="tablist">
+          <button type="button" role="tab" data-cycle="monthly" onclick="setBillingCycle('monthly')" class="seg-btn seg-active"><span data-i18n="price.monthly">月付</span></button>
+          <button type="button" role="tab" data-cycle="annual" onclick="setBillingCycle('annual')" class="seg-btn whitespace-nowrap"><span data-i18n="price.annual">年付</span><span class="save-badge" data-i18n="price.save">省 16% · 送 2 个月</span></button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+        <div class="plan-card" data-plan-card="pro">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-sm font-semibold text-ink">Pro Growth</span>
+            <span class="plan-tag hidden" data-plan-tag="pro"></span>
+          </div>
+          <p class="text-xs text-muted mt-1" data-i18n="price.pro.tagline">适合成长中的跨境店铺</p>
+          <div class="mt-5 flex items-baseline gap-1">
+            <span class="plan-price" data-price-for="pro">¥66</span><span class="text-xs text-muted" data-period-label></span>
+          </div>
+          <p class="text-[11px] text-muted mt-1.5 min-h-[1rem]" data-equiv-for="pro"></p>
+          <ul class="plan-features flex-1">
+            <li><span class="material-symbols-outlined">check</span><span data-i18n="price.pro.channels">最多 3 个广告渠道 / 主页</span></li>
+            <li><span class="material-symbols-outlined">check</span><span data-i18n="price.pro.ai">每周期 300 次 AI 文案生成</span></li>
+            <li><span class="material-symbols-outlined">check</span><span data-i18n="price.pro.storage">5GB 文件存储</span></li>
+          </ul>
+          <button id="upgradeProBtn" type="button" onclick="requestUpgrade('pro')" class="secondary-btn w-full mt-6" data-i18n="price.upgradePro">升级到 Pro</button>
+        </div>
+
+        <div class="plan-card plan-card-featured" data-plan-card="agency">
+          <span class="plan-badge" data-i18n="price.recommended">推荐</span>
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-sm font-semibold text-ink">Agency VIP</span>
+            <span class="plan-tag hidden" data-plan-tag="agency"></span>
+          </div>
+          <p class="text-xs text-muted mt-1" data-i18n="price.vip.tagline">适合代运营团队与多品牌卖家</p>
+          <div class="mt-5 flex items-baseline gap-1">
+            <span class="plan-price" data-price-for="agency">¥166</span><span class="text-xs text-muted" data-period-label></span>
+          </div>
+          <p class="text-[11px] text-muted mt-1.5 min-h-[1rem]" data-equiv-for="agency"></p>
+          <ul class="plan-features flex-1">
+            <li><span class="material-symbols-outlined">check</span><span data-i18n="price.vip.channels">不限广告渠道 / 主页</span></li>
+            <li><span class="material-symbols-outlined">check</span><span data-i18n="price.vip.ai">不限 AI 文案生成</span></li>
+            <li><span class="material-symbols-outlined">check</span><span data-i18n="price.vip.storage">50GB 文件存储</span></li>
+            <li><span class="material-symbols-outlined">check</span><span data-i18n="price.vip.priority">优先处理通道</span></li>
+          </ul>
+          <button id="upgradeAgencyBtn" type="button" onclick="requestUpgrade('agency')" class="primary-btn w-full mt-6" data-i18n="price.upgradeAgency">联系开通 VIP / 升级</button>
+        </div>
+      </div>
+
+      <div id="pricingDone" class="form-note hidden mt-5" role="status">
+        <span id="pricingDoneText"></span>
+        <a id="pricingCheckout" href="#" target="_blank" rel="noopener" class="hidden ml-1 font-semibold underline underline-offset-2" data-i18n="price.pay">前往付款 ↗</a>
+      </div>
+      <div id="pricingError" class="form-alert hidden mt-5" role="alert"></div>
+      <p class="text-[11px] text-muted text-center mt-5 leading-relaxed" data-i18n="price.note">提交后我们会在 1 个工作日内联系你完成付款，付款确认后立即开通。</p>
+    </div>
+  </div>
+
   <!-- ========================================================================= -->
   <!-- 9. AUTH GATE: every visit needs a signed-in account (not dismissible)     -->
   <!-- ========================================================================= -->

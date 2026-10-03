@@ -10,7 +10,7 @@ import json
 import logging
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
 from uuid import uuid4
@@ -27,6 +27,8 @@ from db.passwords import hash_password, needs_rehash, verify_password
 from models.schemas import Campaign, ContentDraft, PublishStatus, PublishTask
 
 logger = logging.getLogger("omniflow.db.sqlite")
+
+AI_USAGE_CYCLE_DAYS = 30
 
 _BASE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS tenants (
@@ -90,6 +92,34 @@ CREATE TABLE IF NOT EXISTS agency_applications (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+-- Billing: one subscription per workspace, AI usage per 30-day cycle, upgrade requests from the UI.
+CREATE TABLE IF NOT EXISTS subscriptions (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL UNIQUE,
+    plan TEXT NOT NULL DEFAULT 'pro',
+    billing_cycle TEXT NOT NULL DEFAULT 'monthly',
+    status TEXT NOT NULL DEFAULT 'trial',
+    current_period_end TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS usage_tracking (
+    tenant_id TEXT PRIMARY KEY,
+    ai_runs_count INTEGER NOT NULL DEFAULT 0,
+    cycle_start TEXT NOT NULL,
+    cycle_end TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS upgrade_requests (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    user_id TEXT,
+    plan TEXT NOT NULL,
+    billing_cycle TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS page_comments (
     id TEXT PRIMARY KEY,
     tenant_id TEXT NOT NULL,
@@ -136,6 +166,7 @@ CREATE INDEX IF NOT EXISTS idx_accounts_tenant_platform ON connected_accounts (t
 CREATE INDEX IF NOT EXISTS idx_accounts_platform_account ON connected_accounts (platform, account_id);
 CREATE INDEX IF NOT EXISTS idx_agency_applications_tenant ON agency_applications (tenant_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_page_comments_tenant_post ON page_comments (tenant_id, post_id, created_time);
+CREATE INDEX IF NOT EXISTS idx_upgrade_requests_tenant ON upgrade_requests (tenant_id, created_at);
 """
 
 
@@ -190,6 +221,13 @@ class SQLiteStore:
             conn.execute(
                 "INSERT OR IGNORE INTO tenants (id, name, slug, created_at, updated_at) VALUES (?,?,?,?,?)",
                 (DEFAULT_TENANT_ID, "Default Workspace", DEFAULT_TENANT_ID, now, now),
+            )
+            # The default workspace is the operator's house account: Agency VIP without an end date.
+            conn.execute(
+                "INSERT OR IGNORE INTO subscriptions "
+                "(id, tenant_id, plan, billing_cycle, status, current_period_end, created_at, updated_at) "
+                "VALUES (?, ?, 'agency', 'annual', 'active', NULL, ?, ?)",
+                (str(uuid4()), DEFAULT_TENANT_ID, now, now),
             )
 
     @staticmethod
@@ -458,6 +496,146 @@ class SQLiteStore:
                 "SELECT * FROM agency_applications WHERE tenant_id = ? ORDER BY created_at DESC", (tenant_id,)
             ).fetchall()
             return [dict(r) for r in rows]
+
+    # ------------------------------------------------- subscriptions & usage
+    def get_subscription(self, *, tenant_id: str = DEFAULT_TENANT_ID) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM subscriptions WHERE tenant_id = ?", (tenant_id,)).fetchone()
+            return dict(row) if row else None
+
+    def ensure_subscription(
+        self, *, tenant_id: str, plan: str, billing_cycle: str, status: str, current_period_end: Optional[datetime]
+    ) -> Dict[str, Any]:
+        now = iso_utc(utcnow())
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO subscriptions
+                    (id, tenant_id, plan, billing_cycle, status, current_period_end, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (str(uuid4()), tenant_id, plan, billing_cycle, status, iso_utc(current_period_end), now, now),
+            )
+        return self.get_subscription(tenant_id=tenant_id)  # type: ignore[return-value]
+
+    def save_subscription(
+        self, *, tenant_id: str, plan: str, billing_cycle: str, status: str, current_period_end: Optional[datetime]
+    ) -> Dict[str, Any]:
+        now = iso_utc(utcnow())
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO subscriptions
+                    (id, tenant_id, plan, billing_cycle, status, current_period_end, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (tenant_id) DO UPDATE SET
+                    plan = excluded.plan, billing_cycle = excluded.billing_cycle, status = excluded.status,
+                    current_period_end = excluded.current_period_end, updated_at = excluded.updated_at
+                """,
+                (str(uuid4()), tenant_id, plan, billing_cycle, status, iso_utc(current_period_end), now, now),
+            )
+        return self.get_subscription(tenant_id=tenant_id)  # type: ignore[return-value]
+
+    def get_usage(self, *, tenant_id: str = DEFAULT_TENANT_ID) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM usage_tracking WHERE tenant_id = ?", (tenant_id,)).fetchone()
+            return dict(row) if row else None
+
+    def save_usage(
+        self, *, tenant_id: str, ai_runs_count: int, cycle_start: datetime, cycle_end: datetime
+    ) -> Dict[str, Any]:
+        now = iso_utc(utcnow())
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO usage_tracking (tenant_id, ai_runs_count, cycle_start, cycle_end, updated_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT (tenant_id) DO UPDATE SET
+                    ai_runs_count = excluded.ai_runs_count, cycle_start = excluded.cycle_start,
+                    cycle_end = excluded.cycle_end, updated_at = excluded.updated_at
+                """,
+                (tenant_id, ai_runs_count, iso_utc(cycle_start), iso_utc(cycle_end), now),
+            )
+        return self.get_usage(tenant_id=tenant_id)  # type: ignore[return-value]
+
+    def increment_ai_runs(self, *, tenant_id: str, limit: Optional[int] = None) -> Optional[int]:
+        moment = utcnow()
+        params = {
+            "tenant": tenant_id,
+            "now": iso_utc(moment),
+            "next_end": iso_utc(moment + timedelta(days=AI_USAGE_CYCLE_DAYS)),
+            "limit": limit,
+        }
+        with self._conn() as conn:  # the first write takes SQLite's write lock: the two statements are atomic
+            conn.execute(
+                "INSERT OR IGNORE INTO usage_tracking (tenant_id, ai_runs_count, cycle_start, cycle_end, updated_at) "
+                "VALUES (:tenant, 0, :now, :next_end, :now)",
+                params,
+            )
+            rows = conn.execute(
+                """
+                UPDATE usage_tracking
+                   SET ai_runs_count = CASE WHEN :now > cycle_end THEN 1 ELSE ai_runs_count + 1 END,
+                       cycle_start   = CASE WHEN :now > cycle_end THEN :now ELSE cycle_start END,
+                       cycle_end     = CASE WHEN :now > cycle_end THEN :next_end ELSE cycle_end END,
+                       updated_at    = :now
+                 WHERE tenant_id = :tenant
+                   AND (:limit IS NULL OR :now > cycle_end OR ai_runs_count < :limit)
+                RETURNING ai_runs_count
+                """,
+                params,
+            ).fetchall()
+        return int(rows[0][0]) if rows else None
+
+    def release_ai_run(self, *, tenant_id: str) -> None:
+        now = iso_utc(utcnow())
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE usage_tracking SET ai_runs_count = ai_runs_count - 1, updated_at = ? "
+                "WHERE tenant_id = ? AND ai_runs_count > 0 AND ? <= cycle_end",
+                (now, tenant_id, now),
+            )
+
+    def save_upgrade_request(self, request: Dict[str, Any], *, tenant_id: str) -> Dict[str, Any]:
+        request_id = str(uuid4())
+        now = iso_utc(utcnow())
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO upgrade_requests (id, tenant_id, user_id, plan, billing_cycle, status, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (request_id, tenant_id, request.get("user_id"), request["plan"], request["billing_cycle"],
+                 request.get("status") or "pending", now, now),
+            )
+            row = conn.execute("SELECT * FROM upgrade_requests WHERE id = ?", (request_id,)).fetchone()
+            return dict(row)
+
+    def list_upgrade_requests(
+        self, *, tenant_id: str = DEFAULT_TENANT_ID, status: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        query = "SELECT * FROM upgrade_requests WHERE tenant_id = ?"
+        args: List[Any] = [tenant_id]
+        if status:
+            query += " AND status = ?"
+            args.append(status)
+        with self._conn() as conn:
+            return [dict(r) for r in conn.execute(query + " ORDER BY created_at DESC", args).fetchall()]
+
+    def list_upgrade_requests_any_tenant(self, *, status: Optional[str] = "pending") -> List[Dict[str, Any]]:
+        query, args = "SELECT * FROM upgrade_requests", []
+        if status:
+            query, args = query + " WHERE status = ?", [status]
+        with self._conn() as conn:
+            return [dict(r) for r in conn.execute(query + " ORDER BY created_at", args).fetchall()]
+
+    def set_upgrade_requests_status(self, status: str, *, tenant_id: str, from_status: str = "pending") -> int:
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE upgrade_requests SET status = ?, updated_at = ? WHERE tenant_id = ? AND status = ?",
+                (status, iso_utc(utcnow()), tenant_id, from_status),
+            )
+            return cur.rowcount
 
     # -------------------------------------------------------- page comments
     def save_page_comment(self, comment: Dict[str, Any], *, tenant_id: str = DEFAULT_TENANT_ID) -> Dict[str, Any]:

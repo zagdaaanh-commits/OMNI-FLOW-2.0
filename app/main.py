@@ -21,10 +21,12 @@ from agents.assistant import ConversationalAssistant
 from agents.copywriter import CopywriterAgent
 from agents.planner import CampaignPlanner
 from agents.publisher import PublisherAgent
-from app import object_storage
+from app import object_storage, plans
 from app.config import env_bool, env_str, is_production, load_environment
 from app.dashboard import get_dashboard_html
+from app.dependencies.limits import PlanGate, verify_plan_limit
 from app.routers.agency import router as agency_router
+from app.routers.billing import router as billing_router
 from app.routers.comments import router as comments_router
 from app.routers.health import router as health_router
 from app.routers.meta_oauth import router as meta_oauth_router
@@ -155,6 +157,7 @@ app.include_router(agency_router)
 app.include_router(comments_router)
 app.include_router(notifications_router)
 app.include_router(upload_router)
+app.include_router(billing_router)
 
 
 @app.exception_handler(Exception)
@@ -371,8 +374,14 @@ def get_campaign_details(campaign_id: str, ctx: TenantContext = Depends(get_tena
 # =============================================================================
 @app.post("/assistant/chat", response_model=AssistantChatResponse)
 @app.post("/chat", response_model=AssistantChatResponse)
-def assistant_chat(payload: AssistantChatRequest, ctx: TenantContext = Depends(get_tenant_context)) -> AssistantChatResponse:
-    res = assistant.process_message(payload.message, payload.campaign_id, tenant_id=ctx.tenant_id)
+def assistant_chat(
+    payload: AssistantChatRequest,
+    ctx: TenantContext = Depends(get_tenant_context),
+    plan: PlanGate = Depends(verify_plan_limit("ai_generation")),
+) -> AssistantChatResponse:
+    with plan.ai_run() as run:
+        res = assistant.process_message(payload.message, payload.campaign_id, tenant_id=ctx.tenant_id)
+        run.keep_if_ai(res)  # plain answers and template drafts do not use the quota
     return AssistantChatResponse(
         type=res.get("type", "chat"),
         reply=res.get("reply", "Directive processed successfully."),
@@ -383,27 +392,35 @@ def assistant_chat(payload: AssistantChatRequest, ctx: TenantContext = Depends(g
 
 
 @app.post("/content/generate")
-def generate_content(payload: ContentGenerateRequest, ctx: TenantContext = Depends(get_tenant_context)):
+def generate_content(
+    payload: ContentGenerateRequest,
+    ctx: TenantContext = Depends(get_tenant_context),
+    plan: PlanGate = Depends(verify_plan_limit("ai_generation")),
+):
     campaign = _resolve_campaign(payload.campaign_id, ctx.tenant_id)
     user_prompt = payload.prompt or payload.topic
 
-    # If dynamic user vision/copywriting request or prompt/image provided
-    if payload.image_base64 or payload.prompt:
-        res = copywriter.generate_with_vision(
-            prompt=user_prompt,
-            image_base64=payload.image_base64,
-            campaign=campaign,
-        )
-        for draft in res.get("drafts", []):
+    # One AI run is taken from the plan's quota and given back if only template drafts come out.
+    with plan.ai_run() as run:
+        # If dynamic user vision/copywriting request or prompt/image provided
+        if payload.image_base64 or payload.prompt:
+            res = copywriter.generate_with_vision(
+                prompt=user_prompt,
+                image_base64=payload.image_base64,
+                campaign=campaign,
+            )
+            for draft in res.get("drafts", []):
+                draft.tenant_id = ctx.tenant_id
+                store.save_draft(draft)
+            run.keep_if_ai(res)
+            return res
+
+        drafts = copywriter.generate(campaign, payload)
+        for draft in drafts:
             draft.tenant_id = ctx.tenant_id
             store.save_draft(draft)
-        return res
-
-    drafts = copywriter.generate(campaign, payload)
-    for draft in drafts:
-        draft.tenant_id = ctx.tenant_id
-        store.save_draft(draft)
-    return drafts
+        run.keep_if_ai(drafts)
+        return drafts
 
 
 # =============================================================================
@@ -708,6 +725,7 @@ def register_user(payload: UserRegister):
         )
     except integrity_errors() as exc:
         raise HTTPException(status_code=400, detail="An account with this email already exists.") from exc
+    plans.start_trial(store, tenant["id"])  # no free tier: every new workspace starts on a Pro trial
     return {"token": issue_access_token(user["id"], user["tenant_id"]), "user": user}
 
 
@@ -809,9 +827,15 @@ def get_integrations_status(ctx: TenantContext = Depends(get_tenant_context)):
 
 
 @app.post("/integrations/connect")
-def connect_platform_account(payload: ConnectAccountRequest, ctx: TenantContext = Depends(get_tenant_context)):
+def connect_platform_account(
+    payload: ConnectAccountRequest,
+    ctx: TenantContext = Depends(get_tenant_context),
+    plan: PlanGate = Depends(verify_plan_limit("channels")),
+):
     """Saves a connected account for the caller's workspace; the default workspace also drives process-wide credentials."""
     platform = payload.platform.lower()
+    if platform not in plans.NOT_A_CHANNEL:
+        plan.require_channel_slot(platform, payload.account_id)
     is_default = ctx.tenant_id == DEFAULT_TENANT_ID
 
     if is_default and platform in ["meta", "instagram"] and payload.access_token:
@@ -862,7 +886,7 @@ def disconnect_platform_account(payload: dict, ctx: TenantContext = Depends(get_
     return {"status": "disconnected", "platform": platform}
 
 
-@app.get("/auth/oauth/meta/url")
+@app.get("/auth/oauth/meta/url", dependencies=[Depends(verify_plan_limit("channels"))])
 def get_meta_oauth_url(ctx: TenantContext = Depends(get_tenant_context)):
     """Facebook Login dialog URL for this workspace (signed state). Use /auth/facebook/login to redirect directly."""
     from app.routers.meta_oauth import STATE_TTL_SECONDS, STATE_TYPE
@@ -920,7 +944,11 @@ def get_facebook_status(ctx: TenantContext = Depends(get_tenant_context)):
 
 
 @app.post("/tools/facebook/update-token")
-def update_facebook_token(payload: FacebookTokenUpdatePayload, ctx: TenantContext = Depends(get_tenant_context)):
+def update_facebook_token(
+    payload: FacebookTokenUpdatePayload,
+    ctx: TenantContext = Depends(get_tenant_context),
+    plan: PlanGate = Depends(verify_plan_limit("channels")),
+):
     """Validates a Page/User access token via Meta Graph API and stores the resolved Page token."""
     token = payload.access_token.strip()
     is_default = ctx.tenant_id == DEFAULT_TENANT_ID
@@ -930,6 +958,7 @@ def update_facebook_token(payload: FacebookTokenUpdatePayload, ctx: TenantContex
 
     if not token:
         raise HTTPException(status_code=400, detail="Access token cannot be empty.")
+    plan.require_channel_slot("meta", target_page)  # before asking Meta: a full plan cannot add a Page
 
     try:
         resolved = publisher.meta.verify_and_resolve_page(token, target_page)
@@ -980,12 +1009,17 @@ AD_ACCOUNT_STATUS_LABELS = {
 
 
 @app.post("/tools/meta/ad-account/connect")
-def connect_meta_ad_account(payload: MetaAdAccountConnectRequest, ctx: TenantContext = Depends(get_tenant_context)):
+def connect_meta_ad_account(
+    payload: MetaAdAccountConnectRequest,
+    ctx: TenantContext = Depends(get_tenant_context),
+    plan: PlanGate = Depends(verify_plan_limit("channels")),
+):
     """Verify an ad account + (System User) token against the Graph API, then save it as ``meta_ads``.
 
     Stored separately from the Facebook Page connection: the process-wide Page settings and
     ``.env`` are never modified here.
     """
+    plan.require_channel_slot("meta_ads", payload.ad_account_id)
     try:
         result = MetaAPIClient().get_ad_account(payload.ad_account_id, payload.access_token)
     except Exception as exc:  # noqa: BLE001 - transport failure

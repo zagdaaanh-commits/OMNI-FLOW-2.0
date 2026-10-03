@@ -6,6 +6,10 @@
                                     (non-expiring when derived from a long-lived user token)
                                     for the tenant that started the flow.
 
+Plan limits: both steps need an active subscription. A Pro workspace keeps at most 3 channels,
+so the callback refreshes Pages that are already connected and adds new ones only while slots
+are left; the rest are skipped and reported (``meta_error=channel_limit``).
+
 Browsers cannot attach an ``Authorization`` header to a navigation, so an SPA should call
 ``/auth/facebook/login?format=json`` with its bearer token and then navigate to the returned
 ``authorization_url``; the tenant is carried inside the signed ``state``.
@@ -24,6 +28,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.config import env_str
+from app.dependencies.limits import CHANNEL_LIMIT_REACHED, SUBSCRIPTION_REQUIRED, load_plan_gate, verify_plan_limit
 from app.security import InvalidTokenError, sign_payload, verify_payload
 from app.tenancy import TenantContext, get_tenant_context
 from tools.meta_api import DEFAULT_OAUTH_SCOPES, PAGE_WEBHOOK_FIELDS, MetaAPIClient, MetaOAuthError
@@ -69,7 +74,7 @@ def subscribe_page_webhooks(client: MetaAPIClient, page_id: str, page_token: str
     return False
 
 
-@router.get("/auth/facebook/login")
+@router.get("/auth/facebook/login", dependencies=[Depends(verify_plan_limit("channels"))])
 def facebook_login(
     next: Optional[str] = Query(default=None, description="Relative path to return to after connecting"),
     format: Optional[str] = Query(default=None, description="'json' returns the URL instead of redirecting"),
@@ -140,6 +145,15 @@ def facebook_callback(
     if not code:
         raise HTTPException(status_code=400, detail="Missing authorization code")
 
+    store = getattr(request.app.state, "store", None)
+    if store is None:
+        raise HTTPException(status_code=500, detail="Storage is not initialised")
+    gate = load_plan_gate(store, tenant_id)
+    if not gate.active:  # the subscription ended between login and callback
+        if wants_json:
+            return JSONResponse(status_code=402, content={"detail": {"code": SUBSCRIPTION_REQUIRED, "message": "Subscription required."}})
+        return _post_login_redirect(next_path, 0, error="subscription_required")
+
     cfg = _config()
     client = _client()
     try:
@@ -158,12 +172,15 @@ def facebook_callback(
         logger.warning("Facebook OAuth transport error: %s", type(exc).__name__)
         raise HTTPException(status_code=502, detail="Could not reach Facebook. Please try again.") from exc
 
-    store = getattr(request.app.state, "store", None)
-    if store is None:
-        raise HTTPException(status_code=500, detail="Storage is not initialised")
-
     saved: List[Dict[str, str]] = []
-    usable = [p for p in pages if p.get("id") and p.get("access_token")]
+    usable: List[Dict[str, Any]] = []
+    skipped = 0
+    for page in (p for p in pages if p.get("id") and p.get("access_token")):
+        try:
+            gate.require_channel_slot("meta", str(page["id"]))
+            usable.append(page)
+        except HTTPException:
+            skipped += 1
     # Save in reverse so the first page Meta lists ends up as the most recently updated (the default).
     for page in reversed(usable):
         store.save_connected_account(
@@ -190,7 +207,10 @@ def facebook_callback(
         except Exception:  # noqa: BLE001 - a hook failure must not undo a successful connect
             logger.exception("on_meta_connected hook failed")
 
-    logger.info("Facebook OAuth connected %d page(s) for tenant=%s", len(saved), tenant_id)
+    logger.info("Facebook OAuth connected %d page(s) for tenant=%s (%d over the plan limit)", len(saved), tenant_id, skipped)
     if wants_json:
-        return {"status": "connected", "pages": saved, "tenant_id": tenant_id}
-    return _post_login_redirect(next_path, len(saved))
+        body: Dict[str, Any] = {"status": "connected", "pages": saved, "tenant_id": tenant_id, "skipped": skipped}
+        if skipped:
+            body["limit"] = {"code": CHANNEL_LIMIT_REACHED, "channels": gate.plan["channels"]}
+        return body
+    return _post_login_redirect(next_path, len(saved), error="channel_limit" if skipped else None)
