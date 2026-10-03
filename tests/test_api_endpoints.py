@@ -494,14 +494,15 @@ def test_publish_facebook_endpoint_raw_base64(graph_stub, monkeypatch):
 
 
 def test_public_config_agency_url(monkeypatch):
+    defaults = {"require_auth": False, "document_upload_enabled": False}
     monkeypatch.delenv("META_AGENCY_APPLY_URL", raising=False)
-    assert client.get("/config/public").json() == {"meta_agency_apply_url": None, "require_auth": False}
+    assert client.get("/config/public").json() == {"meta_agency_apply_url": None, **defaults}
 
     monkeypatch.setenv("META_AGENCY_APPLY_URL", "javascript:alert(1)")
-    assert client.get("/config/public").json() == {"meta_agency_apply_url": None, "require_auth": False}
+    assert client.get("/config/public").json() == {"meta_agency_apply_url": None, **defaults}
 
     monkeypatch.setenv("META_AGENCY_APPLY_URL", "https://agency.example.com/apply")
-    assert client.get("/config/public").json() == {"meta_agency_apply_url": "https://agency.example.com/apply", "require_auth": False}
+    assert client.get("/config/public").json() == {"meta_agency_apply_url": "https://agency.example.com/apply", **defaults}
 
 
 def test_public_config_reports_whether_sign_in_is_required(monkeypatch):

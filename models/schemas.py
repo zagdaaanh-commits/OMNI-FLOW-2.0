@@ -397,6 +397,11 @@ class AgencyApplicationRequest(BaseModel):
     store_url: str = Field(..., max_length=500, description="Independent store / shop URL")
     contact: str = Field(..., min_length=1, max_length=200, description="WeChat / phone / email")
     remarks: Optional[str] = Field(default=None, max_length=2000)
+    business_license_path: Optional[str] = Field(
+        default=None,
+        max_length=200,
+        description="Storage path returned by POST /api/upload/document (agency-documents bucket)",
+    )
 
     @field_validator("company_name", "contact")
     @classmethod
@@ -426,9 +431,9 @@ class AgencyApplicationRequest(BaseModel):
             raise ValueError("must be an http(s) URL of the store, e.g. https://shop.example.com")
         return value
 
-    @field_validator("remarks")
+    @field_validator("remarks", "business_license_path")
     @classmethod
-    def _remarks(cls, value: Optional[str]) -> Optional[str]:
+    def _optional_text(cls, value: Optional[str]) -> Optional[str]:
         value = (value or "").strip()
         return value or None
 

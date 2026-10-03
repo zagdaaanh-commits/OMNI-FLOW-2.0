@@ -385,6 +385,27 @@
     /* While sign-in is required, the workspace behind the gate is not readable or clickable. */
     body.auth-locked #appMain, body.auth-locked #sidebar { filter: blur(8px); pointer-events: none; user-select: none; }
 
+    /* Business-license upload: dashed drop zone, then a file row with a thin progress bar.
+       (display comes from Tailwind's flex / hidden utilities so toggling .hidden always wins.) */
+    .upload-zone {
+      width: 100%; align-items: center; gap: 0.75rem; text-align: left;
+      padding: 0.75rem 0.85rem; border-radius: 0.75rem;
+      border: 1px dashed var(--border-strong); background: transparent;
+      transition: border-color 150ms ease, background 150ms ease;
+    }
+    .upload-zone:hover, .upload-zone.dragging { border-color: var(--ink); background: var(--surface-hover); }
+    .upload-zone.is-invalid { border-color: #ef4444; }
+    .upload-file {
+      align-items: center; gap: 0.75rem;
+      padding: 0.55rem 0.4rem 0.55rem 0.85rem; border-radius: 0.75rem;
+      border: 1px solid var(--border); background: var(--surface-muted);
+    }
+    .upload-progress { display: block; height: 3px; margin-top: 0.4rem; border-radius: 999px; background: var(--border); overflow: hidden; }
+    .upload-progress > span { display: block; height: 100%; width: 0; background: var(--ink); transition: width 120ms linear; }
+    .upload-file.done .upload-progress { display: none; }
+    .upload-file.done .upload-icon { color: #16a34a; }
+    a.upload-name[href]:hover { text-decoration: underline; text-underline-offset: 2px; }
+
     /* Green success toast (both themes). */
     #toast.toast-success { background: #ecfdf5 !important; border-color: #a7f3d0 !important; }
     #toast.toast-success #toastMsg, #toast.toast-success #toastIcon { color: #047857 !important; }
@@ -680,6 +701,29 @@
             <label for="agencyContact" class="field-label" data-i18n="agency.contact">联系方式</label>
             <input id="agencyContact" name="contact" type="text" maxlength="200" required class="field-input" placeholder="微信号、手机号或邮箱" data-i18n-placeholder="agency.contactPh"/>
             <p class="field-error hidden" data-error-for="contact"></p>
+          </div>
+          <div id="agencyLicenseField">
+            <div class="field-label"><span data-i18n="agency.license">营业执照</span> <span class="text-muted" data-i18n="agency.optional">选填</span></div>
+            <input id="agencyLicenseInput" type="file" class="sr-only" tabindex="-1" aria-hidden="true"
+                   accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" onchange="onAgencyLicenseChosen(this)"/>
+            <button type="button" id="agencyLicenseZone" class="upload-zone flex hidden" onclick="pickAgencyLicense()">
+              <span class="material-symbols-outlined text-xl text-muted">upload_file</span>
+              <span class="min-w-0">
+                <span class="block text-sm font-medium text-ink" data-i18n="agency.licensePick">上传营业执照</span>
+                <span class="block text-xs text-muted mt-0.5" data-i18n="agency.licenseHint">PDF / PNG / JPG，不超过 10 MB，也可拖拽到此处</span>
+              </span>
+            </button>
+            <div id="agencyLicenseFile" class="upload-file flex hidden" aria-live="polite">
+              <span class="material-symbols-outlined text-lg text-muted upload-icon" id="agencyLicenseIcon">description</span>
+              <span class="min-w-0 flex-1">
+                <a id="agencyLicenseName" class="upload-name block text-sm text-ink truncate" target="_blank" rel="noopener"></a>
+                <span id="agencyLicenseStatus" class="block text-xs text-muted"></span>
+                <span class="upload-progress"><span id="agencyLicenseBar"></span></span>
+              </span>
+              <button type="button" class="icon-btn shrink-0" onclick="clearAgencyLicense()" title="移除文件" data-i18n-title="agency.licenseRemove"><span class="material-symbols-outlined text-base">close</span></button>
+            </div>
+            <p id="agencyLicenseOff" class="hidden text-xs text-muted leading-relaxed" data-i18n="agency.licenseOff">文件上传暂未开通，开户顾问会另行联系您提供营业执照。</p>
+            <p class="field-error hidden" data-error-for="business_license_path"></p>
           </div>
           <div>
             <label for="agencyRemarks" class="field-label"><span data-i18n="agency.remarks">备注</span> <span class="text-muted" data-i18n="agency.optional">选填</span></label>
@@ -1068,6 +1112,20 @@
       'agency.err.invalid': ['提交的信息有误，请检查后重试。', 'Some details are invalid. Please check and try again.'],
       'agency.err.login': ['请先登录后再提交开户申请。', 'Please sign in before submitting an application.'],
       'agency.err.rate': ['提交过于频繁，请稍后再试。', 'Too many submissions. Please try again later.'],
+      'agency.license': ['营业执照', 'Business License'],
+      'agency.licensePick': ['上传营业执照', 'Upload business license'],
+      'agency.licenseHint': ['PDF / PNG / JPG，不超过 10 MB，也可拖拽到此处', 'PDF / PNG / JPG up to 10 MB, or drop it here'],
+      'agency.licenseOff': ['文件上传暂未开通，开户顾问会另行联系您提供营业执照。', "File upload isn't available yet; our account team will ask you for the business license directly."],
+      'agency.licenseRemove': ['移除文件', 'Remove file'],
+      'agency.licenseUploading': ['上传中… {pct}%', 'Uploading… {pct}%'],
+      'agency.licenseDone': ['已上传 · {size}', 'Uploaded · {size}'],
+      'agency.licenseType': ['仅支持 PDF、PNG 或 JPG 文件。', 'Only PDF, PNG or JPG files are allowed.'],
+      'agency.licenseSize': ['文件超过 10 MB，请压缩后重试。', 'The file is larger than 10 MB. Please compress it and try again.'],
+      'agency.licenseEmpty': ['文件为空，请重新选择。', 'The file is empty. Please choose another one.'],
+      'agency.licenseUnavailable': ['文件上传暂未开通。', 'File upload is not available right now.'],
+      'agency.licenseFailed': ['上传失败，请重试。', 'Upload failed. Please try again.'],
+      'agency.licenseWait': ['营业执照仍在上传，请稍候再提交。', 'The business license is still uploading. Please wait a moment.'],
+      'agency.err.business_license_path': ['营业执照文件无效，请重新上传。', 'The business license file is invalid. Please upload it again.'],
       'agency.err.http': ['提交失败（HTTP {status}），请稍后重试或联系客服。', 'Submission failed (HTTP {status}). Please try again later or contact support.'],
       'agency.err.httpDetail': ['提交失败（HTTP {status}）：{detail}', 'Submission failed (HTTP {status}): {detail}'],
 
@@ -1408,20 +1466,24 @@
     // =========================================================================
     // META 企业广告账户快速开户
     // =========================================================================
-    // The optional agency website link (META_AGENCY_APPLY_URL) is shown under the form when configured.
+    // The optional agency website link (META_AGENCY_APPLY_URL) is shown under the form when configured;
+    // the business-license upload only when the server has file storage (Supabase) configured.
     async function loadPublicConfig() {
       let url = null;
+      let uploads = false;
       try {
         const res = await fetch('/config/public', { cache: 'no-store' });
         if (res.ok) {
           const cfg = await res.json();
           url = cfg.meta_agency_apply_url || null;
+          uploads = cfg.document_upload_enabled === true;
         }
       } catch (_) {}
       const link = document.getElementById('metaApplyExternal');
       const wrap = document.getElementById('metaApplyExternalWrap');
       if (link && url) link.href = url;
       if (wrap) wrap.classList.toggle('hidden', !url);
+      setLicenseUploadAvailable(uploads);
     }
 
     function openMetaAccountModal() {
@@ -1548,7 +1610,7 @@
       }
     }
 
-    const AGENCY_FIELDS = ['company_name', 'credit_code', 'store_url', 'contact', 'remarks'];
+    const AGENCY_FIELDS = ['company_name', 'credit_code', 'store_url', 'contact', 'remarks', 'business_license_path'];
     const AGENCY_FIELD_MESSAGES = Object.fromEntries(AGENCY_FIELDS.map(field => [field, msg('agency.err.' + field)]));
 
     function agencyForm() {
@@ -1606,6 +1668,7 @@
 
     function showAgencyErrors(fields, message) {
       Object.entries(fields).forEach(([field, message]) => setAgencyFieldError(field, message));
+      document.getElementById('agencyLicenseZone')?.classList.toggle('is-invalid', !!fields.business_license_path);
       setAgencyFormError(message);
       const firstInvalid = AGENCY_FIELDS.map(f => agencyForm()?.elements[f]).find(el => el && el.classList.contains('is-invalid'));
       if (firstInvalid) firstInvalid.focus();
@@ -1626,6 +1689,7 @@
         store_url: value('store_url'),
         contact: value('contact'),
         remarks: value('remarks') || null,
+        business_license_path: agencyLicense ? agencyLicense.path : null,
       };
 
       // Required fields are checked here; formats (credit-code checksum, URL) are validated by the server.
@@ -1634,7 +1698,12 @@
         if (!payload[field]) missing[field] = AGENCY_FIELD_MESSAGES[field];
       });
       if (Object.keys(missing).length) {
+        if (agencyLicenseUpload) missing.business_license_path = msg('agency.licenseWait');
         showAgencyErrors(missing, msg('agency.err.required'));
+        return;
+      }
+      if (agencyLicenseUpload) {  // the path is not known until the upload finishes
+        showAgencyErrors({ business_license_path: msg('agency.licenseWait') }, '');
         return;
       }
 
@@ -1652,6 +1721,7 @@
         if (res.ok && body?.status === 'success') {
           form.reset();
           clearAgencyErrors();
+          clearAgencyLicense();
           closeMetaAccountModal();
           showToast(msg('agency.success'), true, { variant: 'success', duration: 6000 });
           return;
@@ -1670,6 +1740,159 @@
       if (e.target?.form?.id === 'metaPanelApply' && AGENCY_FIELDS.includes(e.target.name)) {
         setAgencyFieldError(e.target.name, '');
       }
+    });
+
+    // -------------------------------------------------------------------------
+    // Business license (营业执照): uploaded to POST /api/upload/document as soon as it is
+    // chosen; the returned storage path is sent with the application.
+    // -------------------------------------------------------------------------
+    const LICENSE_MAX_BYTES = 10 * 1024 * 1024;
+    const LICENSE_EXTENSIONS = ['pdf', 'png', 'jpg', 'jpeg'];
+    const LICENSE_TYPES = ['application/pdf', 'image/png', 'image/jpeg'];
+    let licenseUploadAvailable = false;
+    let agencyLicense = null;        // { path, filename, size, url } once stored
+    let agencyLicenseUpload = null;  // the XMLHttpRequest while uploading
+    let agencyLicenseSeq = 0;        // newer uploads supersede older ones
+
+    function setLicenseUploadAvailable(available) {
+      licenseUploadAvailable = !!available;
+      document.getElementById('agencyLicenseOff')?.classList.toggle('hidden', licenseUploadAvailable);
+      renderAgencyLicense(agencyLicense ? 'done' : 'empty');
+    }
+
+    function formatBytes(bytes) {
+      return bytes < 1024 * 1024 ? Math.max(1, Math.round(bytes / 1024)) + ' KB' : (bytes / 1024 / 1024).toFixed(1) + ' MB';
+    }
+
+    // state: 'empty' | 'uploading' | 'done'
+    function renderAgencyLicense(state, file = {}, percent = 0) {
+      const zone = document.getElementById('agencyLicenseZone');
+      const row = document.getElementById('agencyLicenseFile');
+      const name = document.getElementById('agencyLicenseName');
+      const status = document.getElementById('agencyLicenseStatus');
+      const bar = document.getElementById('agencyLicenseBar');
+      const icon = document.getElementById('agencyLicenseIcon');
+      if (!zone || !row) return;
+      zone.classList.toggle('hidden', state !== 'empty' || !licenseUploadAvailable);
+      row.classList.toggle('hidden', state === 'empty');
+      row.classList.toggle('done', state === 'done');
+      if (state === 'empty') return;
+      const info = state === 'done' ? agencyLicense : file;
+      name.textContent = info.filename || info.name || '';
+      if (state === 'done' && info.url) name.href = info.url;
+      else name.removeAttribute('href');
+      if (icon) icon.textContent = state === 'done' ? 'check_circle' : 'description';
+      if (state === 'uploading') {
+        setText(status, msg('agency.licenseUploading', { pct: percent }));
+        if (bar) bar.style.width = percent + '%';
+      } else {
+        setText(status, msg('agency.licenseDone', { size: formatBytes(info.size || 0) }));
+      }
+    }
+
+    function pickAgencyLicense() {
+      if (!licenseUploadAvailable) return;
+      document.getElementById('agencyLicenseInput')?.click();
+    }
+
+    function onAgencyLicenseChosen(input) {
+      const file = input.files && input.files[0];
+      input.value = '';  // choosing the same file again still triggers a change
+      if (file) uploadAgencyLicense(file);
+    }
+
+    function failAgencyLicense(message) {
+      agencyLicense = null;
+      renderAgencyLicense('empty');
+      document.getElementById('agencyLicenseZone')?.classList.add('is-invalid');
+      setAgencyFieldError('business_license_path', message);
+    }
+
+    function clearAgencyLicense() {
+      agencyLicenseSeq += 1;
+      if (agencyLicenseUpload) agencyLicenseUpload.abort();
+      agencyLicenseUpload = null;
+      agencyLicense = null;
+      document.getElementById('agencyLicenseZone')?.classList.remove('is-invalid');
+      setAgencyFieldError('business_license_path', '');
+      renderAgencyLicense('empty');
+    }
+
+    // multipart/form-data POST with upload progress (fetch cannot report upload progress).
+    function uploadFileWithProgress(url, file, onProgress) {
+      const xhr = new XMLHttpRequest();
+      const done = new Promise((resolve, reject) => {
+        xhr.open('POST', url);
+        let token = null;
+        try { token = localStorage.getItem('omniflow_auth_token'); } catch (_) {}
+        if (token) xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+        xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(e.loaded / e.total); };
+        xhr.onload = () => {
+          let body = null;
+          try { body = JSON.parse(xhr.responseText); } catch (_) {}
+          resolve({ status: xhr.status, body });
+        };
+        xhr.onerror = () => reject(new Error('network'));
+        xhr.onabort = () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+        const data = new FormData();
+        data.append('file', file, file.name);
+        xhr.send(data);
+      });
+      return { xhr, done };
+    }
+
+    async function uploadAgencyLicense(file) {
+      if (!licenseUploadAvailable) return;
+      clearAgencyLicense();
+      const ext = (file.name.includes('.') ? file.name.split('.').pop() : '').toLowerCase();
+      if (!LICENSE_EXTENSIONS.includes(ext) && !LICENSE_TYPES.includes(file.type)) return failAgencyLicense(msg('agency.licenseType'));
+      if (file.size > LICENSE_MAX_BYTES) return failAgencyLicense(msg('agency.licenseSize'));
+      if (!file.size) return failAgencyLicense(msg('agency.licenseEmpty'));
+
+      const seq = agencyLicenseSeq;
+      renderAgencyLicense('uploading', file, 0);
+      const { xhr, done } = uploadFileWithProgress('/api/upload/document', file, (ratio) => {
+        if (seq === agencyLicenseSeq) renderAgencyLicense('uploading', file, Math.min(99, Math.round(ratio * 100)));
+      });
+      agencyLicenseUpload = xhr;
+      try {
+        const { status, body } = await done;
+        if (seq !== agencyLicenseSeq) return;
+        agencyLicenseUpload = null;
+        if (status >= 200 && status < 300 && body && body.path) {
+          agencyLicense = { path: body.path, filename: body.filename || file.name, size: body.size || file.size, url: body.signed_url || null };
+          setAgencyFieldError('business_license_path', '');
+          renderAgencyLicense('done');
+          return;
+        }
+        if (status === 401) {
+          renderAgencyLicense('empty');
+          if (typeof window.onApiUnauthorized === 'function') window.onApiUnauthorized('/api/upload/document');
+          return;
+        }
+        const key = { 413: 'agency.licenseSize', 415: 'agency.licenseType', 503: 'agency.licenseUnavailable' }[status] || 'agency.licenseFailed';
+        failAgencyLicense(msg(key));
+      } catch (err) {
+        if (seq !== agencyLicenseSeq || (err && err.name === 'AbortError')) return;
+        agencyLicenseUpload = null;
+        failAgencyLicense(msg('common.network'));
+      }
+    }
+
+    // Drag a file onto the upload zone.
+    document.addEventListener('DOMContentLoaded', () => {
+      const zone = document.getElementById('agencyLicenseZone');
+      if (!zone) return;
+      ['dragenter', 'dragover'].forEach(type => zone.addEventListener(type, (e) => {
+        e.preventDefault();
+        if (licenseUploadAvailable) zone.classList.add('dragging');
+      }));
+      ['dragleave', 'drop'].forEach(type => zone.addEventListener(type, () => zone.classList.remove('dragging')));
+      zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (file) uploadAgencyLicense(file);
+      });
     });
 
     // =========================================================================
@@ -2821,6 +3044,7 @@
       cachedCampaigns = {};
       cachedPlatforms = {};
       integrationStatus = {};
+      clearAgencyLicense();
       resetToNewChat();
       const list = document.getElementById('sidebarCampaignsList');
       if (list) list.innerHTML = `<div class="p-4 text-xs text-zinc-500">${i18nSpan('nav.noCampaigns')}</div>`;

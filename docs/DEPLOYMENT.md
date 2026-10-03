@@ -73,6 +73,23 @@ Supabase provides daily backups; enable point-in-time recovery for production. R
 - The dashboard must send `Authorization: Bearer <token>` on every API call for tenant isolation to apply; anonymous calls use the shared `default` workspace. Set `REQUIRE_AUTH=true` once the dashboard sends tokens.
 - Process-wide settings endpoints (`/settings/apis`, default-workspace Facebook token) are restricted to the default workspace.
 
+## File storage (business licenses, ad creatives)
+
+Uploads go to Supabase Storage. Without the two settings below, the API answers uploads with 503 and the 快速开户 form shows a note instead of the upload field.
+
+1. In `.env`, set `SUPABASE_URL` (`https://<project>.supabase.co`) and `SUPABASE_SERVICE_ROLE_KEY` (Supabase → Project Settings → API keys → `service_role` / secret key). This key bypasses Row Level Security: keep it on the server and never send it to the browser.
+2. Create the buckets and policies once, and again whenever `scripts/supabase_storage_setup.sql` changes:
+
+   ```bash
+   docker compose -p omniflow -f docker-compose.prod.yml run --rm --no-deps -e SCHEDULER_MODE=off app \
+     python scripts/migrate.py --sql scripts/supabase_storage_setup.sql
+   ```
+
+   It creates `agency-documents` (private) and `ad-creatives` (public), each limited to 10 MB and to PDF/PNG/JPG or PNG/JPG/WebP respectively.
+3. Restart the app (`./scripts/deploy_hk.sh --skip-pull`). `curl -s https://$DOMAIN/config/public` should then report `"document_upload_enabled": true`.
+
+Files are stored as `<workspace_id>/<uuid>.<ext>`. The app builds every path from the signed-in user's workspace, so one merchant cannot write into or attach another merchant's files. Business licenses are private: operators open them from the Supabase dashboard (Storage → `agency-documents` → the workspace folder named in `agency_applications.business_license_path`).
+
 ## Troubleshooting
 
 | Symptom | Check |
@@ -82,3 +99,4 @@ Supabase provides daily backups; enable point-in-time recovery for production. R
 | Posts stay `scheduled` | `logs worker`; confirm `SCHEDULER_MODE=worker` and that the worker container is running. |
 | `/health/network` shows `down` | Security group blocks outbound, or the VM is mainland-hosted and needs `OUTBOUND_PROXY_URL`. |
 | Facebook posts show Token Expired | Merchant must reconnect the page via `/auth/facebook/login`. |
+| License upload says "上传失败" | `logs app` for `Upload to agency-documents failed`: HTTP 404 means the buckets were not created (run the storage SQL above); 403 means a wrong `SUPABASE_SERVICE_ROLE_KEY`. |

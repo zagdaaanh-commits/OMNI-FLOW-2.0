@@ -187,10 +187,12 @@ CREATE TABLE IF NOT EXISTS agency_applications (
     store_url     text        NOT NULL,
     contact       text        NOT NULL,
     remarks       text,
+    business_license_path text,           -- object in the agency-documents bucket (supabase_storage_setup.sql)
     status        text        NOT NULL DEFAULT 'received',
     created_at    timestamptz NOT NULL DEFAULT now(),
     updated_at    timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE agency_applications ADD COLUMN IF NOT EXISTS business_license_path text;  -- databases created before it
 CREATE INDEX IF NOT EXISTS ix_agency_applications_tenant ON agency_applications (tenant_id, created_at DESC);
 
 -- ---------------------------------------------------------- page_comments ---

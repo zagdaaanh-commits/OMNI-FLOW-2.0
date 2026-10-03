@@ -21,6 +21,7 @@ from agents.assistant import ConversationalAssistant
 from agents.copywriter import CopywriterAgent
 from agents.planner import CampaignPlanner
 from agents.publisher import PublisherAgent
+from app import object_storage
 from app.config import env_bool, env_str, is_production, load_environment
 from app.dashboard import get_dashboard_html
 from app.routers.agency import router as agency_router
@@ -29,6 +30,7 @@ from app.routers.health import router as health_router
 from app.routers.meta_oauth import router as meta_oauth_router
 from app.routers.meta_oauth import subscribe_page_webhooks
 from app.routers.notifications import router as notifications_router
+from app.routers.upload import router as upload_router
 from app.scheduler import (
     MODE_EMBEDDED,
     SchedulerService,
@@ -106,6 +108,12 @@ async def lifespan(app_: FastAPI):
         _scheduler_service.leader_lock = build_leader_lock(_scheduler_service.poll_seconds)
         _scheduler_task = asyncio.create_task(_scheduler_service.run_forever(), name="omniflow-scheduler")
         app_.state.scheduler = _scheduler_service
+    if object_storage.is_configured():
+        # Create the Supabase Storage client now so the first upload does not pay for it.
+        try:
+            await asyncio.to_thread(object_storage.get_object_storage)
+        except Exception as exc:  # noqa: BLE001 - uploads report their own errors later
+            logger.warning("File storage client could not be prepared: %s", describe_exception(exc))
     logger.info("OmniFlow started (scheduler_mode=%s, env=%s)", mode, env_str("APP_ENV", default="development"))
 
     yield
@@ -146,6 +154,7 @@ app.include_router(health_router)
 app.include_router(agency_router)
 app.include_router(comments_router)
 app.include_router(notifications_router)
+app.include_router(upload_router)
 
 
 @app.exception_handler(Exception)
@@ -263,7 +272,11 @@ def public_config():
     apply_url = (os.getenv("META_AGENCY_APPLY_URL") or "").strip()
     if not apply_url.lower().startswith(("https://", "http://")):
         apply_url = ""
-    return {"meta_agency_apply_url": apply_url or None, "require_auth": env_bool("REQUIRE_AUTH", False)}
+    return {
+        "meta_agency_apply_url": apply_url or None,
+        "require_auth": env_bool("REQUIRE_AUTH", False),
+        "document_upload_enabled": object_storage.is_configured(),
+    }
 
 
 @app.get("/health")

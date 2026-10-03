@@ -1,7 +1,8 @@
 """Meta agency ad-account application intake: ``POST /api/agency/apply``.
 
 Merchants submit their business details from the 快速开户 modal. Each application is stored in
-``agency_applications`` for the caller's workspace. When ``LEAD_NOTIFICATION_WEBHOOK`` is set
+``agency_applications`` for the caller's workspace, optionally with ``business_license_path``: a
+file the same workspace uploaded through ``POST /api/upload/document``. When ``LEAD_NOTIFICATION_WEBHOOK`` is set
 (an http(s) URL), the lead is also POSTed there after the response is sent; delivery failures
 are logged and never affect the merchant's submission.
 """
@@ -13,6 +14,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 
 from app.config import env_float, env_str
+from app.object_storage import parse_object_path
 from app.routers.notifications import notify_workspace
 from app.tenancy import TenantContext, get_tenant_context
 from models.schemas import AgencyApplicationRequest
@@ -53,6 +55,20 @@ def submit_agency_application(
     if store is None:
         raise HTTPException(status_code=500, detail="Storage is not initialised")
 
+    license_path = payload.business_license_path
+    if license_path is not None:
+        # Only a document this workspace uploaded (POST /api/upload/document) can be attached.
+        parsed = parse_object_path(license_path)
+        if parsed is None or parsed[0] != ctx.tenant_id or parsed[1] not in ("pdf", "png", "jpg"):
+            raise HTTPException(
+                status_code=422,
+                detail=[{
+                    "loc": ["body", "business_license_path"],
+                    "msg": "must be a business license uploaded by this workspace",
+                    "type": "value_error",
+                }],
+            )
+
     record = store.save_agency_application({**payload.model_dump(), "user_id": ctx.user_id}, tenant_id=ctx.tenant_id)
     logger.info("Agency application %s received for tenant=%s", record["id"], ctx.tenant_id)
 
@@ -70,6 +86,7 @@ def submit_agency_application(
             f"公司 Company: {record['company_name']}",
             f"店铺 Store: {record['store_url']}",
             f"联系方式 Contact: {record['contact']}",
+            f"营业执照 Business license: {'已上传 attached' if record.get('business_license_path') else '未上传 not attached'}",
             f"申请编号 ID: {record['id']}",
         ],
         {"id": record["id"], "company_name": record["company_name"], "store_url": record["store_url"]},

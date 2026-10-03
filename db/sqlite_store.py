@@ -85,6 +85,7 @@ CREATE TABLE IF NOT EXISTS agency_applications (
     store_url TEXT NOT NULL,
     contact TEXT NOT NULL,
     remarks TEXT,
+    business_license_path TEXT,
     status TEXT NOT NULL DEFAULT 'received',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
@@ -122,6 +123,7 @@ _ADDED_COLUMNS = [
     ("users", "tenant_id", f"TEXT NOT NULL DEFAULT '{DEFAULT_TENANT_ID}'"),
     ("connected_accounts", "tenant_id", f"TEXT NOT NULL DEFAULT '{DEFAULT_TENANT_ID}'"),
     ("connected_accounts", "created_at", "TEXT"),
+    ("agency_applications", "business_license_path", "TEXT"),
 ]
 
 _INDEXES = """
@@ -428,9 +430,9 @@ class SQLiteStore:
             conn.execute(
                 """
                 INSERT INTO agency_applications
-                    (id, tenant_id, user_id, company_name, credit_code, store_url, contact, remarks, status,
-                     created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (id, tenant_id, user_id, company_name, credit_code, store_url, contact, remarks,
+                     business_license_path, status, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     app_id,
@@ -441,6 +443,7 @@ class SQLiteStore:
                     application["store_url"],
                     application["contact"],
                     application.get("remarks"),
+                    application.get("business_license_path"),
                     application.get("status") or "received",
                     now,
                     now,

@@ -9,6 +9,7 @@ Usage (project root, or /app inside Docker)::
 
     python scripts/migrate.py
     python scripts/migrate.py --sql path/to/custom.sql
+    python scripts/migrate.py --sql scripts/supabase_storage_setup.sql   # Supabase Storage (once)
 """
 from __future__ import annotations
 

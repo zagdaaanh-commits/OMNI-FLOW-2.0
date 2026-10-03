@@ -257,8 +257,9 @@ class PostgresStore:
             row = conn.execute(
                 """
                 INSERT INTO agency_applications
-                    (id, tenant_id, user_id, company_name, credit_code, store_url, contact, remarks, status)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    (id, tenant_id, user_id, company_name, credit_code, store_url, contact, remarks,
+                     business_license_path, status)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING *
                 """,
                 (
@@ -270,6 +271,7 @@ class PostgresStore:
                     application["store_url"],
                     application["contact"],
                     application.get("remarks"),
+                    application.get("business_license_path"),
                     application.get("status") or "received",
                 ),
             ).fetchone()

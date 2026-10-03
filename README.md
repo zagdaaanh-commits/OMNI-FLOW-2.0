@@ -110,6 +110,12 @@ Open your browser at:
 - `POST /integrations/disconnect`: Disconnect an active account.
 - `GET /auth/oauth/meta/url`: Generate official Meta OAuth2 authorization URL.
 
+### Agency Applications & File Storage (Supabase Storage)
+- `POST /api/upload/document`: Business license (PDF / PNG / JPG, ≤ 10 MB) into the private `agency-documents` bucket; returns its storage path and a 10-minute signed URL.
+- `POST /api/upload/creative`: Campaign image (PNG / JPG / WebP, ≤ 10 MB) into the public `ad-creatives` bucket; returns its public URL.
+- `POST /api/agency/apply`: Meta agency ad-account application; `business_license_path` attaches a document uploaded by the same workspace.
+- Setup: `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`, then `python scripts/migrate.py --sql scripts/supabase_storage_setup.sql` (see `docs/DEPLOYMENT.md`).
+
 ### Autonomous Marketing Suite
 - `POST /campaign/create`: Create campaign with automated budget allocation.
 - `GET /campaigns`: List active and planned campaigns.
