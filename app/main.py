@@ -33,6 +33,7 @@ from app.routers.meta_oauth import router as meta_oauth_router
 from app.routers.meta_oauth import subscribe_page_webhooks
 from app.routers.notifications import router as notifications_router
 from app.routers.upload import router as upload_router
+from app.routers.webhook import router as stripe_webhook_router
 from app.scheduler import (
     MODE_EMBEDDED,
     SchedulerService,
@@ -158,6 +159,7 @@ app.include_router(comments_router)
 app.include_router(notifications_router)
 app.include_router(upload_router)
 app.include_router(billing_router)
+app.include_router(stripe_webhook_router)
 
 
 @app.exception_handler(Exception)

@@ -25,6 +25,8 @@ _SECRET_ENV_VARS = (
     "REDIS_PASSWORD",
     "LEAD_NOTIFICATION_WEBHOOK",
     "SUPABASE_SERVICE_ROLE_KEY",
+    "STRIPE_SECRET_KEY",
+    "STRIPE_WEBHOOK_SECRET",
 )
 
 _PATTERNS = (
@@ -34,6 +36,8 @@ _PATTERNS = (
     (re.compile(r"(?i)\b(bearer)\s+[A-Za-z0-9._~+/=-]{8,}"), r"\1 [redacted]"),
     (re.compile(r"\bEA[A-Za-z0-9]{20,}"), "[redacted-token]"),               # Meta access tokens
     (re.compile(r"\bsk-[A-Za-z0-9_-]{12,}"), "[redacted-key]"),               # OpenAI-style keys
+    (re.compile(r"\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{8,}"), "[redacted-key]"),  # Stripe secret keys
+    (re.compile(r"\bwhsec_[A-Za-z0-9+/=]{8,}"), "[redacted-key]"),           # Stripe webhook secrets
     (re.compile(r"\b[0-9a-f]{32}\.[A-Za-z0-9]{16}\b"), "[redacted-key]"),     # Zhipu keys
     (re.compile(r"(://)[^/\s:@]+:[^/\s@]+@"), r"\1[redacted]@"),              # credentials in URLs
     (re.compile(r"(?<!\w)(?<!\d\.)\d{9,}(?!\w|\.\d)"), "[id]"),               # Facebook app/user/page ids (not decimals)

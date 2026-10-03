@@ -20,7 +20,7 @@ import json
 import logging
 from contextlib import contextmanager
 from datetime import datetime
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Callable, Dict, Iterator, List, Optional
 from uuid import UUID, uuid4
 
 import psycopg
@@ -397,6 +397,57 @@ class PostgresStore:
                 (status, tenant_id, from_status),
             )
             return cur.rowcount
+
+    # ------------------------------------------------------------ payments
+    def apply_payment(
+        self,
+        payment: Dict[str, Any],
+        *,
+        tenant_id: str,
+        activate: Callable[[Optional[Dict[str, Any]]], Optional[Dict[str, Any]]],
+    ) -> Optional[Dict[str, Any]]:
+        with self._tx(tenant_id) as conn:
+            # A concurrent insert of the same id waits on the primary key, then does nothing.
+            inserted = conn.execute(
+                """
+                INSERT INTO billing_payments (id, tenant_id, provider, plan, billing_cycle, amount, currency, status, reference)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'review', %s)
+                ON CONFLICT (id) DO NOTHING
+                RETURNING id
+                """,
+                (payment["id"], tenant_id, payment.get("provider") or "stripe", payment["plan"],
+                 payment["billing_cycle"], int(payment["amount"]), payment["currency"], payment.get("reference")),
+            ).fetchone()
+            if inserted is None:
+                return None
+            row = conn.execute("SELECT * FROM subscriptions WHERE tenant_id = %s FOR UPDATE", (tenant_id,)).fetchone()
+            update = activate(_stringify(row))
+            status, period_end = "review", None
+            if update is not None:
+                period_end = update["current_period_end"]
+                conn.execute(
+                    """
+                    INSERT INTO subscriptions (tenant_id, plan, billing_cycle, status, current_period_end)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT (tenant_id) DO UPDATE SET
+                        plan = EXCLUDED.plan, billing_cycle = EXCLUDED.billing_cycle, status = EXCLUDED.status,
+                        current_period_end = EXCLUDED.current_period_end
+                    """,
+                    (tenant_id, update["plan"], update["billing_cycle"], update["status"], period_end),
+                )
+                status = "paid"
+            stored = conn.execute(
+                "UPDATE billing_payments SET status = %s, period_end = %s WHERE id = %s RETURNING *",
+                (status, period_end, payment["id"]),
+            ).fetchone()
+        return _stringify(stored)
+
+    def list_payments(self, *, tenant_id: str = DEFAULT_TENANT_ID) -> List[Dict[str, Any]]:
+        with self._tx(tenant_id) as conn:
+            rows = conn.execute(
+                "SELECT * FROM billing_payments WHERE tenant_id = %s ORDER BY created_at DESC", (tenant_id,)
+            ).fetchall()
+        return [_stringify(r) for r in rows]  # type: ignore[misc]
 
     # -------------------------------------------------------- page comments
     def save_page_comment(self, comment: Dict[str, Any], *, tenant_id: str = DEFAULT_TENANT_ID) -> Dict[str, Any]:

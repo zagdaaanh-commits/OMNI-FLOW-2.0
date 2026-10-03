@@ -4,9 +4,10 @@
 * **Agency VIP** - ¥166/month or ¥1666/year: unlimited channels and AI runs, 50 GB storage, priority routing.
 
 A new workspace starts on a Pro trial (``SUBSCRIPTION_TRIAL_DAYS``, default 7 days). When the trial
-or a paid period ends, AI generation and channel binding answer 402 until the operator activates a
-plan (``scripts/set_plan.py``) after payment. The shared ``default`` workspace is the operator's
-house account: Agency VIP without an end date.
+or a paid period ends, AI generation and channel binding answer 402 until a plan is paid for:
+online through Stripe Checkout (``app/payments.py``) or activated by the operator after a manual
+payment (``scripts/set_plan.py``). Payments buy prepaid periods; nothing renews automatically.
+The shared ``default`` workspace is the operator's house account: Agency VIP without an end date.
 
 Limits of ``None`` mean unlimited. Storage sizes and priority routing are shown on the pricing
 page; uploads are not metered yet.
@@ -130,6 +131,44 @@ def current_ai_runs(usage: Optional[Dict[str, Any]], now: Optional[datetime] = N
     if end is not None and (now or utcnow()) > end:
         return 0
     return int(usage.get("ai_runs_count") or 0)
+
+
+def price_minor_units(plan: str, billing_cycle: str) -> int:
+    """Price in fen (CNY has two decimals at Stripe): ¥66 -> 6600."""
+    return int(PLANS[plan]["prices"][billing_cycle]) * 100
+
+
+def _daily_price(plan: str, billing_cycle: str) -> float:
+    return PLANS[plan]["prices"][billing_cycle] / PERIOD_DAYS[billing_cycle]
+
+
+def paid_period_end(
+    current: Optional[Dict[str, Any]], plan: str, billing_cycle: str, periods: int = 1, now: Optional[datetime] = None
+) -> datetime:
+    """End of the period bought by paying for ``plan``/``billing_cycle`` ``periods`` times.
+
+    * The same plan still running (paid or trial): the new period starts at its current end, so
+      renewing early, or paying for Pro during the Pro trial, never loses days.
+    * A different paid plan still running: its unused time carries over, converted at the two
+      plans' daily prices (e.g. 20 days of Pro become ~8 days of Agency VIP on top of the new period).
+    * Otherwise (a trial of another plan, expired, no subscription): the period starts now.
+    """
+    now = now or utcnow()
+    start = now
+    status = effective_status(current, now) if current else "expired"
+    end = parse_time(current.get("current_period_end")) if current else None
+    if status in ACTIVE_STATUSES and end is not None and end > now:
+        old_plan, old_cycle = current.get("plan"), current.get("billing_cycle")
+        if old_plan == plan:
+            start = end
+        elif status == "active" and old_plan in PLANS and old_cycle in PERIOD_DAYS:
+            start = now + (end - now) * (_daily_price(old_plan, old_cycle) / _daily_price(plan, billing_cycle))
+    return start + timedelta(days=PERIOD_DAYS[billing_cycle] * periods)
+
+
+def has_no_end_date(subscription: Optional[Dict[str, Any]]) -> bool:
+    """The house account (active without an end date) cannot be bought or extended."""
+    return bool(subscription) and subscription.get("status") == "active" and not subscription.get("current_period_end")
 
 
 def checkout_url(plan: str, billing_cycle: str) -> Optional[str]:

@@ -85,12 +85,27 @@ There is no free tier. Plans are defined in `app/plans.py`:
 - New workspaces start a Pro trial (`SUBSCRIPTION_TRIAL_DAYS`, default 7). Workspaces that existed before billing get the same trial when the migration runs. The `default` workspace is the house account (Agency VIP, no end date); keep `REQUIRE_AUTH=true` in production so nobody else can act as it.
 - After the trial or a paid period ends, AI generation and channel binding answer 402 and the dashboard opens the pricing page. Reading data, disconnecting channels and the 快速开户 form keep working.
 - AI runs are counted only when the model actually wrote copy; template drafts (AI unavailable) and failed calls are free. Storage sizes and priority routing are listed on the pricing page but not metered yet.
+- Payments buy prepaid periods: 30 days (monthly) or 365 days (annual). Nothing renews automatically. Paying for the plan that is running (paid or trial) extends it from its end date; switching plans converts the unused paid days at the two plans' daily prices (15 Pro days become about 6 VIP days). The dashboard warns 7 days before the end and the pricing buttons then read "Renew".
 
-Payment is manual for now:
+### Online payment: Stripe Checkout
+
+The pricing buttons open Stripe Checkout (card, Alipay, WeChat Pay). Stripe cannot charge WeChat Pay or Alipay again without the customer, which is why each payment is one prepaid period instead of a Stripe subscription. The plan changes only when Stripe confirms the payment: the webhook applies it, and so does the dashboard when the merchant comes back from Stripe (whichever is first; each Checkout Session is applied once, recorded in `billing_payments`).
+
+1. Use a Stripe account whose country supports CNY with Alipay and WeChat Pay (Hong Kong does). In Dashboard → Settings → Payment methods, enable Cards, Alipay and WeChat Pay. `STRIPE_PAYMENT_METHODS` (default `card,alipay,wechat_pay`) only narrows what is enabled there.
+2. Developers → API keys: put the secret key in `STRIPE_SECRET_KEY` (a restricted `rk_` key needs write access to Checkout Sessions).
+3. Developers → Webhooks → Add endpoint `https://$DOMAIN/api/billing/webhook` with the events `checkout.session.completed`, `checkout.session.async_payment_succeeded` and `checkout.session.async_payment_failed`. Put its signing secret in `STRIPE_WEBHOOK_SECRET`.
+4. Set `PUBLIC_BASE_URL=https://$DOMAIN` (Stripe sends merchants back there) and restart (`./scripts/deploy_hk.sh --skip-pull`). `curl -s https://$DOMAIN/api/billing/plans` should report `"payments": {"provider": "stripe", ...}`.
+5. Try it in test mode first (`sk_test_` key, the test endpoint's `whsec_` secret): pay with card 4242 4242 4242 4242, or authorise on the Alipay / WeChat Pay test page. On a development machine, `stripe listen --forward-to localhost:7860/api/billing/webhook` forwards events and prints the `whsec_` secret to use. `stripe trigger` events carry no OmniFlow workspace and are acknowledged but ignored.
+
+A paid session whose amount or currency does not match the price list (for example a price changed while a Checkout page was open), or one paid for the house account, is stored with status `review` and not applied; the app log says `kept for review`. Activate it with `set_plan.py` or refund it in Stripe. Refunds are not synced: after refunding in the Stripe Dashboard, run `set_plan.py --expire` if access should end.
+
+### Manual payment (without Stripe)
+
+With `STRIPE_SECRET_KEY` empty, "Upgrade" sends a request instead:
 
 1. The merchant clicks "Upgrade to Pro" or "Contact VIP / Upgrade". The request is stored in `upgrade_requests`, POSTed to `LEAD_NOTIFICATION_WEBHOOK` (event `upgrade_request.created`, with the merchant's email), and the merchant sees the payment link for that plan and cycle if you set `BILLING_CHECKOUT_URL_<PLAN>_<CYCLE>`.
 2. Collect payment (WeChat Pay, Alipay, bank transfer, invoice).
-3. Activate it. Paying again before the end extends from the current end date:
+3. Activate it (the same period rules as online payments):
 
    ```bash
    docker compose -p omniflow -f docker-compose.prod.yml run --rm --no-deps -e SCHEDULER_MODE=off app      python scripts/set_plan.py --email boss@shop.com --plan agency --cycle annual
@@ -98,7 +113,7 @@ Payment is manual for now:
 
    `--list` shows pending requests, `--show` a workspace's plan and usage, `--expire` ends access immediately.
 
-The tables (`subscriptions`, `usage_tracking`, `upgrade_requests`) and `increment_ai_runs()` come from `scripts/supabase_subscriptions.sql`, which `scripts/migrate.py` applies after `init_supabase.sql` on every deploy. Only the API can change a plan or usage: Supabase clients can at most read their own workspace's rows.
+The tables (`subscriptions`, `usage_tracking`, `upgrade_requests`, `billing_payments`) and `increment_ai_runs()` come from `scripts/supabase_subscriptions.sql`, which `scripts/migrate.py` applies after `init_supabase.sql` on every deploy. Only the API can change a plan or usage: Supabase clients can at most read their own workspace's rows.
 
 ## File storage (business licenses, ad creatives)
 
@@ -126,4 +141,6 @@ Files are stored as `<workspace_id>/<uuid>.<ext>`. The app builds every path fro
 | Posts stay `scheduled` | `logs worker`; confirm `SCHEDULER_MODE=worker` and that the worker container is running. |
 | `/health/network` shows `down` | Security group blocks outbound, or the VM is mainland-hosted and needs `OUTBOUND_PROXY_URL`. |
 | Facebook posts show Token Expired | Merchant must reconnect the page via `/auth/facebook/login`. |
+| Paid in Stripe but the plan did not change | Stripe Dashboard → Webhooks → the endpoint's recent deliveries: 400 means `STRIPE_WEBHOOK_SECRET` belongs to another endpoint or mode (test vs live), 503 means it is not set. `logs app` for `kept for review`. |
+| "暂时无法打开支付页面" on the pricing page | `logs app` for `Stripe Checkout ... failed`: `AuthenticationError` = wrong `STRIPE_SECRET_KEY`; `InvalidRequestError` = a payment method in `STRIPE_PAYMENT_METHODS` is not enabled in the Dashboard or not available in your account's country. |
 | License upload says "上传失败" | `logs app` for `Upload to agency-documents failed`: HTTP 404 means the buckets were not created (run the storage SQL above); 403 means a wrong `SUPABASE_SERVICE_ROLE_KEY`. |

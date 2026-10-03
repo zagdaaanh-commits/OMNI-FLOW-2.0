@@ -12,7 +12,7 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Callable, Dict, Iterator, List, Optional
 from uuid import uuid4
 
 from db.base import (
@@ -120,6 +120,21 @@ CREATE TABLE IF NOT EXISTS upgrade_requests (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+-- Online payments (Stripe Checkout Sessions); id is the provider's id, so each is applied once.
+CREATE TABLE IF NOT EXISTS billing_payments (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    provider TEXT NOT NULL DEFAULT 'stripe',
+    plan TEXT NOT NULL,
+    billing_cycle TEXT NOT NULL,
+    amount INTEGER NOT NULL,
+    currency TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'paid',
+    reference TEXT,
+    period_end TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS page_comments (
     id TEXT PRIMARY KEY,
     tenant_id TEXT NOT NULL,
@@ -167,6 +182,7 @@ CREATE INDEX IF NOT EXISTS idx_accounts_platform_account ON connected_accounts (
 CREATE INDEX IF NOT EXISTS idx_agency_applications_tenant ON agency_applications (tenant_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_page_comments_tenant_post ON page_comments (tenant_id, post_id, created_time);
 CREATE INDEX IF NOT EXISTS idx_upgrade_requests_tenant ON upgrade_requests (tenant_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_billing_payments_tenant ON billing_payments (tenant_id, created_at);
 """
 
 
@@ -636,6 +652,59 @@ class SQLiteStore:
                 (status, iso_utc(utcnow()), tenant_id, from_status),
             )
             return cur.rowcount
+
+    # ------------------------------------------------------------ payments
+    def apply_payment(
+        self,
+        payment: Dict[str, Any],
+        *,
+        tenant_id: str,
+        activate: Callable[[Optional[Dict[str, Any]]], Optional[Dict[str, Any]]],
+    ) -> Optional[Dict[str, Any]]:
+        now = iso_utc(utcnow())
+        with self._conn() as conn:  # the INSERT takes SQLite's write lock: the whole block is serialised
+            inserted = conn.execute(
+                """
+                INSERT OR IGNORE INTO billing_payments
+                    (id, tenant_id, provider, plan, billing_cycle, amount, currency, status, reference,
+                     created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'review', ?, ?, ?)
+                """,
+                (payment["id"], tenant_id, payment.get("provider") or "stripe", payment["plan"],
+                 payment["billing_cycle"], int(payment["amount"]), payment["currency"], payment.get("reference"),
+                 now, now),
+            ).rowcount
+            if not inserted:
+                return None
+            row = conn.execute("SELECT * FROM subscriptions WHERE tenant_id = ?", (tenant_id,)).fetchone()
+            update = activate(dict(row) if row else None)
+            status, period_end = "review", None
+            if update is not None:
+                period_end = iso_utc(update["current_period_end"])
+                conn.execute(
+                    """
+                    INSERT INTO subscriptions
+                        (id, tenant_id, plan, billing_cycle, status, current_period_end, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (tenant_id) DO UPDATE SET
+                        plan = excluded.plan, billing_cycle = excluded.billing_cycle, status = excluded.status,
+                        current_period_end = excluded.current_period_end, updated_at = excluded.updated_at
+                    """,
+                    (str(uuid4()), tenant_id, update["plan"], update["billing_cycle"], update["status"],
+                     period_end, now, now),
+                )
+                status = "paid"
+            conn.execute(
+                "UPDATE billing_payments SET status = ?, period_end = ? WHERE id = ?", (status, period_end, payment["id"])
+            )
+            return dict(conn.execute("SELECT * FROM billing_payments WHERE id = ?", (payment["id"],)).fetchone())
+
+    def list_payments(self, *, tenant_id: str = DEFAULT_TENANT_ID) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM billing_payments WHERE tenant_id = ? ORDER BY created_at DESC", (tenant_id,)
+            ).fetchall()
+            return [dict(r) for r in rows]
 
     # -------------------------------------------------------- page comments
     def save_page_comment(self, comment: Dict[str, Any], *, tenant_id: str = DEFAULT_TENANT_ID) -> Dict[str, Any]:

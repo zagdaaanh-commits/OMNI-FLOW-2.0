@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
+from typing import Any, Callable, Dict, List, Optional, Protocol, runtime_checkable
 
 from models.schemas import DEFAULT_TENANT_ID, Campaign, ContentDraft, PublishTask
 
@@ -155,6 +155,25 @@ class Store(Protocol):
         """Operator view across workspaces (scripts/set_plan.py only)."""
         ...
     def set_upgrade_requests_status(self, status: str, *, tenant_id: str, from_status: str = "pending") -> int: ...
+
+    # ------------------------------------------------------------ payments
+    def apply_payment(
+        self,
+        payment: Dict[str, Any],
+        *,
+        tenant_id: str,
+        activate: Callable[[Optional[Dict[str, Any]]], Optional[Dict[str, Any]]],
+    ) -> Optional[Dict[str, Any]]:
+        """Record a provider payment exactly once, keyed by ``payment["id"]`` (e.g. a Checkout Session).
+
+        In the same transaction, with the workspace's subscription row locked, ``activate(current)``
+        returns the new subscription (``plan``, ``billing_cycle``, ``status``, ``current_period_end``),
+        which is saved and the payment marked ``paid``; ``None`` keeps the subscription unchanged and
+        marks the payment ``review``. Returns the stored payment, or ``None`` when that id was
+        already recorded (a webhook retry or the success page racing the webhook).
+        """
+        ...
+    def list_payments(self, *, tenant_id: str = DEFAULT_TENANT_ID) -> List[Dict[str, Any]]: ...
 
     # ---------------------------------------------------------- page comments
     def save_page_comment(self, comment: Dict[str, Any], *, tenant_id: str = DEFAULT_TENANT_ID) -> Dict[str, Any]:

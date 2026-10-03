@@ -1,8 +1,10 @@
 #!/usr/bin/env python
-"""Operator tool for subscriptions (there is no in-app payment yet).
+"""Operator tool for subscriptions.
 
-Typical flow: a merchant clicks "Upgrade" -> you receive the request (LEAD_NOTIFICATION_WEBHOOK or
-``--list``) -> the merchant pays -> you activate the plan here.
+With Stripe configured (STRIPE_SECRET_KEY), merchants pay online and plans activate by themselves.
+This tool covers everything else: manual payments (bank transfer, invoice), corrections and
+refunds. Without Stripe the flow is: a merchant clicks "Upgrade" -> you receive the request
+(LEAD_NOTIFICATION_WEBHOOK or ``--list``) -> the merchant pays -> you activate the plan here.
 
     python scripts/set_plan.py --list                                   # pending upgrade requests
     python scripts/set_plan.py --email boss@shop.com --show             # current plan and usage
@@ -10,8 +12,9 @@ Typical flow: a merchant clicks "Upgrade" -> you receive the request (LEAD_NOTIF
     python scripts/set_plan.py --workspace <tenant_id> --plan agency --cycle annual --periods 2
     python scripts/set_plan.py --workspace <tenant_id> --expire          # end access now
 
-Activating extends an active paid period of the same plan from its current end date; otherwise
-the period starts now. Pending upgrade requests of that workspace are marked fulfilled.
+Activating extends a running period of the same plan (paid or trial) from its current end date;
+switching from another paid plan carries its unused time over at the plans' daily prices;
+otherwise the period starts now. Pending upgrade requests of that workspace are marked fulfilled.
 Uses DATABASE_URL (PostgreSQL) or DATABASE_PATH (SQLite), like the app.
 """
 from __future__ import annotations
@@ -19,7 +22,6 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import timedelta
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -42,12 +44,7 @@ def _resolve_workspace(store, args) -> str:
 
 def activate(store, tenant_id: str, plan: str, cycle: str, periods: int) -> dict:
     current = plans.get_or_create_subscription(store, tenant_id)
-    now = plans.utcnow()
-    start = now
-    end = plans.parse_time(current.get("current_period_end"))
-    if current.get("status") == "active" and current.get("plan") == plan and end and end > now:
-        start = end  # paying again before the period ends extends it
-    period_end = start + timedelta(days=plans.PERIOD_DAYS[cycle] * periods)
+    period_end = plans.paid_period_end(current, plan, cycle, periods)  # same rules as Stripe payments
     store.save_subscription(
         tenant_id=tenant_id, plan=plan, billing_cycle=cycle, status="active", current_period_end=period_end
     )

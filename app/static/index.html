@@ -1323,7 +1323,8 @@
       'plan.trialLeft': ['试用 · 剩余 {n} 天', 'Trial · {n} days left'],
       'plan.trialEndsToday': ['试用 · 今天到期', 'Trial · ends today'],
       'plan.active': ['已开通', 'Active'],
-      'plan.activeUntil': ['有效期至 {date}', 'Renews {date}'],
+      'plan.activeUntil': ['有效期至 {date}', 'Active until {date}'],
+      'plan.endsSoon': ['{n} 天后到期', 'Ends in {n} days'],
       'plan.expired': ['已到期', 'Expired'],
       'plan.usage': ['AI 文案 {ai} · 渠道 {channels}', 'AI copy {ai} · Channels {channels}'],
       'plan.unlimited': ['不限', 'unlimited'],
@@ -1352,6 +1353,21 @@
       'price.vip.priority': ['优先处理通道', 'Priority routing'],
       'price.upgradePro': ['升级到 Pro', 'Upgrade to Pro'],
       'price.upgradeAgency': ['联系开通 VIP / 升级', 'Contact VIP / Upgrade'],
+      'price.renewPro': ['续费 Pro', 'Renew Pro'],
+      'price.renewAgency': ['续费 VIP', 'Renew VIP'],
+      'price.redirecting': ['正在打开支付页面…', 'Opening checkout…'],
+      'price.checkoutFailed': ['暂时无法打开支付页面，请稍后重试。', "Couldn't open the payment page. Please try again."],
+      'price.noteStripe': ['由 Stripe 安全收款，支持{methods}。付款成功后立即开通；不自动续费，提前续费会从到期日顺延。', 'Secure checkout by Stripe with {methods}. Your plan activates as soon as the payment succeeds. No auto-renewal: renewing early extends your end date.'],
+      'price.noteStripeAny': ['由 Stripe 安全收款。付款成功后立即开通；不自动续费，提前续费会从到期日顺延。', 'Secure checkout by Stripe. Your plan activates as soon as the payment succeeds. No auto-renewal: renewing early extends your end date.'],
+      'pay.method.card': ['银行卡', 'card'],
+      'pay.method.alipay': ['支付宝', 'Alipay'],
+      'pay.method.wechat_pay': ['微信支付', 'WeChat Pay'],
+      'pay.confirming': ['正在确认付款…', 'Confirming your payment…'],
+      'pay.success': ['付款成功！{plan} 已开通，有效期至 {date}。', 'Payment received. {plan} is active until {date}.'],
+      'pay.processing': ['付款处理中，确认后方案会自动开通。', "Your payment is processing. The plan activates automatically once it's confirmed."],
+      'pay.review': ['已收到付款，我们正在核对，核对后为你开通。', "Payment received. We're verifying it and will activate your plan shortly."],
+      'pay.cancelled': ['已取消支付，方案未变更。', 'Checkout cancelled. Your plan was not changed.'],
+      'pay.failed': ['付款未完成，请重试。', "The payment didn't complete. Please try again."],
       'price.sending': ['提交中…', 'Sending…'],
       'price.pay': ['前往付款 ↗', 'Pay now ↗'],
       'price.note': ['提交后我们会在 1 个工作日内联系你完成付款，付款确认后立即开通。', "After you submit, we'll contact you within 1 business day to complete payment; the plan is activated as soon as payment is confirmed."],
@@ -3029,6 +3045,7 @@
       checkFacebookLiveStatus();
       loadSubscription();
       handleMetaReturn();
+      handleCheckoutReturn();
     }
 
     function updateSidebarUserProfile(user) {
@@ -3479,6 +3496,10 @@
     let billingCycle = 'monthly';
     let currentSubscription = null;
     let pricingReason = null;
+    // Online payment from /api/billing/plans: {provider: 'stripe', payment_methods: [...] | null}, or
+    // null when Stripe is not configured (then "Upgrade" sends a request the operator follows up).
+    let onlinePayment = null;
+    const PAY_METHOD_KEYS = { card: 'pay.method.card', alipay: 'pay.method.alipay', wechat_pay: 'pay.method.wechat_pay' };
 
     // A localized message for a plan error response body ({detail: {code, message}}), else null.
     function planErrorMessage(body) {
@@ -3500,6 +3521,7 @@
         if (!res.ok) return;
         const data = await res.json();
         (data.plans || []).forEach(plan => { if (plan && plan.id && plan.prices) planCatalog[plan.id] = plan.prices; });
+        onlinePayment = data.payments && data.payments.provider ? data.payments : null;
         renderPricing();
       } catch (_) {}
     }
@@ -3521,10 +3543,14 @@
       if (sub.status === 'expired') return t('plan.expired');
       if (sub.status === 'trial') return sub.days_left > 0 ? t('plan.trialLeft', { n: sub.days_left }) : t('plan.trialEndsToday');
       if (sub.current_period_end) {
-        const date = new Date(sub.current_period_end).toLocaleDateString(currentLang === 'en' ? 'en' : 'zh-CN');
-        return t('plan.activeUntil', { date });
+        if (sub.days_left != null && sub.days_left <= 7) return t('plan.endsSoon', { n: sub.days_left });
+        return t('plan.activeUntil', { date: formatPlanDate(sub.current_period_end) });
       }
       return t('plan.active');
+    }
+
+    function formatPlanDate(value) {
+      return new Date(value).toLocaleDateString(currentLang === 'en' ? 'en' : 'zh-CN');
     }
 
     function renderPlanSummary() {
@@ -3577,6 +3603,27 @@
       });
       document.querySelectorAll('#pricingModal [data-period-label]').forEach(el => { el.textContent = t(annual ? 'price.perYear' : 'price.perMonth'); });
 
+      // Paying for the plan that is already running extends it, so its button reads "Renew".
+      ['pro', 'agency'].forEach(plan => {
+        const button = document.getElementById(plan === 'agency' ? 'upgradeAgencyBtn' : 'upgradeProBtn');
+        if (!button) return;
+        const sub = currentSubscription;
+        const renewing = sub && sub.plan === plan && sub.status === 'active';
+        button.dataset.i18n = renewing
+          ? (plan === 'agency' ? 'price.renewAgency' : 'price.renewPro')
+          : (plan === 'agency' ? 'price.upgradeAgency' : 'price.upgradePro');
+        if (!button.dataset.i18nBusy) button.textContent = t(button.dataset.i18n);
+      });
+      const note = document.getElementById('pricingNote');
+      if (note) {
+        const methods = onlinePayment ? (onlinePayment.payment_methods || []).filter(m => PAY_METHOD_KEYS[m]) : [];
+        const vars = methods.length ? { methods: methods.map(m => t(PAY_METHOD_KEYS[m])).join(currentLang === 'en' ? ', ' : '、') } : null;
+        note.dataset.i18n = !onlinePayment ? 'price.note' : (vars ? 'price.noteStripe' : 'price.noteStripeAny');
+        if (vars) note.dataset.i18nVars = JSON.stringify(vars);
+        else delete note.dataset.i18nVars;
+        note.textContent = t(note.dataset.i18n, vars);
+      }
+
       const reason = document.getElementById('pricingReason');
       if (reason) {
         setText(reason, pricingReason ? msg(pricingReason) : '');
@@ -3615,6 +3662,7 @@
       const error = document.getElementById('pricingError');
       done?.classList.add('hidden');
       error?.classList.add('hidden');
+      if (onlinePayment) return startCheckout(plan, button, error);
       setButtonBusy(button, 'price.sending');
       try {
         const res = await fetch('/api/billing/upgrade-request', {
@@ -3648,6 +3696,92 @@
       } finally {
         setButtonBusy(button, null);
       }
+    }
+
+    // Stripe Checkout: the server creates the session for this workspace and the browser goes to
+    // Stripe. The plan changes only after Stripe confirms the payment (webhook, or the check below
+    // when the merchant comes back), never because of this click.
+    async function startCheckout(plan, button, error) {
+      setButtonBusy(button, 'price.redirecting');
+      let leaving = false;
+      try {
+        const res = await fetch('/api/billing/create-checkout-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ plan, cycle: billingCycle, locale: currentLang === 'en' ? 'en' : 'zh' }),
+        });
+        let body = null;
+        try { body = await res.json(); } catch (_) {}
+        if (res.ok && body && typeof body.url === 'string' && body.url.startsWith('https://')) {
+          leaving = true;
+          window.location.assign(body.url);
+          return;
+        }
+        setText(error, msg(res.status === 401 ? 'price.signIn' : 'price.checkoutFailed'));
+        error?.classList.remove('hidden');
+      } catch (_) {
+        setText(error, msg('common.network'));
+        error?.classList.remove('hidden');
+      } finally {
+        if (!leaving) setButtonBusy(button, null);
+      }
+    }
+
+    // Coming back with the browser's Back button from Stripe restores this page from the cache.
+    window.addEventListener('pageshow', (event) => {
+      if (event.persisted) ['upgradeProBtn', 'upgradeAgencyBtn'].forEach(id => setButtonBusy(document.getElementById(id), null));
+    });
+
+    // Back from Stripe Checkout (?checkout=success&session_id=cs_... or ?checkout=cancelled). The
+    // server asks Stripe and applies a paid session at once; the webhook does the same, only once.
+    async function handleCheckoutReturn() {
+      const params = new URLSearchParams(window.location.search);
+      const state = params.get('checkout');
+      if (!state) return;
+      const sessionId = params.get('session_id') || '';
+      try { window.history.replaceState(null, '', window.location.pathname); } catch (_) {}
+      if (state !== 'success' || !/^cs_(test|live)_[A-Za-z0-9]+$/.test(sessionId)) {
+        showToast(msg('pay.cancelled'), true);
+        return;
+      }
+      showToast(msg('pay.confirming'), true, { duration: 10000 });
+      for (let attempt = 0; attempt < 6; attempt++) {
+        if (attempt) await new Promise(resolve => setTimeout(resolve, 2500));
+        let res = null;
+        let body = null;
+        try {
+          res = await fetch('/api/billing/checkout-session/' + encodeURIComponent(sessionId), { cache: 'no-store' });
+          body = await res.json();
+        } catch (_) {
+          continue;
+        }
+        if (res.status === 404 || res.status === 503) break;
+        if (!res.ok || !body) continue;
+        if (body.subscription) {
+          currentSubscription = { ...body.subscription, pending_request: null };
+          renderPlanSummary();
+          renderPricing();
+        }
+        if (body.result === 'review') {
+          showToast(msg('pay.review'), true, { duration: 8000 });
+          return;
+        }
+        if (body.paid) {
+          const sub = body.subscription || {};
+          showToast(msg('pay.success', {
+            plan: PLAN_NAMES[sub.plan] || sub.plan_name || '',
+            date: sub.current_period_end ? formatPlanDate(sub.current_period_end) : '',
+          }), true, { variant: 'success', duration: 8000 });
+          loadSubscription();
+          return;
+        }
+        if (body.status === 'expired') {
+          showToast(msg('pay.failed'), false);
+          return;
+        }
+      }
+      showToast(msg('pay.processing'), true, { duration: 8000 });
+      loadSubscription();
     }
 
     // Back from Facebook Login (/auth/facebook/callback redirects with meta_connected / meta_error).
@@ -3893,7 +4027,7 @@
         <a id="pricingCheckout" href="#" target="_blank" rel="noopener" class="hidden ml-1 font-semibold underline underline-offset-2" data-i18n="price.pay">前往付款 ↗</a>
       </div>
       <div id="pricingError" class="form-alert hidden mt-5" role="alert"></div>
-      <p class="text-[11px] text-muted text-center mt-5 leading-relaxed" data-i18n="price.note">提交后我们会在 1 个工作日内联系你完成付款，付款确认后立即开通。</p>
+      <p id="pricingNote" class="text-[11px] text-muted text-center mt-5 leading-relaxed" data-i18n="price.note">提交后我们会在 1 个工作日内联系你完成付款，付款确认后立即开通。</p>
     </div>
   </div>
 

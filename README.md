@@ -113,7 +113,10 @@ Open your browser at:
 ### Plans & Billing (Pro Growth / Agency VIP, no free tier)
 - `GET /api/billing/plans`: Public price list (¥66/¥666 Pro, ¥166/¥1666 Agency VIP).
 - `GET /api/billing/subscription`: The workspace's plan, status (trial / active / expired), limits and usage.
-- `POST /api/billing/upgrade-request`: Records an upgrade request for the operator; plans are activated after payment with `scripts/set_plan.py`.
+- `POST /api/billing/create-checkout-session`: Stripe Checkout (card, Alipay, WeChat Pay) for one prepaid period: `{"plan": "pro"|"agency", "cycle": "monthly"|"annual"}` → `{"url": ...}`. The workspace travels in `client_reference_id` and `metadata.workspace_id`.
+- `POST /api/billing/webhook`: Stripe webhook (signature checked with `STRIPE_WEBHOOK_SECRET`); `checkout.session.completed` activates the plan for 30 / 365 days, extending a running period.
+- `GET /api/billing/checkout-session/{id}`: Used by the dashboard when the merchant returns from Stripe; applies a paid session immediately (once, shared with the webhook).
+- `POST /api/billing/upgrade-request`: Manual path when Stripe is not configured; records a request, and the operator activates the plan after payment with `scripts/set_plan.py`.
 - AI generation (`/content/generate`, `/assistant/chat`) and channel binding are gated by `app/dependencies/limits.py`: 402 `SUBSCRIPTION_REQUIRED`, 403 `AI_LIMIT_REACHED` (Pro: 300 runs per 30 days) or 403 `CHANNEL_LIMIT_REACHED` (Pro: 3 channels).
 
 ### Agency Applications & File Storage (Supabase Storage)

@@ -1,5 +1,5 @@
 -- =============================================================================
--- OmniFlow 2.0 - subscriptions, AI usage and upgrade requests (PostgreSQL / Supabase)
+-- OmniFlow 2.0 - subscriptions, AI usage, upgrade requests and payments (PostgreSQL / Supabase)
 --
 -- Idempotent. Runs after init_supabase.sql (it reuses tenants, set_updated_at(),
 -- app_bypass_rls() and app_current_tenant()). `python scripts/migrate.py` applies both.
@@ -9,7 +9,8 @@
 --
 -- Plans (prices and limits live in app/plans.py): 'pro' = Pro Growth, 'agency' = Agency VIP.
 -- There is no free tier: new workspaces get a Pro 'trial'; when current_period_end passes the
--- workspace is treated as expired until the operator activates a plan (scripts/set_plan.py).
+-- workspace is treated as expired until a plan is paid for: Stripe Checkout (billing_payments,
+-- activated by the webhook) or a manual payment the operator activates (scripts/set_plan.py).
 -- current_period_end NULL = no end date (the 'default' house account).
 --
 -- Who may write: only the OmniFlow API. Its transactions set 'app.tenant_id' (or
@@ -69,6 +70,30 @@ CREATE TABLE IF NOT EXISTS upgrade_requests (
 CREATE INDEX IF NOT EXISTS ix_upgrade_requests_tenant ON upgrade_requests (tenant_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS ix_upgrade_requests_pending ON upgrade_requests (created_at) WHERE status = 'pending';
 
+-- -------------------------------------------------------- billing_payments ---
+-- One row per online payment (id = Stripe Checkout Session id), inserted in the same transaction
+-- that extends the subscription, so a webhook retry can never apply a payment twice.
+-- status 'paid' = applied to the subscription; 'review' = kept for the operator (amount mismatch,
+-- house account) and not applied.
+CREATE TABLE IF NOT EXISTS billing_payments (
+    id             text        PRIMARY KEY,
+    tenant_id      text        NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    provider       text        NOT NULL DEFAULT 'stripe',
+    plan           text        NOT NULL,
+    billing_cycle  text        NOT NULL,
+    amount         integer     NOT NULL,          -- minor units (fen)
+    currency       text        NOT NULL,
+    status         text        NOT NULL DEFAULT 'paid',
+    reference      text,                          -- Stripe PaymentIntent id
+    period_end     timestamptz,                   -- subscription end after this payment
+    created_at     timestamptz NOT NULL DEFAULT now(),
+    updated_at     timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT ck_billing_payments_plan CHECK (plan IN ('pro', 'agency')),
+    CONSTRAINT ck_billing_payments_cycle CHECK (billing_cycle IN ('monthly', 'annual')),
+    CONSTRAINT ck_billing_payments_status CHECK (status IN ('paid', 'review'))
+);
+CREATE INDEX IF NOT EXISTS ix_billing_payments_tenant ON billing_payments (tenant_id, created_at DESC);
+
 -- -------------------------------------------------------- increment_ai_runs ---
 -- Counts one AI run and returns the new count. When the cycle has ended it restarts at 1 with a
 -- fresh 30-day window. With p_limit, a cycle that already has p_limit runs is left unchanged and
@@ -98,7 +123,7 @@ DO $do$
 DECLARE
     t text;
 BEGIN
-    FOREACH t IN ARRAY ARRAY['subscriptions', 'usage_tracking', 'upgrade_requests']
+    FOREACH t IN ARRAY ARRAY['subscriptions', 'usage_tracking', 'upgrade_requests', 'billing_payments']
     LOOP
         EXECUTE format('DROP TRIGGER IF EXISTS trg_%1$s_updated_at ON %1$I', t);
         EXECUTE format(
@@ -115,7 +140,7 @@ DO $do$
 DECLARE
     t text;
 BEGIN
-    FOREACH t IN ARRAY ARRAY['subscriptions', 'usage_tracking', 'upgrade_requests']
+    FOREACH t IN ARRAY ARRAY['subscriptions', 'usage_tracking', 'upgrade_requests', 'billing_payments']
     LOOP
         EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
         EXECUTE format('DROP POLICY IF EXISTS workspace_read ON %I', t);
@@ -141,15 +166,15 @@ BEGIN
     FOREACH r IN ARRAY ARRAY['anon', 'authenticated']
     LOOP
         IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r) THEN
-            EXECUTE format('REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON subscriptions, usage_tracking, upgrade_requests FROM %I', r);
+            EXECUTE format('REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON subscriptions, usage_tracking, upgrade_requests, billing_payments FROM %I', r);
         END IF;
     END LOOP;
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
-        REVOKE SELECT ON subscriptions, usage_tracking, upgrade_requests FROM anon;
+        REVOKE SELECT ON subscriptions, usage_tracking, upgrade_requests, billing_payments FROM anon;
     END IF;
     -- The optional least-privilege application role from init_supabase.sql.
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'omniflow_app') THEN
-        GRANT SELECT, INSERT, UPDATE, DELETE ON subscriptions, usage_tracking, upgrade_requests TO omniflow_app;
+        GRANT SELECT, INSERT, UPDATE, DELETE ON subscriptions, usage_tracking, upgrade_requests, billing_payments TO omniflow_app;
         GRANT EXECUTE ON FUNCTION increment_ai_runs(text, integer) TO omniflow_app;
     END IF;
 END
