@@ -6,7 +6,7 @@ stateless and can be scaled freely.
 import multiprocessing
 import os
 
-bind = f"0.0.0.0:{os.getenv('PORT', '7860')}"
+bind = f"0.0.0.0:{os.getenv('PORT', '8000')}"
 worker_class = "uvicorn_worker.UvicornWorker"
 # Modest default: LLM calls are I/O bound and each worker holds its own DB pool.
 workers = int(os.getenv("WEB_CONCURRENCY", str(min(4, multiprocessing.cpu_count() * 2 + 1))))

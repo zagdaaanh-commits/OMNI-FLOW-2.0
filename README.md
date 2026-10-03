@@ -18,7 +18,7 @@ The architecture decouples platform-specific API and automation adapters, allowi
 ```text
 OmniFlow 2.0 Client / VisionOS Studio
        |
-     FastAPI Backend (Port 5000)
+     FastAPI Backend (Port 8000)
        |
        +--> CampaignPlanner
        |       |- Global strategy & target audience
@@ -88,11 +88,11 @@ python -m pip install -r requirements.txt
 
 ### 3. Launch Development Server
 ```powershell
-uvicorn app.main:app --host 127.0.0.1 --port 5000 --reload
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 Open your browser at:
-`http://127.0.0.1:5000/`
+`http://127.0.0.1:8000/`
 
 ---
 

@@ -2,7 +2,7 @@ install:
 	python -m pip install -r requirements-dev.txt
 
 run:
-	uvicorn app.main:app --reload --host 0.0.0.0 --port 7860
+	uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 worker:
 	python -m app.worker

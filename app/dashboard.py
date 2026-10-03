@@ -54,7 +54,7 @@ def get_dashboard_html() -> str:
       <div class="flex items-center space-x-3">
         <div class="hidden sm:flex items-center space-x-2 text-xs text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
           <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span>FastAPI Engine (Port 5000)</span>
+          <span>FastAPI Engine (Port 8000)</span>
         </div>
         <a href="/docs" target="_blank" class="inline-flex items-center space-x-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium px-3 py-2 rounded-lg border border-slate-300 transition">
           <i class="fa-solid fa-code"></i>
