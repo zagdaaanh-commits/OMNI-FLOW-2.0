@@ -151,6 +151,16 @@ CREATE TABLE IF NOT EXISTS page_comments (
     updated_at TEXT NOT NULL,
     UNIQUE (tenant_id, comment_id)
 );
+-- One-time sign-up / password-reset codes (HMAC only), one pending code per email and purpose.
+CREATE TABLE IF NOT EXISTS email_verification_codes (
+    email TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    code_hash TEXT NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (email, purpose)
+);
 """
 
 # Columns written by save_page_comment, in insert order.
@@ -370,6 +380,56 @@ class SQLiteStore:
                 conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hash_password(password), user["id"]))
         user.pop("password_hash", None)
         return user
+
+    def set_user_password(self, user_id: str, password: str, *, tenant_id: str) -> bool:
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE users SET password_hash = ? WHERE id = ? AND tenant_id = ?",
+                (hash_password(password), user_id, tenant_id),
+            )
+            return cur.rowcount > 0
+
+    # --------------------------------------------- email verification codes
+    def save_verification_code(self, *, email: str, purpose: str, code_hash: str, expires_at: datetime) -> None:
+        now = iso_utc(utcnow())
+        with self._conn() as conn:
+            conn.execute("DELETE FROM email_verification_codes WHERE expires_at < ?", (now,))
+            conn.execute(
+                """
+                INSERT INTO email_verification_codes (email, purpose, code_hash, attempts, expires_at, created_at)
+                VALUES (?, ?, ?, 0, ?, ?)
+                ON CONFLICT (email, purpose) DO UPDATE SET
+                    code_hash = excluded.code_hash, attempts = 0,
+                    expires_at = excluded.expires_at, created_at = excluded.created_at
+                """,
+                (email.strip().lower(), purpose, code_hash, iso_utc(expires_at), now),
+            )
+
+    def get_verification_code(self, *, email: str, purpose: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM email_verification_codes WHERE email = ? AND purpose = ?",
+                (email.strip().lower(), purpose),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def record_verification_failure(self, *, email: str, purpose: str) -> int:
+        with self._conn() as conn:
+            row = conn.execute(
+                "UPDATE email_verification_codes SET attempts = attempts + 1 "
+                "WHERE email = ? AND purpose = ? RETURNING attempts",
+                (email.strip().lower(), purpose),
+            ).fetchone()
+            return int(row["attempts"]) if row else 0
+
+    def delete_verification_code(self, *, email: str, purpose: str, code_hash: Optional[str] = None) -> bool:
+        sql = "DELETE FROM email_verification_codes WHERE email = ? AND purpose = ?"
+        params: tuple = (email.strip().lower(), purpose)
+        if code_hash is not None:
+            sql += " AND code_hash = ?"
+            params += (code_hash,)
+        with self._conn() as conn:
+            return conn.execute(sql, params).rowcount > 0
 
     # ------------------------------------------------------ social accounts
     @staticmethod

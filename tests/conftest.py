@@ -25,6 +25,8 @@ os.environ["DATABASE_PATH"] = str(Path(_TEST_DB_DIR) / "test-marketing.db")
 os.environ["SCHEDULER_MODE"] = "off"
 os.environ["LLM_BACKOFF_BASE_SECONDS"] = "0"
 os.environ["PBKDF2_ITERATIONS"] = "1000"  # fast password hashing in tests
+# Most tests register accounts directly; tests/test_email_verification.py turns the code check on.
+os.environ["EMAIL_VERIFICATION_REQUIRED"] = "false"
 for _name in (
     "OPENAI_API_KEY", "OPEN_AI_KEY", "ZHIPUAI_API_KEY", "OPENAI_BASE_URL", "MODEL_NAME", "OPENAI_MODEL",
     "OPENANAI_BASE_URI_MODEL", "VISION_MODEL_NAME",
@@ -33,6 +35,8 @@ for _name in (
     "OUTBOUND_PROXY_URL", "DATABASE_URL", "REDIS_URL", "REQUIRE_AUTH", "ALLOW_TENANT_HEADER",
     "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY",
     "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "STRIPE_PAYMENT_METHODS", "PUBLIC_BASE_URL",
+    "SMTP_HOST", "SMTP_PORT", "SMTP_SECURITY", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM",
+    "VERIFICATION_CODE_TTL_SECONDS", "VERIFICATION_RESEND_SECONDS", "VERIFICATION_MAX_ATTEMPTS",
     "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy",
 ):
     os.environ[_name] = ""

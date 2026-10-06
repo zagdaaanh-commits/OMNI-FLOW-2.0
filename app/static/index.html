@@ -392,8 +392,9 @@
     .lang-btn:hover { background: var(--surface-hover); }
     .lang-opt.active { color: var(--ink); font-weight: 600; }
     .lang-sep { opacity: 0.45; }
-    /* Phones: the header keeps the logo, globe, theme, 快速开户, settings and avatar (network status is in the drawer). */
-    @media (max-width: 640px) { .topbar .lang-opt, .topbar .lang-sep, .topbar .network-pill { display: none; } .topbar .lang-btn { padding: 0 0.45rem; } }
+    /* Quiet text links inside forms (忘记密码？ / 返回登录). */
+    .text-link { font-size: 0.75rem; color: var(--muted); transition: color 150ms ease; }
+    .text-link:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
 
     /* While sign-in is required, the workspace behind the gate is not readable or clickable. */
     body.auth-locked #appMain, body.auth-locked #sidebar { filter: blur(8px); pointer-events: none; user-select: none; }
@@ -450,20 +451,6 @@
     html.dark #toast.toast-success { background: #052e1f !important; border-color: rgba(52,211,153,0.40) !important; }
     html.dark #toast.toast-success #toastMsg, html.dark #toast.toast-success #toastIcon { color: #a7f3d0 !important; }
 
-    /* ------------------------------------------------------ network status --- */
-    .network-pill {
-      display: inline-flex; align-items: center; gap: 0.4rem;
-      height: 2.1rem; padding: 0 0.6rem; border-radius: 999px;
-      color: var(--muted); transition: background 150ms ease;
-    }
-    .network-pill:hover { background: var(--surface-hover); }
-    .network-dot { width: 0.5rem; height: 0.5rem; border-radius: 999px; background: #a1a1aa; }
-    .network-latency { font: 500 0.7rem/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
-    .network-healthy .network-dot { background: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,0.15); }
-    .network-degraded .network-dot { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.15); }
-    .network-offline .network-dot { background: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,0.15); }
-    @media (max-width: 640px) { .network-latency { display: none; } }
-
     /* ========================================================================= */
     /* EXISTING MODALS & CHAT CARDS (dark-authored utility markup)               */
     /* ========================================================================= */
@@ -500,9 +487,7 @@
     html.light .hover\:text-white:hover { color: #18181B !important; }
     html.light [class*="bg-[#0"], html.light [class*="bg-[#1"] { background-color: #FFFFFF !important; }
     @keyframes ofFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
-    @keyframes ofPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
     .animate-fade-in { animation: ofFadeIn 220ms ease-out both; }
-    .network-checking .network-dot { animation: ofPulse 1.4s ease-in-out infinite; }
   </style>
 </head>
 <body class="h-screen w-screen flex antialiased relative overflow-hidden auth-locked">
@@ -547,10 +532,6 @@
     </div>
 
     <div class="pt-3 mt-3 border-t hairline space-y-1">
-      <div class="drawer-item !cursor-default">
-        <span id="sidebarNetworkDot" class="w-1.5 h-1.5 rounded-full bg-zinc-400"></span><span class="flex-1 text-muted" data-i18n="nav.network">Network</span>
-        <a href="/docs" target="_blank" rel="noopener" class="text-muted hover:text-ink text-xs" data-i18n="nav.apiDocs">API docs</a>
-      </div>
       <div class="relative">
         <button onclick="toggleUserDropdown()" class="drawer-item">
           <span id="sidebarUserInitials" class="w-7 h-7 rounded-full avatar flex items-center justify-center text-[11px] font-semibold"></span>
@@ -583,15 +564,6 @@
       </div>
 
       <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
-        <button id="networkStatusPill" onclick="checkNetworkHealth()" class="network-pill network-checking" title="Checking network…" data-i18n-title="net.checking">
-          <span id="networkStatusDot" class="network-dot"></span>
-          <span id="networkStatusLabel" class="sr-only" data-i18n="net.checking">Checking network</span>
-          <span id="networkLatency" class="network-latency"></span>
-        </button>
-        <button type="button" onclick="toggleLanguage()" class="lang-btn" title="切换语言 · Switch language" aria-label="切换语言 · Switch language">
-          <span class="material-symbols-outlined text-lg">language</span>
-          <span class="lang-opt" data-lang-opt="zh">中文</span><span class="lang-sep">/</span><span class="lang-opt" data-lang-opt="en">EN</span>
-        </button>
         <button onclick="toggleTheme()" class="icon-btn" title="Toggle light / dark" data-i18n-title="header.theme"><span id="themeIcon" class="material-symbols-outlined text-xl">light_mode</span></button>
         <button onclick="openMetaAccountModal()" class="cta-btn" title="Meta 企业广告账户快速开户" data-i18n-title="header.metaIntake">
           <img src="/static/assets/logos/meta.svg" class="w-4 h-4" alt=""/>
@@ -1046,8 +1018,6 @@
       'nav.newCampaign': ['新建营销活动', 'New campaign'],
       'nav.noCampaigns': ['暂无营销活动', 'No active campaigns yet'],
       'nav.channelsShort': ['{n} 个渠道', '{n} ch'],
-      'nav.network': ['网络', 'Network'],
-      'nav.apiDocs': ['API 文档', 'API docs'],
       'nav.metaConnection': ['Meta 连接状态', 'Meta connection'],
       'nav.logout': ['退出登录', 'Log out'],
       'header.theme': ['切换浅色 / 深色', 'Toggle light / dark'],
@@ -1113,10 +1083,27 @@
       'auth.email': ['邮箱', 'Email'],
       'auth.password': ['密码', 'Password'],
       'auth.continue': ['继续', 'Continue'],
+      'auth.createAccount': ['注册并登录', 'Create account'],
       'auth.signingIn': ['正在登录…', 'Signing in…'],
       'auth.creating': ['正在创建账户…', 'Creating account…'],
       'auth.welcomeNew': ['账户已创建，欢迎使用 OmniFlow', 'Account created. Welcome to OmniFlow'],
       'auth.welcomeBack': ['欢迎回来', 'Welcome back'],
+      'auth.code': ['邮箱验证码', 'Email verification code'],
+      'auth.codePh': ['6 位数字', '6-digit code'],
+      'auth.sendCode': ['获取邮箱验证码', 'Get email code'],
+      'auth.sendingCode': ['发送中…', 'Sending…'],
+      'auth.resendIn': ['{n} 秒后重新获取', 'Resend in {n}s'],
+      'auth.codeSent': ['验证码已发送至 {email}，{min} 分钟内有效。', 'Code sent to {email}. It expires in {min} minutes.'],
+      'auth.resetCodeSent': ['如果 {email} 已注册，验证码已发送，{min} 分钟内有效。', 'If {email} has an account, a code is on its way. It expires in {min} minutes.'],
+      'auth.forgot': ['忘记密码？', 'Forgot password?'],
+      'auth.resetTitle': ['重置密码', 'Reset your password'],
+      'auth.resetSubtitle': ['输入注册邮箱，获取验证码后设置新密码', 'Enter your account email, get a code, then choose a new password'],
+      'auth.newPassword': ['新密码', 'New password'],
+      'auth.newPasswordPh': ['至少 8 位', 'At least 8 characters'],
+      'auth.resetSubmit': ['重置密码并登录', 'Reset password & sign in'],
+      'auth.resetting': ['正在重置…', 'Resetting…'],
+      'auth.backToLogin': ['返回登录', 'Back to sign in'],
+      'auth.passwordReset': ['密码已重置，欢迎回来', 'Password updated. Welcome back'],
       'auth.err.expired': ['登录已过期，请重新登录。', 'Your session has expired. Please sign in again.'],
       'auth.err.unverified': ['暂时无法验证登录状态，请稍后重试。', "Couldn't verify your session. Please try again shortly."],
       'auth.err.offline': ['无法连接服务器，请检查网络后刷新页面。', "Can't reach the server. Check your connection and reload the page."],
@@ -1127,6 +1114,14 @@
       'auth.err.credentials': ['邮箱或密码不正确。', 'Incorrect email or password.'],
       'auth.err.exists': ['该邮箱已注册，请直接登录。', 'This email is already registered. Please sign in.'],
       'auth.err.format': ['请检查邮箱和密码格式。', 'Please check your email and password.'],
+      'auth.err.codeMissing': ['请输入 6 位邮箱验证码。', 'Enter the 6-digit code from your email.'],
+      'auth.err.codeInvalid': ['验证码不正确，请重新输入。', "That code isn't right. Please check it and try again."],
+      'auth.err.codeExpired': ['验证码已失效，请重新获取。', 'This code has expired. Please request a new one.'],
+      'auth.err.codeAttempts': ['验证码错误次数过多，请重新获取。', 'Too many incorrect attempts. Please request a new code.'],
+      'auth.err.codeCooldown': ['发送过于频繁，请 {n} 秒后再试。', 'Please wait {n}s before requesting another code.'],
+      'auth.err.mailUnavailable': ['邮件服务暂不可用，请联系管理员。', "Email delivery isn't set up on this server. Please contact support."],
+      'auth.err.sendFailed': ['验证码发送失败，请稍后重试。', "Couldn't send the code. Please try again shortly."],
+      'auth.err.resetFailed': ['重置密码失败，请稍后重试。', "Couldn't reset your password. Please try again later."],
 
       'oauth.title': ['Facebook 授权暂不可用', 'Facebook authorization unavailable'],
       'oauth.body': ['服务器尚未配置 Meta 应用凭证（META_APP_ID / META_APP_SECRET / META_REDIRECT_URI）。请改用 Page Token 或企业广告账户绑定。', 'Meta App credentials are not set on the server (META_APP_ID / META_APP_SECRET / META_REDIRECT_URI). Please use a Page Token or bind a business ad account instead.'],
@@ -1307,17 +1302,6 @@
       'sch.taskDispatched': ['任务已发布！', 'Task dispatched to live feed!'],
       'sch.error': ['出错：{error}', 'Error: {error}'],
 
-      'net.checking': ['正在检查网络…', 'Checking network…'],
-      'net.healthy': ['网络正常', 'Network healthy'],
-      'net.degraded': ['网络较慢', 'Network degraded'],
-      'net.down': ['网络不可用', 'Network down'],
-      'net.unavailable': ['网络检测失败', 'Network unavailable'],
-      'net.allDown': ['Meta 与智谱 AI 均无法访问', 'Meta and Zhipu AI unreachable'],
-      'net.checkFailed': ['网络检测失败：{error}', 'Network check failed: {error}'],
-      'net.viaProxy': [' · 经代理', ' · via proxy'],
-      'net.unreachable': ['无法访问', 'unreachable'],
-      'net.zhipu': ['智谱 AI', 'Zhipu AI'],
-
       'plan.menu': ['方案与账单', 'Plan & billing'],
       'plan.upgrade': ['升级方案', 'Upgrade plan'],
       'plan.trialLeft': ['试用 · 剩余 {n} 天', 'Trial · {n} days left'],
@@ -1446,7 +1430,6 @@
         document.querySelectorAll(`[data-i18n-${attr}]`).forEach(el => el.setAttribute(attr, t(el.getAttribute(`data-i18n-${attr}`))));
       });
       document.querySelectorAll('[data-lang-opt]').forEach(el => el.classList.toggle('active', el.dataset.langOpt === currentLang));
-      renderNetworkHealth();
       renderPlanSummary();
       renderPricing();
     }
@@ -3089,11 +3072,230 @@
     function switchAuthTab(mode) {
       authMode = mode === 'register' ? 'register' : 'login';
       const register = authMode === 'register';
+      showAuthView('main');
       document.getElementById('authTabLogin')?.classList.toggle('seg-active', !register);
       document.getElementById('authTabRegister')?.classList.toggle('seg-active', register);
       const pwd = document.getElementById('authPasswordInput');
       if (pwd) pwd.autocomplete = register ? 'new-password' : 'current-password';
+      // Sign Up adds the email code row; Sign In offers 忘记密码？ instead.
+      document.getElementById('authCodeField')?.classList.toggle('hidden', !register);
+      document.getElementById('authForgotLink')?.classList.toggle('hidden', register);
+      const submitBtn = document.getElementById('authSubmitBtn');
+      if (submitBtn) {
+        submitBtn.dataset.i18n = register ? 'auth.createAccount' : 'auth.continue';
+        if (!submitBtn.dataset.i18nBusy) submitBtn.textContent = t(submitBtn.dataset.i18n);
+      }
       setFormAlert('authFormError', '');
+    }
+
+    // The gate shows either Sign In / Sign Up ('main') or the forgot-password form ('reset').
+    function showAuthView(view) {
+      const reset = view === 'reset';
+      document.getElementById('authMainView')?.classList.toggle('hidden', reset);
+      document.getElementById('resetForm')?.classList.toggle('hidden', !reset);
+      setText(document.getElementById('authModalTitle'), msg(reset ? 'auth.resetTitle' : 'auth.title'));
+      setText(document.getElementById('authModalSubtitle'), msg(reset ? 'auth.resetSubtitle' : 'auth.subtitle'));
+    }
+
+    function openPasswordReset() {
+      const loginEmail = (document.getElementById('authEmailInput')?.value || '').trim();
+      const resetEmail = document.getElementById('resetEmailInput');
+      if (resetEmail && loginEmail) resetEmail.value = loginEmail;
+      setFormAlert('resetFormError', '');
+      showAuthView('reset');
+      setTimeout(() => document.getElementById(resetEmail && resetEmail.value ? 'resetSendCodeBtn' : 'resetEmailInput')?.focus(), 50);
+    }
+
+    function closePasswordReset() {
+      const resetEmail = (document.getElementById('resetEmailInput')?.value || '').trim();
+      const loginEmail = document.getElementById('authEmailInput');
+      if (loginEmail && resetEmail) loginEmail.value = resetEmail;
+      switchAuthTab('login');
+      setTimeout(() => document.getElementById(loginEmail && loginEmail.value ? 'authPasswordInput' : 'authEmailInput')?.focus(), 50);
+    }
+
+    // -------------------------------------------- email verification codes
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const CODE_RE = /^\d{6}$/;
+    const AUTH_ERROR_KEYS = {
+      CODE_REQUIRED: 'auth.err.codeMissing',
+      CODE_INVALID: 'auth.err.codeInvalid',
+      CODE_EXPIRED: 'auth.err.codeExpired',
+      CODE_ATTEMPTS_EXCEEDED: 'auth.err.codeAttempts',
+      EMAIL_NOT_CONFIGURED: 'auth.err.mailUnavailable',
+      EMAIL_DELIVERY_FAILED: 'auth.err.sendFailed',
+    };
+
+    // Server error of an /auth/* call -> localized message ({detail: {code}} first, then the HTTP status).
+    function authErrorMessage(res, data, fallbackKey) {
+      const detail = data && data.detail;
+      const code = detail && typeof detail === 'object' ? detail.code : null;
+      if (code === 'CODE_RECENTLY_SENT') {
+        return msg('auth.err.codeCooldown', { n: parseInt(res.headers.get('Retry-After'), 10) || 60 });
+      }
+      if (code && AUTH_ERROR_KEYS[code]) return msg(AUTH_ERROR_KEYS[code]);
+      if (res.status === 422) return msg('auth.err.format');
+      return msg(fallbackKey);
+    }
+
+    // "获取邮箱验证码" buttons stay disabled with a countdown until another code may be requested.
+    const codeCooldownTimers = {};
+
+    function stopCodeCooldown(button) {
+      if (!button) return;
+      clearInterval(codeCooldownTimers[button.id]);
+      delete codeCooldownTimers[button.id];
+      delete button.dataset.i18nVars;
+      setButtonBusy(button, null);
+    }
+
+    function startCodeCooldown(button, seconds) {
+      if (!button) return;
+      stopCodeCooldown(button);
+      let left = Math.max(1, Math.ceil(seconds));
+      const tick = () => {
+        if (left <= 0) {
+          stopCodeCooldown(button);
+          return;
+        }
+        button.disabled = true;
+        button.dataset.i18nBusy = 'auth.resendIn';
+        button.dataset.i18nVars = JSON.stringify({ n: left });
+        button.textContent = t('auth.resendIn', { n: left });
+        left -= 1;
+      };
+      tick();
+      codeCooldownTimers[button.id] = setInterval(tick, 1000);
+    }
+
+    // POSTs { email, lang } to a send-code endpoint; true when the code is on its way.
+    // badRequestKey: message for a plain 400 (sign-up: the email is already registered).
+    async function requestEmailCode({ endpoint, email, button, errorId, hintId, sentKey, badRequestKey }) {
+      setFormAlert(errorId, '');
+      setFormAlert(hintId, '');
+      setButtonBusy(button, 'auth.sendingCode');
+      let res = null;
+      let data = null;
+      try {
+        res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, lang: currentLang }),
+        });
+        try { data = await res.json(); } catch (_) {}
+      } catch (err) {
+        setButtonBusy(button, null);
+        setFormAlert(errorId, msg('common.network'));
+        return false;
+      }
+      setButtonBusy(button, null);
+      if (res.ok) {
+        startCodeCooldown(button, (data && data.resend_in) || 60);
+        setFormAlert(hintId, msg(sentKey, { email, min: Math.round(((data && data.expires_in) || 600) / 60) }));
+        return true;
+      }
+      const retryAfter = parseInt(res.headers.get('Retry-After'), 10);
+      if (res.status === 429 && retryAfter > 0) startCodeCooldown(button, retryAfter);
+      setFormAlert(errorId, authErrorMessage(res, data, res.status === 400 && badRequestKey ? badRequestKey : 'auth.err.sendFailed'));
+      return false;
+    }
+
+    // Sign Up step 1: email + password filled in -> email a 6-digit code.
+    async function sendRegisterCode() {
+      const email = (document.getElementById('authEmailInput')?.value || '').trim();
+      const password = document.getElementById('authPasswordInput')?.value || '';
+      setFormAlert('authFormError', '');
+      if (!EMAIL_RE.test(email)) {
+        setFormAlert('authFormError', msg('auth.err.email'));
+        return;
+      }
+      if (password.length < 8) {
+        setFormAlert('authFormError', msg('auth.err.passwordShort'));
+        return;
+      }
+      const sent = await requestEmailCode({
+        endpoint: '/auth/register/send-code',
+        email,
+        button: document.getElementById('authSendCodeBtn'),
+        errorId: 'authFormError',
+        hintId: 'authCodeHint',
+        sentKey: 'auth.codeSent',
+        badRequestKey: 'auth.err.exists',
+      });
+      if (sent) document.getElementById('authCodeInput')?.focus();
+    }
+
+    async function sendResetCode() {
+      const email = (document.getElementById('resetEmailInput')?.value || '').trim();
+      setFormAlert('resetFormError', '');
+      if (!EMAIL_RE.test(email)) {
+        setFormAlert('resetFormError', msg('auth.err.email'));
+        return;
+      }
+      const sent = await requestEmailCode({
+        endpoint: '/auth/password/send-code',
+        email,
+        button: document.getElementById('resetSendCodeBtn'),
+        errorId: 'resetFormError',
+        hintId: 'resetCodeHint',
+        sentKey: 'auth.resetCodeSent',
+      });
+      if (sent) document.getElementById('resetCodeInput')?.focus();
+    }
+
+    // Forgot password step 2: code + new password -> signed in with the new password.
+    async function handlePasswordReset(e) {
+      if (e && e.preventDefault) e.preventDefault();
+      const email = (document.getElementById('resetEmailInput')?.value || '').trim();
+      const code = (document.getElementById('resetCodeInput')?.value || '').trim();
+      const password = document.getElementById('resetPasswordInput')?.value || '';
+      const submitBtn = document.getElementById('resetSubmitBtn');
+      setFormAlert('resetFormError', '');
+      if (!EMAIL_RE.test(email)) {
+        setFormAlert('resetFormError', msg('auth.err.email'));
+        return;
+      }
+      if (!CODE_RE.test(code)) {
+        setFormAlert('resetFormError', msg('auth.err.codeMissing'));
+        return;
+      }
+      if (password.length < 8) {
+        setFormAlert('resetFormError', msg('auth.err.passwordShort'));
+        return;
+      }
+      setButtonBusy(submitBtn, 'auth.resetting');
+      try {
+        const res = await fetch('/auth/password/reset', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, code, new_password: password }),
+        });
+        let data = null;
+        try { data = await res.json(); } catch (_) {}
+        if (!res.ok || !data || !data.token) {
+          setFormAlert('resetFormError', authErrorMessage(res, data, 'auth.err.resetFailed'));
+          return;
+        }
+        completeSignIn(data, 'auth.passwordReset');
+      } catch (err) {
+        setFormAlert('resetFormError', msg('common.network'));
+      } finally {
+        setButtonBusy(submitBtn, null);
+      }
+    }
+
+    // A token from sign-in, sign-up or password reset: store it and open the workspace.
+    function completeSignIn(data, welcomeKey) {
+      try { localStorage.setItem('omniflow_auth_token', data.token); } catch (_) {}
+      currentUser = data.user;
+      updateSidebarUserProfile(currentUser);
+      document.getElementById('authForm')?.reset();
+      document.getElementById('resetForm')?.reset();
+      ['authSendCodeBtn', 'resetSendCodeBtn'].forEach(id => stopCodeCooldown(document.getElementById(id)));
+      ['authCodeHint', 'resetCodeHint', 'resetFormError'].forEach(id => setFormAlert(id, ''));
+      closeAuthGate();
+      startWorkspace();
+      showToast(msg(welcomeKey), true, { variant: 'success' });
     }
 
     function toggleAuthMode() {
@@ -3112,11 +3314,12 @@
       if (e && e.preventDefault) e.preventDefault();
       const email = (document.getElementById('authEmailInput')?.value || '').trim();
       const password = document.getElementById('authPasswordInput')?.value || '';
+      const code = (document.getElementById('authCodeInput')?.value || '').trim();
       const register = authMode === 'register';
       const submitBtn = document.getElementById('authSubmitBtn');
       setFormAlert('authFormError', '');
 
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      if (!EMAIL_RE.test(email)) {
         setFormAlert('authFormError', msg('auth.err.email'));
         return;
       }
@@ -3124,13 +3327,18 @@
         setFormAlert('authFormError', msg(register ? 'auth.err.passwordShort' : 'auth.err.passwordMissing'));
         return;
       }
+      if (register && !CODE_RE.test(code)) {
+        setFormAlert('authFormError', msg('auth.err.codeMissing'));
+        document.getElementById('authCodeInput')?.focus();
+        return;
+      }
       if (submitBtn) {
         setButtonBusy(submitBtn, register ? 'auth.creating' : 'auth.signingIn');
       }
       try {
-        // Sign Up asks only for email + password; the name defaults to the email's local part.
+        // Sign Up asks only for email + password + the emailed code; the name defaults to the email's local part.
         const body = register
-          ? { email, password, full_name: email.split('@')[0], company: '' }
+          ? { email, password, code, full_name: email.split('@')[0], company: '' }
           : { email, password };
         const res = await fetch(register ? '/auth/register' : '/auth/login', {
           method: 'POST',
@@ -3140,19 +3348,11 @@
         let data = null;
         try { data = await res.json(); } catch (_) {}
         if (!res.ok || !data || !data.token) {
-          let key = register ? 'auth.err.registerFailed' : 'auth.err.credentials';
-          if (register && res.status === 400) key = 'auth.err.exists';
-          if (res.status === 422) key = 'auth.err.format';
-          setFormAlert('authFormError', msg(key));
+          const fallback = register ? (res.status === 400 ? 'auth.err.exists' : 'auth.err.registerFailed') : 'auth.err.credentials';
+          setFormAlert('authFormError', authErrorMessage(res, data, fallback));
           return;
         }
-        try { localStorage.setItem('omniflow_auth_token', data.token); } catch (_) {}
-        currentUser = data.user;
-        updateSidebarUserProfile(currentUser);
-        document.getElementById('authForm')?.reset();
-        closeAuthGate();
-        startWorkspace();
-        showToast(msg(register ? 'auth.welcomeNew' : 'auth.welcomeBack'), true, { variant: 'success' });
+        completeSignIn(data, register ? 'auth.welcomeNew' : 'auth.welcomeBack');
       } catch (err) {
         setFormAlert('authFormError', msg('common.network'));
       } finally {
@@ -3803,56 +4003,6 @@
       }
     }
 
-    // Last /health/network result, kept so a language switch can redraw the status text.
-    let lastNetworkCheck = null;
-
-    async function checkNetworkHealth() {
-      try {
-        const res = await fetch('/health/network', { cache: 'no-store' });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        lastNetworkCheck = { payload: await res.json() };
-      } catch (err) {
-        lastNetworkCheck = { error: err.message };
-      }
-      renderNetworkHealth();
-    }
-
-    function renderNetworkHealth() {
-      const pill = document.getElementById('networkStatusPill');
-      const label = document.getElementById('networkStatusLabel');
-      const latency = document.getElementById('networkLatency');
-      const sidebarDot = document.getElementById('sidebarNetworkDot');
-      if (!pill || !lastNetworkCheck) return;
-      const setState = (cls, text, ms, tooltip, dotCls) => {
-        pill.classList.remove('network-checking', 'network-healthy', 'network-degraded', 'network-offline');
-        pill.classList.add(cls);
-        if (label) setText(label, text);
-        if (latency) latency.textContent = ms;
-        pill.removeAttribute('data-i18n-title');
-        pill.title = tooltip;
-        if (sidebarDot) sidebarDot.className = 'w-1.5 h-1.5 rounded-full ' + dotCls;
-      };
-      if (lastNetworkCheck.error) {
-        setState('network-offline', t('net.unavailable'), '', t('net.checkFailed', { error: lastNetworkCheck.error }), 'bg-rose-500');
-        return;
-      }
-      const payload = lastNetworkCheck.payload || {};
-      const targets = Array.isArray(payload.targets) ? payload.targets : [];
-      const names = { meta_graph: 'Meta', zhipu_bigmodel: t('net.zhipu') };
-      const lines = targets.map(target => `${names[target.name] || target.name}: ${target.reachable ? Math.round(target.latency_ms) + ' ms' : t('net.unreachable')}`);
-      const reachable = targets.filter(target => target.reachable && typeof target.latency_ms === 'number');
-      const worst = reachable.length ? Math.round(Math.max(...reachable.map(target => target.latency_ms))) + 'ms' : '';
-      const NL = String.fromCharCode(10);
-      const mode = payload.mode === 'proxy' ? t('net.viaProxy') : '';
-      if (payload.status === 'ok') {
-        setState('network-healthy', t('net.healthy'), worst, `${t('net.healthy')}${mode}${NL}${lines.join(NL)}`, 'bg-emerald-500');
-      } else if (payload.status === 'degraded') {
-        setState('network-degraded', t('net.degraded'), worst, `${t('net.degraded')}${mode}${NL}${lines.join(NL)}`, 'bg-amber-500');
-      } else {
-        setState('network-offline', t('net.down'), '', `${t('net.allDown')}${mode}${NL}${lines.join(NL)}`, 'bg-rose-500');
-      }
-    }
-
     // Tracks whether this workspace has a usable Facebook Page (publishing needs it).
     async function checkFacebookLiveStatus() {
       try {
@@ -3923,13 +4073,17 @@
     window.handleCampaignModalSubmit = handleCampaignModalSubmit;
     window.toggleAuthMode = toggleAuthMode;
     window.switchAuthTab = switchAuthTab;
+    window.sendRegisterCode = sendRegisterCode;
+    window.openPasswordReset = openPasswordReset;
+    window.closePasswordReset = closePasswordReset;
+    window.sendResetCode = sendResetCode;
+    window.handlePasswordReset = handlePasswordReset;
     window.handleLogout = handleLogout;
     window.toggleAccountMenu = toggleAccountMenu;
     window.closeAccountMenu = closeAccountMenu;
     window.scrollToBottom = scrollToBottom;
     window.escapeHtml = escapeHtml;
     window.checkFacebookLiveStatus = checkFacebookLiveStatus;
-    window.checkNetworkHealth = checkNetworkHealth;
 
     // Boot: stay on the empty workspace until a real account is connected
     document.addEventListener('DOMContentLoaded', async () => {
@@ -3939,8 +4093,6 @@
       const hero = document.getElementById('emptyHeroState');
       if (hero) new MutationObserver(syncComposerPosition).observe(hero, { attributes: true, attributeFilter: ['class'] });
       renderMetaConnectionState(false);
-      checkNetworkHealth();
-      window.setInterval(checkNetworkHealth, 30000);
       loadPublicConfig();
       loadPlanCatalog();
       if (await checkAuthSession()) startWorkspace();
@@ -4039,25 +4191,64 @@
       <div class="flex flex-col items-center text-center">
         <img src="/static/assets/logos/omniflow_logo.svg" alt="" class="w-11 h-11 rounded-2xl"/>
         <h3 id="authModalTitle" class="text-lg font-semibold text-ink mt-4" data-i18n="auth.title">Welcome to OmniFlow</h3>
-        <p class="text-xs text-muted mt-1" data-i18n="auth.subtitle">Sign in to manage your cross-border marketing workspace</p>
+        <p id="authModalSubtitle" class="text-xs text-muted mt-1" data-i18n="auth.subtitle">Sign in to manage your cross-border marketing workspace</p>
       </div>
 
-      <div class="segmented mt-5" role="tablist">
-        <button id="authTabLogin" type="button" role="tab" onclick="switchAuthTab('login')" class="seg-btn seg-active" data-i18n="auth.signIn">Sign In</button>
-        <button id="authTabRegister" type="button" role="tab" onclick="switchAuthTab('register')" class="seg-btn" data-i18n="auth.signUp">Sign Up</button>
+      <!-- Sign in / Sign up (sign-up needs the 6-digit code emailed by /auth/register/send-code) -->
+      <div id="authMainView">
+        <div class="segmented mt-5" role="tablist">
+          <button id="authTabLogin" type="button" role="tab" onclick="switchAuthTab('login')" class="seg-btn seg-active" data-i18n="auth.signIn">Sign In</button>
+          <button id="authTabRegister" type="button" role="tab" onclick="switchAuthTab('register')" class="seg-btn" data-i18n="auth.signUp">Sign Up</button>
+        </div>
+
+        <form id="authForm" onsubmit="handleAuthSubmit(event)" class="mt-5 space-y-3" novalidate>
+          <div id="authFormError" class="form-alert hidden" role="alert"></div>
+          <div>
+            <label for="authEmailInput" class="field-label" data-i18n="auth.email">Email</label>
+            <input type="email" id="authEmailInput" name="email" value="" autocomplete="email" required maxlength="100" class="field-input" placeholder="name@company.com"/>
+          </div>
+          <div>
+            <div class="flex items-baseline justify-between gap-2">
+              <label for="authPasswordInput" class="field-label" data-i18n="auth.password">Password</label>
+              <button type="button" id="authForgotLink" onclick="openPasswordReset()" class="text-link mb-[0.35rem]" data-i18n="auth.forgot">忘记密码？</button>
+            </div>
+            <input type="password" id="authPasswordInput" name="password" value="" autocomplete="current-password" required maxlength="100" class="field-input" placeholder="••••••••"/>
+          </div>
+          <div id="authCodeField" class="hidden">
+            <label for="authCodeInput" class="field-label" data-i18n="auth.code">邮箱验证码</label>
+            <div class="flex gap-2">
+              <input type="text" id="authCodeInput" name="code" value="" inputmode="numeric" autocomplete="one-time-code" maxlength="6" spellcheck="false" class="field-input flex-1 min-w-0 font-mono tracking-[0.3em]" placeholder="6 位数字" data-i18n-placeholder="auth.codePh" oninput="this.value = this.value.replace(/\D/g, '').slice(0, 6)"/>
+              <button type="button" id="authSendCodeBtn" onclick="sendRegisterCode()" class="secondary-btn shrink-0 whitespace-nowrap" data-i18n="auth.sendCode">获取邮箱验证码</button>
+            </div>
+            <p id="authCodeHint" class="hidden text-[11px] text-muted mt-1.5 leading-relaxed" role="status"></p>
+          </div>
+          <button type="submit" id="authSubmitBtn" class="primary-btn w-full" data-i18n="auth.continue">Continue</button>
+        </form>
       </div>
 
-      <form id="authForm" onsubmit="handleAuthSubmit(event)" class="mt-5 space-y-3" novalidate>
-        <div id="authFormError" class="form-alert hidden" role="alert"></div>
+      <!-- Forgot password: email -> code (/auth/password/send-code) -> new password (/auth/password/reset) -->
+      <form id="resetForm" onsubmit="handlePasswordReset(event)" class="hidden mt-5 space-y-3" novalidate>
+        <div id="resetFormError" class="form-alert hidden" role="alert"></div>
         <div>
-          <label for="authEmailInput" class="field-label" data-i18n="auth.email">Email</label>
-          <input type="email" id="authEmailInput" name="email" value="" autocomplete="email" required maxlength="100" class="field-input" placeholder="name@company.com"/>
+          <label for="resetEmailInput" class="field-label" data-i18n="auth.email">Email</label>
+          <input type="email" id="resetEmailInput" name="email" value="" autocomplete="email" required maxlength="100" class="field-input" placeholder="name@company.com"/>
         </div>
         <div>
-          <label for="authPasswordInput" class="field-label" data-i18n="auth.password">Password</label>
-          <input type="password" id="authPasswordInput" name="password" value="" autocomplete="current-password" required maxlength="100" class="field-input" placeholder="••••••••"/>
+          <label for="resetCodeInput" class="field-label" data-i18n="auth.code">邮箱验证码</label>
+          <div class="flex gap-2">
+            <input type="text" id="resetCodeInput" name="code" value="" inputmode="numeric" autocomplete="one-time-code" maxlength="6" spellcheck="false" class="field-input flex-1 min-w-0 font-mono tracking-[0.3em]" placeholder="6 位数字" data-i18n-placeholder="auth.codePh" oninput="this.value = this.value.replace(/\D/g, '').slice(0, 6)"/>
+            <button type="button" id="resetSendCodeBtn" onclick="sendResetCode()" class="secondary-btn shrink-0 whitespace-nowrap" data-i18n="auth.sendCode">获取邮箱验证码</button>
+          </div>
+          <p id="resetCodeHint" class="hidden text-[11px] text-muted mt-1.5 leading-relaxed" role="status"></p>
         </div>
-        <button type="submit" id="authSubmitBtn" class="primary-btn w-full" data-i18n="auth.continue">Continue</button>
+        <div>
+          <label for="resetPasswordInput" class="field-label" data-i18n="auth.newPassword">新密码</label>
+          <input type="password" id="resetPasswordInput" name="new_password" value="" autocomplete="new-password" required maxlength="100" class="field-input" placeholder="至少 8 位" data-i18n-placeholder="auth.newPasswordPh"/>
+        </div>
+        <button type="submit" id="resetSubmitBtn" class="primary-btn w-full" data-i18n="auth.resetSubmit">重置密码并登录</button>
+        <div class="flex justify-center">
+          <button type="button" onclick="closePasswordReset()" class="text-link inline-flex items-center gap-1"><span class="material-symbols-outlined text-sm">arrow_back</span><span data-i18n="auth.backToLogin">返回登录</span></button>
+        </div>
       </form>
       <div class="mt-4 flex justify-center">
         <button type="button" onclick="toggleLanguage()" class="lang-btn" title="切换语言 · Switch language" aria-label="切换语言 · Switch language">

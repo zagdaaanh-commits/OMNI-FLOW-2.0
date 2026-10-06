@@ -217,6 +217,26 @@ CREATE INDEX IF NOT EXISTS ix_page_comments_tenant_post ON page_comments (tenant
 -- Webhook routing looks a Page up across tenants.
 CREATE INDEX IF NOT EXISTS ix_social_accounts_platform_account ON social_accounts (platform, account_id);
 
+-- ----------------------------------------------- email_verification_codes ---
+-- One-time 6-digit codes for sign-up and password reset (app/verification.py), stored only as an
+-- HMAC. One pending code per email + purpose. Not tenant-scoped: they exist before the account.
+CREATE TABLE IF NOT EXISTS email_verification_codes (
+    email       text        NOT NULL,
+    purpose     text        NOT NULL,
+    code_hash   text        NOT NULL,
+    attempts    integer     NOT NULL DEFAULT 0,
+    expires_at  timestamptz NOT NULL,
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (email, purpose),
+    CONSTRAINT ck_email_verification_codes_purpose CHECK (purpose IN ('register', 'reset_password'))
+);
+-- Only the API (app.bypass_rls) may read or write codes; Supabase clients never see them.
+ALTER TABLE email_verification_codes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS api_only ON email_verification_codes;
+CREATE POLICY api_only ON email_verification_codes FOR ALL
+    USING (app_bypass_rls())
+    WITH CHECK (app_bypass_rls());
+
 -- --------------------------------------------- updated_at triggers (all) ---
 DO $do$
 DECLARE

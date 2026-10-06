@@ -21,7 +21,7 @@ from agents.assistant import ConversationalAssistant
 from agents.copywriter import CopywriterAgent
 from agents.planner import CampaignPlanner
 from agents.publisher import PublisherAgent
-from app import object_storage, plans
+from app import object_storage, plans, verification
 from app.config import env_bool, env_str, is_production, load_environment
 from app.dashboard import get_dashboard_html
 from app.dependencies.limits import PlanGate, verify_plan_limit
@@ -58,6 +58,7 @@ from models.schemas import (
     ContentDraft,
     ContentGenerateRequest,
     MetaAdAccountConnectRequest,
+    PasswordResetRequest,
     Platform,
     PublishLog,
     PublishRequest,
@@ -65,6 +66,7 @@ from models.schemas import (
     PublishTask,
     UserLogin,
     UserRegister,
+    VerificationCodeRequest,
     normalize_platform,
 )
 from tools.meta_api import DEFAULT_OAUTH_SCOPES, MetaAPIClient, MetaOAuthError
@@ -710,10 +712,24 @@ def test_settings_connection(_: TenantContext = Depends(_require_global_admin)):
 # =============================================================================
 # User authentication (tenant per registered company; signed bearer tokens)
 # =============================================================================
+_EMAIL_EXISTS = "An account with this email already exists."
+
+
+@app.post("/auth/register/send-code")
+def send_register_code(payload: VerificationCodeRequest):
+    """Email a 6-digit sign-up code; /auth/register then needs it."""
+    if store.get_user_by_email(payload.email):
+        raise HTTPException(status_code=400, detail=_EMAIL_EXISTS)
+    timing = verification.issue_code(store, payload.email, verification.PURPOSE_REGISTER, lang=payload.lang)
+    return {"status": "sent", **timing}
+
+
 @app.post("/auth/register", response_model=AuthResponse)
 def register_user(payload: UserRegister):
     if store.get_user_by_email(payload.email):
-        raise HTTPException(status_code=400, detail="An account with this email already exists.")
+        raise HTTPException(status_code=400, detail=_EMAIL_EXISTS)
+    if payload.code or verification.registration_requires_code():
+        verification.consume_code(store, payload.email, verification.PURPOSE_REGISTER, payload.code)
     company = (payload.company or "").strip()
     tenant = store.create_tenant(company or "Workspace")
     try:
@@ -726,7 +742,7 @@ def register_user(payload: UserRegister):
             tenant_id=tenant["id"],
         )
     except integrity_errors() as exc:
-        raise HTTPException(status_code=400, detail="An account with this email already exists.") from exc
+        raise HTTPException(status_code=400, detail=_EMAIL_EXISTS) from exc
     plans.start_trial(store, tenant["id"])  # no free tier: every new workspace starts on a Pro trial
     return {"token": issue_access_token(user["id"], user["tenant_id"]), "user": user}
 
@@ -736,6 +752,31 @@ def login_user(payload: UserLogin):
     user = store.authenticate_user(payload.email, payload.password)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password.")
+    return {"token": issue_access_token(user["id"], user["tenant_id"]), "user": user}
+
+
+@app.post("/auth/password/send-code")
+def send_password_reset_code(payload: VerificationCodeRequest):
+    """Email a password-reset code. The reply is the same whether or not the email has an account."""
+    user = store.get_user_by_email(payload.email)
+    if user:
+        timing = verification.issue_code(store, payload.email, verification.PURPOSE_RESET_PASSWORD, lang=payload.lang)
+    else:
+        timing = {"expires_in": verification.code_ttl_seconds(), "resend_in": verification.resend_seconds()}
+    return {"status": "sent", **timing}
+
+
+@app.post("/auth/password/reset", response_model=AuthResponse)
+def reset_password(payload: PasswordResetRequest):
+    """Set a new password with the emailed code, then sign the user in."""
+    verification.consume_code(store, payload.email, verification.PURPOSE_RESET_PASSWORD, payload.code)
+    account = store.get_user_by_email(payload.email)
+    if not account or not store.set_user_password(account["id"], payload.new_password, tenant_id=account["tenant_id"]):
+        raise HTTPException(
+            status_code=400,
+            detail={"code": verification.CODE_EXPIRED, "message": "This verification code has expired. Request a new one."},
+        )
+    user = store.get_user_by_id(account["id"], tenant_id=account["tenant_id"])
     return {"token": issue_access_token(user["id"], user["tenant_id"]), "user": user}
 
 

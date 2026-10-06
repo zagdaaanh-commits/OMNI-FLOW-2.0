@@ -12,6 +12,9 @@ from pydantic import BaseModel, Field, ConfigDict, field_validator, model_valida
 # Shared tenant used for single-merchant / demo mode and for rows created before multi-tenancy.
 DEFAULT_TENANT_ID = "default"
 
+EMAIL_PATTERN = r"^\s*[^\s@]+@[^\s@]+\.[^\s@]+\s*$"
+VERIFICATION_CODE_PATTERN = r"^\d{6}$"
+
 
 class Platform(str, Enum):
     META = "meta"
@@ -307,12 +310,26 @@ class UserRegister(BaseModel):
     full_name: str = Field(..., min_length=1, max_length=100)
     company: Optional[str] = Field(default=None, max_length=200)
     role: Optional[str] = Field(default="Brand Director")
+    # 6-digit code from POST /auth/register/send-code (required unless EMAIL_VERIFICATION_REQUIRED=false).
+    code: Optional[str] = Field(default=None, pattern=VERIFICATION_CODE_PATTERN)
 
 
 class UserLogin(BaseModel):
     model_config = ConfigDict(extra="allow")
     email: str = Field(..., min_length=3, max_length=100)
     password: str = Field(..., min_length=1)
+
+
+class VerificationCodeRequest(BaseModel):
+    """Send a sign-up or password-reset code to ``email`` (``lang``: "zh" or "en" email text)."""
+    email: str = Field(..., min_length=3, max_length=100, pattern=EMAIL_PATTERN)
+    lang: Optional[str] = Field(default=None, max_length=8)
+
+
+class PasswordResetRequest(BaseModel):
+    email: str = Field(..., min_length=3, max_length=100, pattern=EMAIL_PATTERN)
+    code: str = Field(..., pattern=VERIFICATION_CODE_PATTERN)
+    new_password: str = Field(..., min_length=8, max_length=100)
 
 
 class UserProfile(BaseModel):

@@ -99,8 +99,12 @@ Open your browser at:
 ## Authentication & API Endpoints
 
 ### User Authentication
-- `POST /auth/register`: Create a new user account with secure password hashing.
+- `POST /auth/register/send-code`: Email a 6-digit sign-up code (`{"email": ..., "lang": "zh"|"en"}`); 400 if the email is already registered, 429 within 60 s of the previous code.
+- `POST /auth/register`: Create a new user account with secure password hashing. Needs the emailed `code` (unless `EMAIL_VERIFICATION_REQUIRED=false`); returns a session token.
 - `POST /auth/login`: Authenticate email and password, returns session token.
+- `POST /auth/password/send-code`: Email a password-reset code (same reply whether or not the email has an account).
+- `POST /auth/password/reset`: `{"email", "code", "new_password"}` sets the new password and returns a session token.
+- Codes expire after 10 minutes, are single-use, are stored only as an HMAC and stop working after 5 wrong guesses. Email goes out over SMTP (`SMTP_*` in `.env.example`); without SMTP, development logs each code and production refuses to send.
 - `GET /auth/me`: Retrieve current logged-in profile.
 - `GET /auth/users`: List all registered system users.
 

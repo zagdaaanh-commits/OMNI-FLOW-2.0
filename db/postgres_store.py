@@ -163,6 +163,56 @@ class PostgresStore:
         user.pop("password_hash", None)
         return user
 
+    def set_user_password(self, user_id: str, password: str, *, tenant_id: str) -> bool:
+        with self._tx(tenant_id) as conn:
+            cur = conn.execute(
+                "UPDATE users SET password_hash = %s WHERE id = %s AND tenant_id = %s",
+                (hash_password(password), user_id, tenant_id),
+            )
+            return cur.rowcount > 0
+
+    # --------------------------------------------- email verification codes
+    # Not tenant-scoped (they exist before the account does): always the API's bypass scope.
+    def save_verification_code(self, *, email: str, purpose: str, code_hash: str, expires_at: datetime) -> None:
+        with self._tx(None) as conn:
+            conn.execute("DELETE FROM email_verification_codes WHERE expires_at < now()")
+            conn.execute(
+                """
+                INSERT INTO email_verification_codes (email, purpose, code_hash, attempts, expires_at, created_at)
+                VALUES (%s, %s, %s, 0, %s, now())
+                ON CONFLICT (email, purpose) DO UPDATE SET
+                    code_hash = EXCLUDED.code_hash, attempts = 0,
+                    expires_at = EXCLUDED.expires_at, created_at = EXCLUDED.created_at
+                """,
+                (email.strip().lower(), purpose, code_hash, expires_at),
+            )
+
+    def get_verification_code(self, *, email: str, purpose: str) -> Optional[Dict[str, Any]]:
+        with self._tx(None) as conn:
+            row = conn.execute(
+                "SELECT * FROM email_verification_codes WHERE email = %s AND purpose = %s",
+                (email.strip().lower(), purpose),
+            ).fetchone()
+        return _stringify(row)
+
+    def record_verification_failure(self, *, email: str, purpose: str) -> int:
+        with self._tx(None) as conn:
+            row = conn.execute(
+                "UPDATE email_verification_codes SET attempts = attempts + 1 "
+                "WHERE email = %s AND purpose = %s RETURNING attempts",
+                (email.strip().lower(), purpose),
+            ).fetchone()
+        return int(row["attempts"]) if row else 0
+
+    def delete_verification_code(self, *, email: str, purpose: str, code_hash: Optional[str] = None) -> bool:
+        sql = "DELETE FROM email_verification_codes WHERE email = %s AND purpose = %s"
+        params: tuple = (email.strip().lower(), purpose)
+        if code_hash is not None:
+            sql += " AND code_hash = %s"
+            params += (code_hash,)
+        with self._tx(None) as conn:
+            return conn.execute(sql, params).rowcount > 0
+
     # ------------------------------------------------------ social accounts
     @staticmethod
     def _account(row: Optional[dict]) -> Optional[Dict[str, Any]]:

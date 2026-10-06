@@ -132,6 +132,15 @@ Uploads go to Supabase Storage. Without the two settings below, the API answers 
 
 Files are stored as `<workspace_id>/<uuid>.<ext>`. The app builds every path from the signed-in user's workspace, so one merchant cannot write into or attach another merchant's files. Business licenses are private: operators open them from the Supabase dashboard (Storage → `agency-documents` → the workspace folder named in `agency_applications.business_license_path`).
 
+## Email (sign-up and password-reset codes)
+
+Sign-up requires a 6-digit code sent to the merchant's email, and 忘记密码 resets a password with one. In production the API answers code requests with 503 `EMAIL_NOT_CONFIGURED` until SMTP is set, so new merchants cannot register until you set it up.
+
+1. In `.env`, set `SMTP_HOST`, `SMTP_PORT` (465 for implicit TLS, 587 for STARTTLS), `SMTP_USERNAME`, `SMTP_PASSWORD` and `SMTP_FROM`. Use a sending service or company mailbox that allows SMTP from the server's IP. Many clouds block outbound port 25, so use 465 or 587.
+2. Restart the app (`./scripts/deploy_hk.sh --skip-pull`) and register a test account.
+
+Codes live in `email_verification_codes`, which `scripts/init_supabase.sql` creates. They are stored as an HMAC keyed with `APP_SECRET_KEY`, so rotating that key also invalidates any codes that are still pending. Resetting a password does not end sessions that are already signed in: bearer tokens stay valid until they expire (`ACCESS_TOKEN_TTL_SECONDS`, 7 days by default).
+
 ## Troubleshooting
 
 | Symptom | Check |
@@ -140,6 +149,7 @@ Files are stored as `<workspace_id>/<uuid>.<ext>`. The app builds every path fro
 | `app` never healthy | `docker compose -p omniflow -f docker-compose.prod.yml logs app`; usually a bad `DATABASE_URL` or a missing `APP_SECRET_KEY`. |
 | Posts stay `scheduled` | `logs worker`; confirm `SCHEDULER_MODE=worker` and that the worker container is running. |
 | `/health/network` shows `down` | Security group blocks outbound, or the VM is mainland-hosted and needs `OUTBOUND_PROXY_URL`. |
+| Sign-up says email delivery is unavailable | 503 `EMAIL_NOT_CONFIGURED`: set `SMTP_HOST` and `SMTP_FROM`. 502 `EMAIL_DELIVERY_FAILED`: `logs app` for `could not be sent` (wrong port/`SMTP_SECURITY`, bad login, or blocked outbound port). |
 | Facebook posts show Token Expired | Merchant must reconnect the page via `/auth/facebook/login`. |
 | Paid in Stripe but the plan did not change | Stripe Dashboard → Webhooks → the endpoint's recent deliveries: 400 means `STRIPE_WEBHOOK_SECRET` belongs to another endpoint or mode (test vs live), 503 means it is not set. `logs app` for `kept for review`. |
 | "暂时无法打开支付页面" on the pricing page | `logs app` for `Stripe Checkout ... failed`: `AuthenticationError` = wrong `STRIPE_SECRET_KEY`; `InvalidRequestError` = a payment method in `STRIPE_PAYMENT_METHODS` is not enabled in the Dashboard or not available in your account's country. |
