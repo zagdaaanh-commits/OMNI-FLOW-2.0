@@ -73,6 +73,29 @@ BEGIN
 END
 $do$;
 
+-- Per-request chat owner: custom email sessions set app.user_id; direct Supabase
+-- Data API calls fall back to auth.uid().
+CREATE OR REPLACE FUNCTION app_current_user() RETURNS text
+LANGUAGE sql STABLE AS $$
+    SELECT nullif(current_setting('app.user_id', true), '')
+$$;
+
+DO $do$
+BEGIN
+    IF to_regprocedure('auth.uid()') IS NOT NULL THEN
+        EXECUTE $fn$
+            CREATE OR REPLACE FUNCTION app_current_user() RETURNS text
+            LANGUAGE sql STABLE AS $body$
+                SELECT coalesce(
+                    nullif(current_setting('app.user_id', true), ''),
+                    auth.uid()::text
+                )
+            $body$
+        $fn$;
+    END IF;
+END
+$do$;
+
 -- ---------------------------------------------------------------- tenants ---
 CREATE TABLE IF NOT EXISTS tenants (
     id          text PRIMARY KEY,
@@ -105,6 +128,29 @@ CREATE TABLE IF NOT EXISTS users (
 -- (tenant_id, lower(email)) uniqueness is implied and therefore not repeated.
 CREATE UNIQUE INDEX IF NOT EXISTS ux_users_email_lower ON users (lower(email));
 CREATE INDEX IF NOT EXISTS ix_users_tenant ON users (tenant_id, created_at);
+
+-- ---------------------------------------------------------- conversations ---
+CREATE TABLE IF NOT EXISTS conversations (
+    id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id   text        NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    user_id     text        NOT NULL,
+    title       text        NOT NULL DEFAULT '',
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    updated_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ix_conversations_owner_updated
+    ON conversations (tenant_id, user_id, updated_at DESC);
+
+-- --------------------------------------------------------------- messages ---
+CREATE TABLE IF NOT EXISTS messages (
+    id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    conversation_id  uuid        NOT NULL REFERENCES conversations (id) ON DELETE CASCADE,
+    role             text        NOT NULL CHECK (role IN ('user', 'assistant')),
+    content          text        NOT NULL CHECK (length(btrim(content)) > 0),
+    created_at       timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ix_messages_conversation_created
+    ON messages (conversation_id, created_at, id);
 
 -- -------------------------------------------------------------- campaigns ---
 CREATE TABLE IF NOT EXISTS campaigns (
@@ -242,8 +288,8 @@ DO $do$
 DECLARE
     t text;
 BEGIN
-    FOREACH t IN ARRAY ARRAY['tenants', 'users', 'campaigns', 'content_drafts', 'social_accounts', 'scheduled_tasks',
-                         'agency_applications', 'page_comments']
+    FOREACH t IN ARRAY ARRAY['tenants', 'users', 'conversations', 'campaigns', 'content_drafts', 'social_accounts',
+                         'scheduled_tasks', 'agency_applications', 'page_comments']
     LOOP
         EXECUTE format('DROP TRIGGER IF EXISTS trg_%1$s_updated_at ON %1$I', t);
         EXECUTE format(
@@ -252,6 +298,28 @@ BEGIN
     END LOOP;
 END
 $do$;
+
+-- A new message makes its conversation recent; the first user message supplies
+-- a compact title even when the caller created the conversation with an empty title.
+CREATE OR REPLACE FUNCTION touch_conversation_on_message() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    UPDATE conversations
+    SET title = CASE
+            WHEN NEW.role = 'user' AND btrim(title) = ''
+            THEN left(regexp_replace(btrim(NEW.content), '\s+', ' ', 'g'), 72)
+            ELSE title
+        END,
+        updated_at = now()
+    WHERE id = NEW.conversation_id;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_messages_touch_conversation ON messages;
+CREATE TRIGGER trg_messages_touch_conversation
+    AFTER INSERT ON messages
+    FOR EACH ROW EXECUTE FUNCTION touch_conversation_on_message();
 
 -- ------------------------------------------------- Row Level Security ------
 -- ENABLE (not FORCE): table owners (migrations, Supabase 'postgres') keep full access;
@@ -281,6 +349,63 @@ DROP POLICY IF EXISTS tenant_isolation ON tenants;
 CREATE POLICY tenant_isolation ON tenants FOR ALL
     USING (app_bypass_rls() OR id = app_current_tenant())
     WITH CHECK (app_bypass_rls() OR id = app_current_tenant());
+
+-- Chat history is user-owned. PUBLIC policies support both Supabase's
+-- authenticated role and a custom non-owner application role; grants below keep
+-- anonymous Data API callers out, and a missing app.user_id fails closed.
+ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS conversations_select_own ON conversations;
+DROP POLICY IF EXISTS conversations_insert_own ON conversations;
+DROP POLICY IF EXISTS conversations_update_own ON conversations;
+DROP POLICY IF EXISTS conversations_delete_own ON conversations;
+CREATE POLICY conversations_select_own ON conversations FOR SELECT TO PUBLIC
+    USING (app_bypass_rls() OR user_id = app_current_user());
+CREATE POLICY conversations_insert_own ON conversations FOR INSERT TO PUBLIC
+    WITH CHECK (app_bypass_rls() OR user_id = app_current_user());
+CREATE POLICY conversations_update_own ON conversations FOR UPDATE TO PUBLIC
+    USING (app_bypass_rls() OR user_id = app_current_user())
+    WITH CHECK (app_bypass_rls() OR user_id = app_current_user());
+CREATE POLICY conversations_delete_own ON conversations FOR DELETE TO PUBLIC
+    USING (app_bypass_rls() OR user_id = app_current_user());
+
+DROP POLICY IF EXISTS messages_select_own ON messages;
+DROP POLICY IF EXISTS messages_insert_own ON messages;
+CREATE POLICY messages_select_own ON messages FOR SELECT TO PUBLIC
+    USING (
+        app_bypass_rls() OR EXISTS (
+            SELECT 1 FROM conversations AS conversation
+            WHERE conversation.id = messages.conversation_id
+              AND conversation.user_id = app_current_user()
+        )
+    );
+CREATE POLICY messages_insert_own ON messages FOR INSERT TO PUBLIC
+    WITH CHECK (
+        app_bypass_rls() OR EXISTS (
+            SELECT 1 FROM conversations AS conversation
+            WHERE conversation.id = messages.conversation_id
+              AND conversation.user_id = app_current_user()
+        )
+    );
+
+-- Supabase's October 2026 Data API change no longer auto-exposes new public
+-- tables. Explicit least-privilege grants keep behavior deterministic.
+DO $do$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+        EXECUTE 'REVOKE ALL ON TABLE conversations, messages FROM anon';
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+        EXECUTE 'REVOKE ALL ON TABLE conversations, messages FROM authenticated';
+        EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE conversations TO authenticated';
+        EXECUTE 'GRANT SELECT, INSERT ON TABLE messages TO authenticated';
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+        EXECUTE 'GRANT ALL ON TABLE conversations, messages TO service_role';
+    END IF;
+END
+$do$;
 
 -- ---------------------------------------------------------------- grants ---
 -- Optional least-privilege application role (create it once, outside this script):

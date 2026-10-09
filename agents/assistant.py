@@ -5,6 +5,8 @@ import os
 import re
 from typing import Any, Dict, List, Optional
 
+from agents.llm_client import LLMError, get_llm_client
+
 from models.schemas import (
     Campaign,
     CampaignCreate,
@@ -34,12 +36,20 @@ class ConversationalAssistant:
         self.meta_client = MetaAPIClient()
 
     def process_message(
-        self, message: str, campaign_id: Optional[str] = None, tenant_id: str = DEFAULT_TENANT_ID
+        self,
+        message: str,
+        campaign_id: Optional[str] = None,
+        tenant_id: str = DEFAULT_TENANT_ID,
+        *,
+        mode: str = "campaign",
+        history: Optional[List[Dict[str, str]]] = None,
+        image_base64: Optional[str] = None,
+        platforms: Optional[List[Platform]] = None,
     ) -> Dict[str, Any]:
         raw_msg = (message or "").strip()
         lower = raw_msg.lower()
 
-        # 1. Check for Boost / Overclock Directive
+        # Read-only diagnostics stay available in either mode and never create campaigns.
         if lower.startswith("/boost") or "boost" in lower or "overclock" in lower:
             return self._handle_boost()
 
@@ -51,7 +61,24 @@ class ConversationalAssistant:
         if any(k in lower for k in ["facebook", "facebook post", "fb", "publish to facebook", "post to facebook", "page"]):
             return self._handle_facebook_query()
 
-        # 4. Check for General How-To / FAQ Questions
+        # General chat is deliberately side-effect free. Campaign creation and creative
+        # generation are reachable only after the UI explicitly switches to campaign mode.
+        if mode != "campaign":
+            if ("campaign" in lower) and any(k in lower for k in ["create", "new", "launch"]):
+                return {
+                    "type": "chat",
+                    "reply": (
+                        "I kept this as a regular conversation, so no campaign was created. "
+                        "Switch the composer to Campaign mode or use + New Campaign when you want me to create one."
+                    ),
+                }
+            if any(k in lower for k in [
+                "how do", "how to", "what can you do", "who are you", "what is omniflow", "help", "hello", "hi"
+            ]):
+                return self._handle_general_faq(raw_msg)
+            return self._handle_general_chat(raw_msg, history or [])
+
+        # Campaign mode: preserve the existing creative/campaign command routing.
         if any(k in lower for k in [
             "how do", "how to", "what can you do", "who are you", "what is omniflow", "help", "hello", "hi"
         ]) or (raw_msg.endswith("?") and not any(k in lower for k in ["write", "create ad", "generate"])):
@@ -63,7 +90,59 @@ class ConversationalAssistant:
 
         # 6. Ad / Content Generation Directive
         topic = self._extract_topic(raw_msg)
-        return self._handle_content_generation(topic, campaign_id, tenant_id)
+        return self._handle_content_generation(
+            topic,
+            campaign_id,
+            tenant_id,
+            image_base64=image_base64,
+            platforms=platforms,
+        )
+
+    def _handle_general_chat(self, message: str, history: List[Dict[str, str]]) -> Dict[str, Any]:
+        """Answer without mutating campaign state; use the configured LLM when available."""
+        client = get_llm_client()
+        if client.is_configured and not client.auth_failed:
+            prior = [
+                {"role": item.get("role"), "content": str(item.get("content") or "")[:8_000]}
+                for item in history[-20:]
+                if item.get("role") in {"user", "assistant"} and item.get("content")
+            ]
+            if not prior or prior[-1].get("content") != message:
+                prior.append({"role": "user", "content": message})
+            try:
+                reply = client.chat(
+                    [
+                        {
+                            "role": "system",
+                            "content": (
+                                "You are OmniFlow, a practical marketing operations assistant. "
+                                "Answer the user's question conversationally and concisely. "
+                                "This is chat mode: never claim to create, launch, publish, schedule, "
+                                "or modify a campaign. Explain how to use Campaign mode when an action is requested."
+                            ),
+                        },
+                        *prior,
+                    ],
+                    max_tokens=900,
+                )
+                return {
+                    "type": "chat",
+                    "reply": reply,
+                    "data": {"status": "ai_generated", "model": client.model},
+                }
+            except LLMError as exc:
+                logger.warning("General chat LLM failed (%s); using the local fallback", type(exc).__name__)
+
+        return {
+            "type": "chat",
+            "reply": (
+                "I kept this in chat mode and did not create or change a campaign. "
+                "I can help with marketing strategy, channel planning, copy feedback, analytics, "
+                "and OmniFlow workflow questions. Configure the LLM provider for open-ended answers, "
+                "or switch to Campaign mode when you want creative generation."
+            ),
+            "data": {"status": "fallback"},
+        }
 
     def _handle_boost(self) -> Dict[str, Any]:
         return {
@@ -194,7 +273,13 @@ class ConversationalAssistant:
         }
 
     def _handle_content_generation(
-        self, topic: str, campaign_id: Optional[str], tenant_id: str = DEFAULT_TENANT_ID
+        self,
+        topic: str,
+        campaign_id: Optional[str],
+        tenant_id: str = DEFAULT_TENANT_ID,
+        *,
+        image_base64: Optional[str] = None,
+        platforms: Optional[List[Platform]] = None,
     ) -> Dict[str, Any]:
         cid = campaign_id or "demo-campaign"
         campaign = None
@@ -213,16 +298,28 @@ class ConversationalAssistant:
         elif not campaign:
             campaign = Campaign(id=scoped_id(cid, tenant_id), tenant_id=tenant_id, **CampaignCreate().model_dump())
 
+        requested_platforms = platforms or [
+            Platform.META,
+            Platform.INSTAGRAM,
+            Platform.TIKTOK,
+            Platform.XIAOHONGSHU,
+            Platform.WECHAT,
+            Platform.X,
+        ]
         req = ContentGenerateRequest(
             campaign_id=campaign.id,
             topic=topic,
-            platforms=[Platform.META, Platform.INSTAGRAM, Platform.TIKTOK, Platform.XIAOHONGSHU, Platform.WECHAT, Platform.X],
+            platforms=requested_platforms,
             count_per_platform=1,
         )
 
         drafts: List[ContentDraft] = []
         if self.copywriter:
-            drafts = self.copywriter.generate(campaign, req)
+            if image_base64:
+                generated = self.copywriter.generate_with_vision(topic, image_base64=image_base64, campaign=campaign)
+                drafts = list(generated.get("drafts") or [])
+            else:
+                drafts = self.copywriter.generate(campaign, req)
             if self.store:
                 for d in drafts:
                     self.store.save_draft(d)

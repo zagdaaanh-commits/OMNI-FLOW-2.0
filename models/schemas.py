@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 from urllib.parse import urlsplit
 from uuid import uuid4
 
@@ -379,10 +379,25 @@ class ConnectedAccountSchema(BaseModel):
 
 
 class AssistantChatRequest(BaseModel):
-    model_config = ConfigDict(extra="allow")
-    message: str
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+    message: str = Field(..., min_length=1, max_length=20_000)
     campaign_id: Optional[str] = None
     conversation_id: Optional[str] = None
+    mode: Optional[Literal["chat", "campaign"]] = Field(
+        default=None,
+        validation_alias=AliasChoices("mode", "chat_mode"),
+    )
+    image_base64: Optional[str] = None
+    platforms: Optional[List[Platform]] = None
+
+    @field_validator("platforms", mode="before")
+    @classmethod
+    def validate_chat_platforms(cls, value: Any) -> Optional[List[Platform]]:
+        if value is None:
+            return None
+        if isinstance(value, (str, Platform)):
+            value = [value]
+        return [normalize_platform(platform) for platform in value]
 
 
 class AssistantChatResponse(BaseModel):
@@ -392,6 +407,24 @@ class AssistantChatResponse(BaseModel):
     topic: Optional[str] = None
     drafts: Optional[List[ContentDraft]] = None
     data: Optional[Dict[str, Any]] = None
+    conversation_id: Optional[str] = None
+
+
+class Conversation(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    tenant_id: str = DEFAULT_TENANT_ID
+    user_id: str
+    title: str = ""
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class ChatMessage(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    conversation_id: str
+    role: Literal["user", "assistant"]
+    content: str = Field(..., min_length=1, max_length=100_000)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 # --------------------------------------------------------------- agency intake
 # Unified Social Credit Code (统一社会信用代码, GB 32100-2015): 18 characters drawn from

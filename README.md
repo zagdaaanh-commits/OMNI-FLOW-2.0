@@ -114,6 +114,13 @@ Open your browser at:
 - `POST /integrations/disconnect`: Disconnect an active account.
 - `GET /auth/oauth/meta/url`: Generate official Meta OAuth2 authorization URL.
 
+### Persistent Chat History
+- `GET /api/conversations`: List the signed-in user's conversations, newest activity first.
+- `GET /api/conversations/{id}/messages`: Load the selected conversation in chronological order.
+- `POST /api/chat`: Send `{message, conversation_id?, mode: "chat"|"campaign"}`; a missing conversation ID creates a conversation, and both sides of the exchange are stored.
+- Regular `chat` mode is side-effect free. Campaign creation and creative generation require an explicit switch to `campaign` mode or the **+ New Campaign** action.
+- PostgreSQL/Supabase: the full bootstrap is `scripts/init_supabase.sql`. For an existing initialized database, apply only the idempotent chat migration with `python scripts/migrate.py --sql scripts/supabase_chat_history.sql`.
+
 ### Plans & Billing (Pro Growth / Agency VIP, no free tier)
 - `GET /api/billing/plans`: Public price list (¥66/¥666 Pro, ¥166/¥1666 Agency VIP).
 - `GET /api/billing/subscription`: The workspace's plan, status (trial / active / expired), limits and usage.

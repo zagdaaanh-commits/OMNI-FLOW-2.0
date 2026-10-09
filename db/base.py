@@ -16,7 +16,7 @@ import re
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional, Protocol, runtime_checkable
 
-from models.schemas import DEFAULT_TENANT_ID, Campaign, ContentDraft, PublishTask
+from models.schemas import DEFAULT_TENANT_ID, Campaign, ChatMessage, ContentDraft, Conversation, PublishTask
 
 __all__ = [
     "DEFAULT_TENANT_ID",
@@ -198,6 +198,29 @@ class Store(Protocol):
     def list_page_comments(
         self, *, tenant_id: str = DEFAULT_TENANT_ID, post_id: Optional[str] = None, limit: int = 100
     ) -> List[Dict[str, Any]]: ...
+
+    # ------------------------------------------------------ chat history
+    def create_conversation(
+        self, *, user_id: str, tenant_id: str = DEFAULT_TENANT_ID, title: str = ""
+    ) -> Conversation: ...
+    def get_conversation(
+        self, conversation_id: str, *, user_id: str, tenant_id: str = DEFAULT_TENANT_ID
+    ) -> Optional[Conversation]: ...
+    def list_conversations(
+        self, *, user_id: str, tenant_id: str = DEFAULT_TENANT_ID
+    ) -> List[Conversation]: ...
+    def add_message(
+        self,
+        conversation_id: str,
+        *,
+        user_id: str,
+        role: str,
+        content: str,
+        tenant_id: str = DEFAULT_TENANT_ID,
+    ) -> ChatMessage: ...
+    def list_messages(
+        self, conversation_id: str, *, user_id: str, tenant_id: str = DEFAULT_TENANT_ID
+    ) -> List[ChatMessage]: ...
 
     # ------------------------------------------------ campaigns/drafts/tasks
     def save_campaign(self, item: Campaign) -> Campaign: ...

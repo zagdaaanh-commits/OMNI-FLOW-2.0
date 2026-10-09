@@ -106,7 +106,7 @@
     const _win = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : this);
     _win.handleInputKey = function(event) {
       if (!event && typeof window !== 'undefined') event = window.event;
-      if (event && event.key === 'Enter' && !event.shiftKey) {
+      if (event && event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
         if (event.preventDefault) event.preventDefault();
         if (typeof _win.submitChat === 'function') _win.submitChat();
       }
@@ -150,6 +150,14 @@
       --accent-ink: #FFFFFF;
       --scrim: rgba(24, 24, 27, 0.32);
       --shadow: 0 1px 2px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06);
+      --scrollbar-track: transparent;
+      --scrollbar-thumb: #D4D4D8;
+      --scrollbar-thumb-hover: #A1A1AA;
+      --z-sticky: 40;
+      --z-backdrop: 44;
+      --z-drawer: 45;
+      --z-dialog: 60;
+      --z-toast: 90;
     }
     html.dark {
       color-scheme: dark;
@@ -165,6 +173,8 @@
       --accent-ink: #0A0A0A;
       --scrim: rgba(0, 0, 0, 0.66);
       --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 12px 32px rgba(0,0,0,0.35);
+      --scrollbar-thumb: rgba(255, 255, 255, 0.18);
+      --scrollbar-thumb-hover: rgba(255, 255, 255, 0.28);
     }
 
     body {
@@ -181,9 +191,12 @@
       vertical-align: middle;
       line-height: 1;
     }
+    html { scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track); scrollbar-width: thin; }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 9999px; }
+    ::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+    ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
+    @media (forced-colors: active) { html { scrollbar-color: auto; } }
 
     .text-ink { color: var(--ink); }
     .text-muted { color: var(--muted); }
@@ -200,6 +213,10 @@
       justify-content: space-between;
       gap: 0.75rem;
       flex-shrink: 0;
+      position: relative;
+      z-index: var(--z-sticky);
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
     }
     .icon-btn {
       display: inline-flex; align-items: center; justify-content: center;
@@ -208,6 +225,8 @@
       transition: background 150ms ease, color 150ms ease;
     }
     .icon-btn:hover { background: var(--surface-hover); color: var(--ink); }
+    .icon-btn:focus-visible, .drawer-item:focus-visible, .channel-pill:focus-visible,
+    .send-btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
     .cta-btn {
       display: inline-flex; align-items: center; gap: 0.45rem;
       height: 2.1rem; padding: 0 0.8rem; border-radius: 999px;
@@ -252,6 +271,9 @@
       border: 1px solid var(--border-strong);
       box-shadow: var(--shadow);
       transition: border-color 150ms ease, box-shadow 150ms ease;
+      position: relative;
+      z-index: 1;
+      pointer-events: auto;
     }
     html.dark .composer { background: #121212; border-color: rgba(255,255,255,0.10); }
     .composer:focus-within { border-color: var(--muted); }
@@ -285,10 +307,13 @@
     }
     .send-btn:hover { opacity: 0.85; }
     .send-btn:active { transform: scale(0.94); }
+    .send-btn:disabled { opacity: 0.38; cursor: not-allowed; transform: none; }
+    .mode-pill-active { background: var(--surface-muted); border-color: var(--border-strong); }
+    #dockComposerSlot { position: relative; z-index: var(--z-sticky); background: var(--bg); pointer-events: auto; }
 
     /* ------------------------------------------------------------- drawer --- */
     .drawer {
-      position: fixed; inset: 0 auto 0 0; z-index: 45;
+      position: fixed; inset: 0 auto 0 0; z-index: var(--z-drawer);
       width: min(288px, 86vw);
       display: flex; flex-direction: column;
       padding: 0.9rem 0.75rem;
@@ -298,7 +323,7 @@
     }
     .drawer.open { transform: translateX(0); box-shadow: var(--shadow); }
     .drawer-backdrop {
-      position: fixed; inset: 0; z-index: 44; background: var(--scrim);
+      position: fixed; inset: 0; z-index: var(--z-backdrop); background: var(--scrim);
       opacity: 0; pointer-events: none; transition: opacity 220ms ease;
     }
     .drawer-backdrop.open { opacity: 1; pointer-events: auto; }
@@ -311,6 +336,8 @@
     }
     .drawer-item:hover { background: var(--surface-hover); }
     .drawer-item .material-symbols-outlined { color: var(--muted); }
+    .drawer-item[aria-current="page"] { background: var(--surface-muted); color: var(--ink); }
+    .recent-chat-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
     /* -------------------------------------------------- new modal (开户) --- */
     .modal-scrim { background: var(--scrim); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
@@ -447,6 +474,7 @@
 
     /* Green success toast (both themes). */
     #toast.toast-success { background: #ecfdf5 !important; border-color: #a7f3d0 !important; }
+    #toast { z-index: var(--z-toast); }
     #toast.toast-success #toastMsg, #toast.toast-success #toastIcon { color: #047857 !important; }
     html.dark #toast.toast-success { background: #052e1f !important; border-color: rgba(52,211,153,0.40) !important; }
     html.dark #toast.toast-success #toastMsg, html.dark #toast.toast-success #toastIcon { color: #a7f3d0 !important; }
@@ -488,6 +516,10 @@
     html.light [class*="bg-[#0"], html.light [class*="bg-[#1"] { background-color: #FFFFFF !important; }
     @keyframes ofFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
     .animate-fade-in { animation: ofFadeIn 220ms ease-out both; }
+    @media (prefers-reduced-motion: reduce) {
+      /* Accessibility override: remove nonessential motion while preserving state changes. */
+      *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+    }
   </style>
 </head>
 <body class="h-screen w-screen flex antialiased relative overflow-hidden auth-locked">
@@ -508,6 +540,11 @@
     <button onclick="resetToNewChat(); toggleSidebar(false)" class="drawer-item mt-5 font-medium text-ink">
       <span class="material-symbols-outlined text-base">edit_square</span><span class="flex-1" data-i18n="nav.newPrompt">New prompt</span>
     </button>
+
+    <div class="drawer-label" data-i18n="nav.history">Recent chats</div>
+    <nav id="sidebarConversationsList" class="space-y-0.5 max-h-48 overflow-y-auto" aria-label="Recent chats" data-i18n-aria-label="nav.history">
+      <div class="p-3 text-xs text-muted" data-i18n="nav.noHistory">No conversations yet</div>
+    </nav>
 
     <div class="drawer-label" data-i18n="nav.workspace">Workspace</div>
     <button onclick="toggleSidebar(false); openPricingModal()" class="drawer-item">
@@ -603,8 +640,8 @@
     <!-- ======================================================================= -->
     <div id="chatScrollArea" class="flex-1 overflow-y-auto px-4 sm:px-6">
       <div id="emptyHeroState" class="min-h-[80vh] flex flex-col items-center justify-center py-10 animate-fade-in">
-        <h1 class="hero-title" data-i18n="hero.title">What campaign would you like to launch today?</h1>
-        <p class="hero-sub" data-i18n="hero.sub">AI-powered cross-border growth engine for global merchants.</p>
+        <h1 class="hero-title" data-i18n="hero.title">What would you like to explore?</h1>
+        <p class="hero-sub" data-i18n="hero.sub">Chat freely, or switch to Campaign mode when you want to generate creative work.</p>
         <div id="heroComposerSlot" class="w-full max-w-3xl mt-8">
           <!-- Composer: moved between this slot and #dockComposerSlot by syncComposerPosition() -->
         <div id="composer" class="composer">
@@ -616,13 +653,18 @@
             <button type="button" onclick="clearAttachedImage()" class="icon-btn" title="Remove attachment" data-i18n-title="composer.removeAttachment"><span class="material-symbols-outlined text-base">close</span></button>
           </div>
 
-          <textarea id="chatInput" rows="1" onkeydown="handleInputKey(event)" oninput="autoGrowInput(this)" class="composer-input" placeholder="Ask OmniFlow to create copy, analyze ads, or schedule a campaign..." data-i18n-placeholder="composer.placeholder"></textarea>
+          <textarea id="chatInput" rows="1" onkeydown="handleInputKey(event)" oninput="autoGrowInput(this)" class="composer-input resize-none" placeholder="Ask OmniFlow anything..." data-i18n-placeholder="composer.placeholder" aria-label="Message OmniFlow" data-i18n-aria-label="composer.inputLabel"></textarea>
 
           <div class="flex items-center justify-between gap-2 mt-1">
             <div class="flex items-center gap-1.5 min-w-0">
               <input type="file" id="mediaFileInput" accept="image/*" class="hidden" onchange="handleMediaSelect(event)"/>
               <button onclick="document.getElementById('mediaFileInput').click()" id="attachBtn" class="round-btn" title="Attach media" data-i18n-title="composer.attach">
                 <span class="material-symbols-outlined text-xl">add</span><span id="attachLabel" class="sr-only" data-i18n="composer.attach">Attach media</span>
+              </button>
+
+              <button id="chatModeButton" type="button" onclick="toggleChatMode()" class="channel-pill mode-pill-active" aria-pressed="false" title="Switch chat / campaign mode" data-i18n-title="composer.modeTitle">
+                <span id="chatModeIcon" class="material-symbols-outlined text-base">forum</span>
+                <span id="chatModeLabel" data-i18n="composer.modeChat">Chat</span>
               </button>
 
               <div class="relative">
@@ -756,7 +798,7 @@
 
         <button id="metaApplyBtn" type="submit" class="primary-btn w-full" data-i18n="agency.submit">立即提交开户申请</button>
         <p id="metaApplyExternalWrap" class="hidden text-center text-xs">
-          <a id="metaApplyExternal" href="#" target="_blank" rel="noopener" class="text-muted hover:text-ink" data-i18n="agency.external">或前往代理商官网申请 ↗</a>
+          <a id="metaApplyExternal" target="_blank" rel="noopener" class="text-muted hover:text-ink" data-i18n="agency.external">或前往代理商官网申请 ↗</a>
         </p>
         <p class="text-center text-xs text-muted"><span data-i18n="agency.haveAccount">已有企业广告账户？</span>
           <button type="button" onclick="closeMetaAccountModal(); openIntegrationsModal('bind')" class="text-ink underline underline-offset-2" data-i18n="agency.goBind">前往渠道与 API 接入绑定</button>
@@ -993,6 +1035,12 @@
   <!-- ========================================================================= -->
   <script>
     let currentCampaignId = null;
+    let activeConversationId = null;
+    let chatMessages = [];
+    let conversationSummaries = [];
+    let conversationLoadController = null;
+    let currentChatMode = 'chat';
+    let isChatSubmitting = false;
     let currentPlatformFilter = 'all';
     let cachedDrafts = {};
     let cachedCampaigns = {};
@@ -1362,6 +1410,20 @@
       'oauth.connected': ['已连接 {n} 个 Facebook 主页', 'Connected {n} Facebook Page(s)'],
       'oauth.partial': ['已连接 {n} 个 Facebook 主页，其余超出 Pro 渠道上限。', 'Connected {n} Facebook Page(s); the rest exceed the Pro channel cap.'],
       'oauth.failed': ['Facebook 授权未完成，请重试。', "Facebook authorization didn't complete. Please try again."],
+      'nav.history': ['最近对话', 'Recent chats'],
+      'nav.noHistory': ['暂无对话', 'No conversations yet'],
+      'nav.historyLoading': ['正在加载…', 'Loading conversations…'],
+      'nav.historyError': ['无法加载对话记录', 'Could not load conversation history'],
+      'nav.untitledChat': ['新对话', 'New conversation'],
+      'hero.title': ['你想探索什么？', 'What would you like to explore?'],
+      'hero.sub': ['自由对话；需要生成营销内容时，再切换到营销活动模式。', 'Chat freely, or switch to Campaign mode when you want to generate creative work.'],
+      'composer.placeholder': ['向 OmniFlow 提问…', 'Ask OmniFlow anything…'],
+      'composer.inputLabel': ['给 OmniFlow 发消息', 'Message OmniFlow'],
+      'composer.modeTitle': ['切换对话 / 营销活动模式', 'Switch chat / campaign mode'],
+      'composer.modeChat': ['对话', 'Chat'],
+      'composer.modeCampaign': ['营销活动', 'Campaign'],
+      'composer.sending': ['正在回复', 'Responding'],
+      'composer.imagePrompt': ['请分析这张图像。', 'Please analyze this image.'],
     };
 
     let currentLang = (() => {
@@ -1430,6 +1492,8 @@
         document.querySelectorAll(`[data-i18n-${attr}]`).forEach(el => el.setAttribute(attr, t(el.getAttribute(`data-i18n-${attr}`))));
       });
       document.querySelectorAll('[data-lang-opt]').forEach(el => el.classList.toggle('active', el.dataset.langOpt === currentLang));
+      updateChatModeControl();
+      renderConversationSummaries();
       renderPlanSummary();
       renderPricing();
     }
@@ -1558,6 +1622,166 @@
       if (!el) return;
       el.style.height = 'auto';
       el.style.height = Math.min(el.scrollHeight, 200) + 'px';
+    }
+
+    // =========================================================================
+    // PERSISTENT CONVERSATIONS: database is authoritative; localStorage avoids
+    // an empty flash while the active conversation is revalidated after refresh.
+    // =========================================================================
+    const CHAT_CACHE_VERSION = 1;
+
+    function chatCacheKey() {
+      const owner = currentUser && currentUser.id ? currentUser.id : 'anonymous';
+      return `omniflow_chat_cache_v${CHAT_CACHE_VERSION}:${owner}`;
+    }
+
+    function persistChatCache() {
+      try {
+        localStorage.setItem(chatCacheKey(), JSON.stringify({
+          version: CHAT_CACHE_VERSION,
+          activeConversationId,
+          messages: chatMessages.slice(-100).map(item => ({
+            role: item.role,
+            content: String(item.content || '').slice(0, 50000),
+          })),
+        }));
+      } catch (_) {}
+    }
+
+    function recordChatMessage(role, content) {
+      if (!content) return;
+      chatMessages.push({ role, content: String(content) });
+      persistChatCache();
+    }
+
+    function restoreChatCache() {
+      let cached = null;
+      try { cached = JSON.parse(localStorage.getItem(chatCacheKey()) || 'null'); } catch (_) {}
+      if (!cached || cached.version !== CHAT_CACHE_VERSION || !Array.isArray(cached.messages)) return false;
+      activeConversationId = typeof cached.activeConversationId === 'string' ? cached.activeConversationId : null;
+      const restored = cached.messages.filter(item =>
+        item && (item.role === 'user' || item.role === 'assistant') && typeof item.content === 'string'
+      );
+      if (!restored.length) return false;
+      renderConversationMessages(restored, { persist: false });
+      return true;
+    }
+
+    function updateChatModeControl() {
+      const campaignMode = currentChatMode === 'campaign';
+      const button = document.getElementById('chatModeButton');
+      const icon = document.getElementById('chatModeIcon');
+      const label = document.getElementById('chatModeLabel');
+      if (button) {
+        button.setAttribute('aria-pressed', String(campaignMode));
+        button.classList.toggle('mode-pill-active', campaignMode);
+        button.title = t('composer.modeTitle');
+      }
+      if (icon) icon.textContent = campaignMode ? 'campaign' : 'forum';
+      if (label) setText(label, msg(campaignMode ? 'composer.modeCampaign' : 'composer.modeChat'));
+    }
+
+    function setChatMode(mode) {
+      currentChatMode = mode === 'campaign' ? 'campaign' : 'chat';
+      updateChatModeControl();
+      document.getElementById('chatInput')?.focus();
+    }
+
+    function toggleChatMode() {
+      setChatMode(currentChatMode === 'chat' ? 'campaign' : 'chat');
+    }
+
+    function renderConversationSummaries() {
+      const list = document.getElementById('sidebarConversationsList');
+      if (!list) return;
+      list.replaceChildren();
+      if (!conversationSummaries.length) {
+        const empty = document.createElement('div');
+        empty.className = 'p-3 text-xs text-muted';
+        empty.textContent = t('nav.noHistory');
+        list.appendChild(empty);
+        return;
+      }
+      conversationSummaries.forEach(conversation => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'drawer-item';
+        button.setAttribute('aria-current', conversation.id === activeConversationId ? 'page' : 'false');
+        button.addEventListener('click', () => openConversation(conversation.id));
+
+        const icon = document.createElement('span');
+        icon.className = 'material-symbols-outlined text-base';
+        icon.textContent = 'chat_bubble';
+        const title = document.createElement('span');
+        title.className = 'recent-chat-title flex-1';
+        title.textContent = conversation.title || t('nav.untitledChat');
+        button.append(icon, title);
+        list.appendChild(button);
+      });
+    }
+
+    async function loadConversations({ refreshActive = true } = {}) {
+      const list = document.getElementById('sidebarConversationsList');
+      if (list && !conversationSummaries.length) {
+        const loading = document.createElement('div');
+        loading.className = 'p-3 text-xs text-muted';
+        loading.textContent = t('nav.historyLoading');
+        list.replaceChildren(loading);
+      }
+      try {
+        const res = await fetch('/api/conversations', { cache: 'no-store' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        conversationSummaries = Array.isArray(data) ? data : [];
+        renderConversationSummaries();
+        if (refreshActive && activeConversationId) {
+          if (conversationSummaries.some(item => item.id === activeConversationId)) {
+            await loadConversation(activeConversationId, { closeDrawer: false });
+          } else {
+            resetToNewChat();
+          }
+        }
+      } catch (err) {
+        if (list && !conversationSummaries.length) {
+          const error = document.createElement('div');
+          error.className = 'p-3 text-xs text-rose-500';
+          error.textContent = t('nav.historyError');
+          list.replaceChildren(error);
+        }
+      }
+    }
+
+    async function loadConversation(conversationId, { closeDrawer = true } = {}) {
+      if (conversationLoadController) conversationLoadController.abort();
+      const controller = new AbortController();
+      conversationLoadController = controller;
+      activeConversationId = conversationId;
+      renderConversationSummaries();
+      persistChatCache();
+      if (closeDrawer) toggleSidebar(false);
+      try {
+        const res = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}/messages`, {
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const messages = await res.json();
+        if (controller.signal.aborted || conversationLoadController !== controller) return;
+        renderConversationMessages(Array.isArray(messages) ? messages : []);
+      } catch (err) {
+        if (err && err.name === 'AbortError') return;
+        showToast(msg('nav.historyError'), false);
+      } finally {
+        if (conversationLoadController === controller) conversationLoadController = null;
+      }
+    }
+
+    function openConversation(conversationId) {
+      if (!conversationId || conversationId === activeConversationId) {
+        toggleSidebar(false);
+        return;
+      }
+      loadConversation(conversationId);
     }
 
     // =========================================================================
@@ -2039,7 +2263,7 @@
       if (label) setText(label, msg('composer.attach'));
     }
 
-    function appendUserMessage(text, imgSrc) {
+    function appendUserMessage(text, imgSrc, options = {}) {
       const msgArea = document.getElementById('messagesContainer');
       const userBubble = document.createElement('div');
       userBubble.className = 'flex justify-end animate-fade-in';
@@ -2061,7 +2285,56 @@
         </div>
       `;
       msgArea.appendChild(userBubble);
+      if (options.record !== false && text) recordChatMessage('user', text);
       scrollToBottom();
+    }
+
+    function appendAssistantMessage(text, options = {}) {
+      const hero = document.getElementById('emptyHeroState');
+      if (hero) hero.classList.add('hidden');
+      const msgArea = document.getElementById('messagesContainer');
+      if (!msgArea) return;
+      msgArea.classList.remove('hidden');
+
+      const row = document.createElement('div');
+      row.className = 'flex items-start gap-3 animate-fade-in';
+      const avatar = document.createElement('img');
+      avatar.src = '/static/assets/logos/omniflow_logo.svg';
+      avatar.alt = '';
+      avatar.className = 'w-7 h-7 rounded-lg shrink-0 mt-0.5';
+      const body = document.createElement('div');
+      body.className = 'glass-panel p-4 rounded-2xl rounded-tl-sm border border-white/10 text-sm text-zinc-100 leading-relaxed whitespace-pre-wrap max-w-2xl shadow-lg';
+      body.textContent = String(text || '');
+      row.append(avatar, body);
+      msgArea.appendChild(row);
+      if (options.record !== false && text) recordChatMessage('assistant', text);
+      scrollToBottom();
+    }
+
+    function renderConversationMessages(messages, options = {}) {
+      removeThinkingIndicator();
+      const normalized = (messages || []).filter(item =>
+        item && (item.role === 'user' || item.role === 'assistant') && typeof item.content === 'string'
+      ).map(item => ({ role: item.role, content: item.content }));
+      chatMessages = normalized;
+      cachedDrafts = {};
+      const msgArea = document.getElementById('messagesContainer');
+      if (msgArea) msgArea.replaceChildren();
+      const hero = document.getElementById('emptyHeroState');
+      if (!normalized.length) {
+        if (hero) hero.classList.remove('hidden');
+        if (msgArea) msgArea.classList.add('hidden');
+      } else {
+        if (hero) hero.classList.add('hidden');
+        if (msgArea) msgArea.classList.remove('hidden');
+        normalized.forEach(item => {
+          if (item.role === 'user') appendUserMessage(item.content, null, { record: false });
+          else appendAssistantMessage(item.content, { record: false });
+        });
+      }
+      syncComposerPosition();
+      if (options.persist !== false) persistChatCache();
+      requestAnimationFrame(scrollToBottom);
     }
 
     // =========================================================================
@@ -2072,7 +2345,7 @@
         event = window.event;
       }
       if (!event) return;
-      if (event.key === 'Enter' && !event.shiftKey) {
+      if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
         if (event.preventDefault) event.preventDefault();
         submitChat();
       }
@@ -2148,6 +2421,11 @@
     }
 
     function resetToNewChat() {
+      if (conversationLoadController) conversationLoadController.abort();
+      conversationLoadController = null;
+      activeConversationId = null;
+      chatMessages = [];
+      setChatMode('chat');
       removeThinkingIndicator();
       const msgArea = document.getElementById('messagesContainer');
       if (msgArea) {
@@ -2167,12 +2445,15 @@
       clearAttachedImage();
       cachedDrafts = {};
       syncComposerPosition();
+      renderConversationSummaries();
+      persistChatCache();
     }
 
     function fillAndSend(prompt) {
       const input = document.getElementById('chatInput');
       if (input) {
         input.value = prompt;
+        autoGrowInput(input);
       }
       submitChat();
     }
@@ -2181,11 +2462,25 @@
     // DYNAMIC CHAT SUBMISSION & VISION PIPELINE
     // =========================================================================
     async function submitChat() {
+      if (isChatSubmitting) return;
       const input = document.getElementById('chatInput');
       if (!input) return;
       const text = input.value.trim();
       const currentImage = attachedImageBase64;
       if (!text && !currentImage) return;
+      const requestText = text || t('composer.imagePrompt');
+      const sendButton = document.getElementById('sendBtn');
+      const sendIcon = sendButton?.querySelector('.material-symbols-outlined');
+      isChatSubmitting = true;
+      if (sendButton) {
+        sendButton.disabled = true;
+        sendButton.setAttribute('aria-busy', 'true');
+        sendButton.title = t('composer.sending');
+      }
+      if (sendIcon) {
+        sendIcon.textContent = 'progress_activity';
+        sendIcon.classList.add('animate-spin');
+      }
 
       // Hide empty hero state, reveal messages container
       const hero = document.getElementById('emptyHeroState');
@@ -2194,36 +2489,58 @@
       if (msgArea) msgArea.classList.remove('hidden');
 
       // 1. Append User Message with REAL image thumbnail
-      appendUserMessage(text, currentImage);
+      appendUserMessage(requestText, currentImage);
       input.value = '';
       autoGrowInput(input);
       clearAttachedImage();
+      input.focus();
 
       // 2. Show AI Thinking Indicator (returns element ID)
       const thinkingId = appendThinkingIndicator();
       scrollToBottom();
 
-      // 3. Real copy generation (LLM, with the attached image when there is one)
+      // 3. Standard chat is side-effect free. Creative/campaign work is sent only
+      // after the user explicitly switches the composer to Campaign mode.
       try {
         const payload = {
-          prompt: text,
-          topic: text,
+          message: requestText,
+          conversation_id: activeConversationId,
+          mode: currentChatMode,
           image_base64: currentImage,
-          campaign_id: currentCampaignId || 'default-campaign'
+          campaign_id: currentChatMode === 'campaign' ? currentCampaignId : null,
         };
         if (currentPlatformFilter && currentPlatformFilter !== 'all') {
           payload.platforms = [currentPlatformFilter];
         }
 
-        const res = await fetch('/content/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
+        const request = () => fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+        let res = await request();
+        // A locally cached conversation may have been deleted server-side. The
+        // rejected request writes nothing, so it is safe to retry as a new chat.
+        if (res.status === 404 && payload.conversation_id) {
+          activeConversationId = null;
+          payload.conversation_id = null;
+          res = await request();
+        }
 
         if (res.ok) {
           const data = await res.json();
-          renderDynamicCreativeCard(text, data, currentImage);
+          activeConversationId = data.conversation_id || activeConversationId;
+          if (data.reply) appendAssistantMessage(data.reply);
+          if (currentChatMode === 'campaign' && data.type === 'content_generation' && Array.isArray(data.drafts)) {
+            renderDynamicCreativeCard(requestText, data, currentImage);
+          } else if (currentChatMode === 'campaign' && data.type === 'campaign' && data.data) {
+            appendAiCampaignCard(data.data);
+          }
+          persistChatCache();
+          await loadConversations({ refreshActive: false });
+          if (currentChatMode === 'campaign' && (data.type === 'campaign' || data.type === 'content_generation')) {
+            await loadCampaigns();
+          }
         } else {
           let errDetail = msg('chat.genFailed', { status: res.status });
           let planLimited = false;
@@ -2248,6 +2565,18 @@
         showToast(errDetail, false);
       } finally {
         removeThinkingIndicator(thinkingId);
+        isChatSubmitting = false;
+        input.disabled = false;
+        if (sendButton) {
+          sendButton.disabled = false;
+          sendButton.removeAttribute('aria-busy');
+          sendButton.title = t('composer.send');
+        }
+        if (sendIcon) {
+          sendIcon.textContent = 'arrow_upward';
+          sendIcon.classList.remove('animate-spin');
+        }
+        input.focus();
         scrollToBottom();
       }
     }
@@ -3024,6 +3353,10 @@
 
     // Loads the signed-in workspace's data.
     function startWorkspace() {
+      // Paint the last active chat immediately, then reconcile it with the
+      // authenticated database records in the background.
+      restoreChatCache();
+      loadConversations();
       loadCampaigns();
       checkFacebookLiveStatus();
       loadSubscription();
@@ -3366,6 +3699,9 @@
     function resetWorkspaceState() {
       currentUser = null;
       currentCampaignId = null;
+      activeConversationId = null;
+      chatMessages = [];
+      conversationSummaries = [];
       connectedFacebookPageId = '';
       cachedDrafts = {};
       cachedCampaigns = {};
@@ -3375,6 +3711,7 @@
       renderPlanSummary();
       clearAgencyLicense();
       resetToNewChat();
+      renderConversationSummaries();
       const list = document.getElementById('sidebarCampaignsList');
       if (list) list.innerHTML = `<div class="p-4 text-xs text-zinc-500">${i18nSpan('nav.noCampaigns')}</div>`;
       const badge = document.getElementById('scheduledBadgeCount');
@@ -4034,6 +4371,9 @@
     window.resetToNewChat = resetToNewChat;
     window._resetChat = resetToNewChat;
     window.submitChat = submitChat;
+    window.toggleChatMode = toggleChatMode;
+    window.openConversation = openConversation;
+    window.loadConversations = loadConversations;
     window.loadCampaigns = loadCampaigns;
     window._loadCampaigns = loadCampaigns;
     window.renderDynamicCreativeCard = renderDynamicCreativeCard;
@@ -4176,7 +4516,7 @@
 
       <div id="pricingDone" class="form-note hidden mt-5" role="status">
         <span id="pricingDoneText"></span>
-        <a id="pricingCheckout" href="#" target="_blank" rel="noopener" class="hidden ml-1 font-semibold underline underline-offset-2" data-i18n="price.pay">前往付款 ↗</a>
+        <a id="pricingCheckout" target="_blank" rel="noopener" class="hidden ml-1 font-semibold underline underline-offset-2" data-i18n="price.pay">前往付款 ↗</a>
       </div>
       <div id="pricingError" class="form-alert hidden mt-5" role="alert"></div>
       <p id="pricingNote" class="text-[11px] text-muted text-center mt-5 leading-relaxed" data-i18n="price.note">提交后我们会在 1 个工作日内联系你完成付款，付款确认后立即开通。</p>

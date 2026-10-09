@@ -51,6 +51,8 @@ def channel_limit_reached(limit: int) -> HTTPException:
 
 def produced_ai_output(result: Any) -> bool:
     """True when at least one draft was written by the model (not the template fallback)."""
+    if isinstance(result, dict) and (result.get("data") or {}).get("status") == "ai_generated":
+        return True
     drafts = result.get("drafts") if isinstance(result, dict) else result
     for draft in drafts or []:
         meta = draft.get("metadata") if isinstance(draft, dict) else getattr(draft, "metadata", None)

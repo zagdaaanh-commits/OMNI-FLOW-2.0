@@ -31,7 +31,7 @@ def test_dashboard_and_cors():
 
     res_dash = client.get("/dashboard")
     assert res_dash.status_code == 200
-    assert "What campaign would you like to launch today?" in res_dash.text
+    assert "What would you like to explore?" in res_dash.text
 
     # Test CORS header
     res_cors = client.get("/health", headers={"Origin": "http://localhost:3000"})

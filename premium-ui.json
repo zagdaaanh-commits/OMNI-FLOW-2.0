@@ -1,0 +1,6 @@
+{
+  "sourceRoots": ["app/static"],
+  "ownership": {
+    "Select/Listbox": "native"
+  }
+}

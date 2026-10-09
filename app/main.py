@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -54,7 +54,9 @@ from models.schemas import (
     AuthResponse,
     Campaign,
     CampaignCreate,
+    ChatMessage,
     ConnectAccountRequest,
+    Conversation,
     ContentDraft,
     ContentGenerateRequest,
     MetaAdAccountConnectRequest,
@@ -179,6 +181,18 @@ def _require_global_admin(ctx: TenantContext = Depends(get_tenant_context)) -> T
     if ctx.tenant_id != DEFAULT_TENANT_ID:
         raise HTTPException(status_code=403, detail="This setting is managed at the platform level.")
     return ctx
+
+
+def _chat_owner_id(ctx: TenantContext) -> str:
+    """Stable chat owner for signed-in users and auth-optional local/demo mode."""
+    return ctx.user_id or f"anonymous:{ctx.tenant_id}"
+
+
+def _validate_conversation_id(conversation_id: str) -> str:
+    try:
+        return str(UUID(conversation_id))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail="conversation_id must be a UUID") from exc
 
 
 def _resolve_campaign(campaign_id: Optional[str], tenant_id: str) -> Campaign:
@@ -376,6 +390,85 @@ def get_campaign_details(campaign_id: str, ctx: TenantContext = Depends(get_tena
 # =============================================================================
 # Assistant & content generation
 # =============================================================================
+@app.get("/api/conversations", response_model=List[Conversation])
+def list_chat_conversations(ctx: TenantContext = Depends(get_tenant_context)) -> List[Conversation]:
+    return store.list_conversations(user_id=_chat_owner_id(ctx), tenant_id=ctx.tenant_id)
+
+
+@app.get("/api/conversations/{conversation_id}/messages", response_model=List[ChatMessage])
+def list_chat_messages(
+    conversation_id: str,
+    ctx: TenantContext = Depends(get_tenant_context),
+) -> List[ChatMessage]:
+    conversation_id = _validate_conversation_id(conversation_id)
+    owner_id = _chat_owner_id(ctx)
+    if not store.get_conversation(conversation_id, user_id=owner_id, tenant_id=ctx.tenant_id):
+        # Ownership failures deliberately look the same as missing rows.
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return store.list_messages(conversation_id, user_id=owner_id, tenant_id=ctx.tenant_id)
+
+
+@app.post("/api/chat", response_model=AssistantChatResponse)
+def persistent_assistant_chat(
+    payload: AssistantChatRequest,
+    ctx: TenantContext = Depends(get_tenant_context),
+    plan: PlanGate = Depends(verify_plan_limit("ai_generation")),
+) -> AssistantChatResponse:
+    message = payload.message.strip()
+    if not message:
+        raise HTTPException(status_code=422, detail="message must not be blank")
+
+    owner_id = _chat_owner_id(ctx)
+    if payload.conversation_id:
+        conversation_id = _validate_conversation_id(payload.conversation_id)
+        conversation = store.get_conversation(conversation_id, user_id=owner_id, tenant_id=ctx.tenant_id)
+        if not conversation:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+    else:
+        conversation = store.create_conversation(user_id=owner_id, tenant_id=ctx.tenant_id)
+        conversation_id = conversation.id
+
+    prior_messages = store.list_messages(conversation_id, user_id=owner_id, tenant_id=ctx.tenant_id)
+    store.add_message(
+        conversation_id,
+        user_id=owner_id,
+        role="user",
+        content=message,
+        tenant_id=ctx.tenant_id,
+    )
+    history = [{"role": item.role, "content": item.content} for item in prior_messages]
+    history.append({"role": "user", "content": message})
+
+    with plan.ai_run() as run:
+        result = assistant.process_message(
+            message,
+            payload.campaign_id,
+            tenant_id=ctx.tenant_id,
+            mode=payload.mode or "chat",
+            history=history,
+            image_base64=payload.image_base64,
+            platforms=payload.platforms,
+        )
+        run.keep_if_ai(result)
+
+    reply = str(result.get("reply") or "Directive processed successfully.").strip()
+    store.add_message(
+        conversation_id,
+        user_id=owner_id,
+        role="assistant",
+        content=reply,
+        tenant_id=ctx.tenant_id,
+    )
+    return AssistantChatResponse(
+        conversation_id=conversation_id,
+        type=result.get("type", "chat"),
+        reply=reply,
+        topic=result.get("topic"),
+        drafts=result.get("drafts"),
+        data=result.get("data"),
+    )
+
+
 @app.post("/assistant/chat", response_model=AssistantChatResponse)
 @app.post("/chat", response_model=AssistantChatResponse)
 def assistant_chat(
@@ -384,7 +477,14 @@ def assistant_chat(
     plan: PlanGate = Depends(verify_plan_limit("ai_generation")),
 ) -> AssistantChatResponse:
     with plan.ai_run() as run:
-        res = assistant.process_message(payload.message, payload.campaign_id, tenant_id=ctx.tenant_id)
+        res = assistant.process_message(
+            payload.message,
+            payload.campaign_id,
+            tenant_id=ctx.tenant_id,
+            mode=payload.mode or "campaign",
+            image_base64=payload.image_base64,
+            platforms=payload.platforms,
+        )
         run.keep_if_ai(res)  # plain answers and template drafts do not use the quota
     return AssistantChatResponse(
         type=res.get("type", "chat"),
@@ -1101,4 +1201,3 @@ def connect_meta_ad_account(
         "account_status": status_code,
         "account_status_label": AD_ACCOUNT_STATUS_LABELS.get(status_code, "unknown"),
     }
-

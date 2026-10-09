@@ -39,7 +39,7 @@ def store(request, tmp_path):
     migrate_sql = Path(__file__).resolve().parent.parent / "scripts" / "init_supabase.sql"
     with psycopg.connect(PG_URL, autocommit=True) as conn:
         conn.execute(migrate_sql.read_text(encoding="utf-8"))
-        conn.execute("TRUNCATE tenants, users, campaigns, content_drafts, social_accounts, scheduled_tasks, agency_applications, page_comments CASCADE")
+        conn.execute("TRUNCATE tenants, users, conversations, messages, campaigns, content_drafts, social_accounts, scheduled_tasks, agency_applications, page_comments CASCADE")
     s = PostgresStore(PG_URL, min_size=1, max_size=12)
     yield s
     s.close()
@@ -74,6 +74,43 @@ def _mk_tenants(store, *names):
 # ---------------------------------------------------------------------- tenants
 def test_default_tenant_exists(store):
     assert store.get_tenant("default")["id"] == "default"
+
+
+def test_chat_history_is_user_scoped_and_first_prompt_becomes_title(store):
+    conversation = store.create_conversation(user_id="user-a", tenant_id="default")
+    store.add_message(
+        conversation.id,
+        user_id="user-a",
+        role="user",
+        content="  Plan   a thoughtful launch for our fall collection  ",
+        tenant_id="default",
+    )
+    store.add_message(
+        conversation.id,
+        user_id="user-a",
+        role="assistant",
+        content="Here is a side-effect-free plan.",
+        tenant_id="default",
+    )
+
+    own = store.list_conversations(user_id="user-a", tenant_id="default")
+    assert len(own) == 1
+    assert own[0].title == "Plan a thoughtful launch for our fall collection"
+    assert [item.role for item in store.list_messages(
+        conversation.id, user_id="user-a", tenant_id="default"
+    )] == ["user", "assistant"]
+
+    assert store.get_conversation(conversation.id, user_id="user-b", tenant_id="default") is None
+    assert store.list_conversations(user_id="user-b", tenant_id="default") == []
+    assert store.list_messages(conversation.id, user_id="user-b", tenant_id="default") == []
+    with pytest.raises(CrossTenantWriteError):
+        store.add_message(
+            conversation.id,
+            user_id="user-b",
+            role="user",
+            content="Attempted foreign write",
+            tenant_id="default",
+        )
 
 
 def test_create_tenant_generates_unique_slugs(store):

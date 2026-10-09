@@ -31,7 +31,7 @@ from psycopg_pool import ConnectionPool
 from app.config import env_int
 from db.base import DEFAULT_TENANT_ID, CrossTenantWriteError, mask_token, slugify, utcnow
 from db.passwords import hash_password, needs_rehash, verify_password
-from models.schemas import Campaign, ContentDraft, PublishStatus, PublishTask
+from models.schemas import Campaign, ChatMessage, ContentDraft, Conversation, PublishStatus, PublishTask
 
 logger = logging.getLogger("omniflow.db.postgres")
 
@@ -62,7 +62,9 @@ class PostgresStore:
 
     # ------------------------------------------------------------ connection
     @contextmanager
-    def _tx(self, tenant_id: Optional[str] = None) -> Iterator[psycopg.Connection]:
+    def _tx(
+        self, tenant_id: Optional[str] = None, *, user_id: Optional[str] = None
+    ) -> Iterator[psycopg.Connection]:
         """One transaction with RLS context. ``tenant_id=None`` => worker/global scope."""
         with self.pool.connection() as conn:
             with conn.transaction():
@@ -70,6 +72,8 @@ class PostgresStore:
                     conn.execute("SELECT set_config('app.bypass_rls', 'on', true)")
                 else:
                     conn.execute("SELECT set_config('app.tenant_id', %s, true)", (tenant_id,))
+                    if user_id is not None:
+                        conn.execute("SELECT set_config('app.user_id', %s, true)", (user_id,))
                 yield conn
 
     def close(self) -> None:
@@ -554,6 +558,96 @@ class PostgresStore:
         with self._tx(tenant_id) as conn:
             rows = conn.execute(sql, params).fetchall()
         return [_stringify(r) for r in rows]  # type: ignore[misc]
+
+    # ------------------------------------------------------- chat history
+    def create_conversation(
+        self, *, user_id: str, tenant_id: str = DEFAULT_TENANT_ID, title: str = ""
+    ) -> Conversation:
+        conversation = Conversation(tenant_id=tenant_id, user_id=user_id, title=title.strip()[:200])
+        with self._tx(tenant_id, user_id=user_id) as conn:
+            row = conn.execute(
+                """
+                INSERT INTO conversations (id, tenant_id, user_id, title, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING *
+                """,
+                (
+                    conversation.id,
+                    conversation.tenant_id,
+                    conversation.user_id,
+                    conversation.title,
+                    conversation.created_at,
+                    conversation.updated_at,
+                ),
+            ).fetchone()
+        return Conversation.model_validate(_stringify(row))
+
+    def get_conversation(
+        self, conversation_id: str, *, user_id: str, tenant_id: str = DEFAULT_TENANT_ID
+    ) -> Optional[Conversation]:
+        with self._tx(tenant_id, user_id=user_id) as conn:
+            row = conn.execute(
+                "SELECT * FROM conversations WHERE id = %s AND tenant_id = %s AND user_id = %s",
+                (conversation_id, tenant_id, user_id),
+            ).fetchone()
+        return Conversation.model_validate(_stringify(row)) if row else None
+
+    def list_conversations(
+        self, *, user_id: str, tenant_id: str = DEFAULT_TENANT_ID
+    ) -> List[Conversation]:
+        with self._tx(tenant_id, user_id=user_id) as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM conversations
+                WHERE tenant_id = %s AND user_id = %s
+                ORDER BY updated_at DESC, id DESC
+                """,
+                (tenant_id, user_id),
+            ).fetchall()
+        return [Conversation.model_validate(_stringify(row)) for row in rows]
+
+    def add_message(
+        self,
+        conversation_id: str,
+        *,
+        user_id: str,
+        role: str,
+        content: str,
+        tenant_id: str = DEFAULT_TENANT_ID,
+    ) -> ChatMessage:
+        message = ChatMessage(conversation_id=conversation_id, role=role, content=content)
+        with self._tx(tenant_id, user_id=user_id) as conn:
+            owner = conn.execute(
+                "SELECT 1 FROM conversations WHERE id = %s AND tenant_id = %s AND user_id = %s",
+                (conversation_id, tenant_id, user_id),
+            ).fetchone()
+            if not owner:
+                raise CrossTenantWriteError("Conversation does not exist or belongs to another user.")
+            row = conn.execute(
+                """
+                INSERT INTO messages (id, conversation_id, role, content, created_at)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING *
+                """,
+                (message.id, message.conversation_id, message.role, message.content, message.created_at),
+            ).fetchone()
+        return ChatMessage.model_validate(_stringify(row))
+
+    def list_messages(
+        self, conversation_id: str, *, user_id: str, tenant_id: str = DEFAULT_TENANT_ID
+    ) -> List[ChatMessage]:
+        with self._tx(tenant_id, user_id=user_id) as conn:
+            rows = conn.execute(
+                """
+                SELECT m.*
+                FROM messages AS m
+                JOIN conversations AS c ON c.id = m.conversation_id
+                WHERE m.conversation_id = %s AND c.tenant_id = %s AND c.user_id = %s
+                ORDER BY m.created_at ASC, m.id ASC
+                """,
+                (conversation_id, tenant_id, user_id),
+            ).fetchall()
+        return [ChatMessage.model_validate(_stringify(row)) for row in rows]
 
     # ------------------------------------------------ campaigns/drafts/tasks
     @staticmethod

@@ -24,7 +24,7 @@ from db.base import (
     utcnow,
 )
 from db.passwords import hash_password, needs_rehash, verify_password
-from models.schemas import Campaign, ContentDraft, PublishStatus, PublishTask
+from models.schemas import Campaign, ChatMessage, ContentDraft, Conversation, PublishStatus, PublishTask
 
 logger = logging.getLogger("omniflow.db.sqlite")
 
@@ -151,6 +151,21 @@ CREATE TABLE IF NOT EXISTS page_comments (
     updated_at TEXT NOT NULL,
     UNIQUE (tenant_id, comment_id)
 );
+CREATE TABLE IF NOT EXISTS conversations (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    title TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS messages (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL REFERENCES conversations (id) ON DELETE CASCADE,
+    role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+    content TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
 -- One-time sign-up / password-reset codes (HMAC only), one pending code per email and purpose.
 CREATE TABLE IF NOT EXISTS email_verification_codes (
     email TEXT NOT NULL,
@@ -193,6 +208,8 @@ CREATE INDEX IF NOT EXISTS idx_agency_applications_tenant ON agency_applications
 CREATE INDEX IF NOT EXISTS idx_page_comments_tenant_post ON page_comments (tenant_id, post_id, created_time);
 CREATE INDEX IF NOT EXISTS idx_upgrade_requests_tenant ON upgrade_requests (tenant_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_billing_payments_tenant ON billing_payments (tenant_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_conversations_owner_updated ON conversations (tenant_id, user_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_conversation_created ON messages (conversation_id, created_at, id);
 """
 
 
@@ -210,6 +227,7 @@ class SQLiteStore:
         conn = sqlite3.connect(self.path, timeout=30, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA busy_timeout = 30000")
+        conn.execute("PRAGMA foreign_keys = ON")
         try:
             yield conn
             conn.commit()
@@ -223,6 +241,7 @@ class SQLiteStore:
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.path, timeout=30, check_same_thread=False)
         conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys = ON")
         return conn
 
     def close(self) -> None:  # connections are per-operation
@@ -813,6 +832,104 @@ class SQLiteStore:
         params.append(limit)
         with self._conn() as conn:
             return [dict(r) for r in conn.execute(sql, params).fetchall()]
+
+    # ------------------------------------------------------- chat history
+    @staticmethod
+    def _conversation_title(content: str) -> str:
+        return " ".join(content.split())[:72]
+
+    def create_conversation(
+        self, *, user_id: str, tenant_id: str = DEFAULT_TENANT_ID, title: str = ""
+    ) -> Conversation:
+        conversation = Conversation(tenant_id=tenant_id, user_id=user_id, title=title.strip()[:200])
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO conversations (id, tenant_id, user_id, title, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    conversation.id,
+                    conversation.tenant_id,
+                    conversation.user_id,
+                    conversation.title,
+                    iso_utc(conversation.created_at),
+                    iso_utc(conversation.updated_at),
+                ),
+            )
+        return conversation
+
+    def get_conversation(
+        self, conversation_id: str, *, user_id: str, tenant_id: str = DEFAULT_TENANT_ID
+    ) -> Optional[Conversation]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM conversations WHERE id = ? AND tenant_id = ? AND user_id = ?",
+                (conversation_id, tenant_id, user_id),
+            ).fetchone()
+        return Conversation.model_validate(dict(row)) if row else None
+
+    def list_conversations(
+        self, *, user_id: str, tenant_id: str = DEFAULT_TENANT_ID
+    ) -> List[Conversation]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM conversations
+                WHERE tenant_id = ? AND user_id = ?
+                ORDER BY updated_at DESC, id DESC
+                """,
+                (tenant_id, user_id),
+            ).fetchall()
+        return [Conversation.model_validate(dict(row)) for row in rows]
+
+    def add_message(
+        self,
+        conversation_id: str,
+        *,
+        user_id: str,
+        role: str,
+        content: str,
+        tenant_id: str = DEFAULT_TENANT_ID,
+    ) -> ChatMessage:
+        message = ChatMessage(conversation_id=conversation_id, role=role, content=content)
+        now = iso_utc(message.created_at)
+        with self._conn() as conn:
+            conversation = conn.execute(
+                "SELECT title FROM conversations WHERE id = ? AND tenant_id = ? AND user_id = ?",
+                (conversation_id, tenant_id, user_id),
+            ).fetchone()
+            if not conversation:
+                raise CrossTenantWriteError("Conversation does not exist or belongs to another user.")
+            conn.execute(
+                "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
+                (message.id, message.conversation_id, message.role, message.content, now),
+            )
+            title = self._conversation_title(content) if role == "user" and not conversation["title"].strip() else None
+            if title:
+                conn.execute(
+                    "UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?",
+                    (title, now, conversation_id),
+                )
+            else:
+                conn.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
+        return message
+
+    def list_messages(
+        self, conversation_id: str, *, user_id: str, tenant_id: str = DEFAULT_TENANT_ID
+    ) -> List[ChatMessage]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT m.*
+                FROM messages AS m
+                JOIN conversations AS c ON c.id = m.conversation_id
+                WHERE m.conversation_id = ? AND c.tenant_id = ? AND c.user_id = ?
+                ORDER BY m.created_at ASC, m.id ASC
+                """,
+                (conversation_id, tenant_id, user_id),
+            ).fetchall()
+        return [ChatMessage.model_validate(dict(row)) for row in rows]
 
     # ------------------------------------------------ campaigns/drafts/tasks
     @staticmethod
